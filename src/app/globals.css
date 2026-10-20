@@ -1,0 +1,133 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --shell: #f6f4ef;
+  --surface: #ffffff;
+  --popover: #ffffff;
+  --ink: #1b1a17;
+  --ink-muted: #67625a;
+  --hairline: #e6e1d8;
+  --rail: #d6d0c4;
+  --wash: #f0ece4;
+  --primary: #12704f;
+  --primary-hover: #0d5c41;
+  --primary-soft: #e2f0ea;
+  --primary-ink: #ffffff;
+  --destructive: #c2341b;
+  --destructive-soft: #fbe9e5;
+  --colour-0: #c2410c;
+  --colour-1: #b7791f;
+  --colour-2: #8e3fb5;
+  --colour-3: #0e7c86;
+  --colour-4: #c0265a;
+  --colour-5: #4257c8;
+  color-scheme: light;
+}
+
+.dark {
+  --shell: #121110;
+  --surface: #1a1917;
+  --popover: #22201d;
+  --ink: #ece8e1;
+  --ink-muted: #a39d92;
+  --hairline: #2c2a26;
+  --rail: #3a3732;
+  --wash: #24221f;
+  --primary: #5cc497;
+  --primary-hover: #79d3ab;
+  --primary-soft: #15302a;
+  --primary-ink: #0d1a14;
+  --destructive: #ff6b57;
+  --destructive-soft: #3a1c17;
+  --colour-0: #fb8a50;
+  --colour-1: #f2c24f;
+  --colour-2: #c88bea;
+  --colour-3: #3cc8d3;
+  --colour-4: #f26b98;
+  --colour-5: #8b9bf5;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-shell: var(--shell);
+  --color-surface: var(--surface);
+  --color-popover: var(--popover);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-hairline: var(--hairline);
+  --color-rail: var(--rail);
+  --color-wash: var(--wash);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-ink: var(--primary-ink);
+  --color-destructive: var(--destructive);
+  --color-destructive-soft: var(--destructive-soft);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Keeps the layout still when a dialog locks scrolling; phones overlay their scrollbars. */
+@media (min-width: 768px) {
+  html {
+    scrollbar-gutter: stable;
+  }
+}
+
+body {
+  background: var(--shell);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
+}
+
+::selection {
+  background: var(--primary-soft);
+}
+
+@layer base {
+  :focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--primary) 60%, transparent);
+    outline-offset: 2px;
+  }
+}
+
+input,
+textarea,
+select {
+  caret-color: var(--primary);
+}
+
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@utility wrap-anywhere {
+  overflow-wrap: anywhere;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .animate-fade-in {
+    animation: fade-in 160ms ease-out;
+  }
+}

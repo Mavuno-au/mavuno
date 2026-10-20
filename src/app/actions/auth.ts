@@ -1,0 +1,94 @@
+"use server";
+
+import { redirect } from "next/navigation";
+import { z } from "zod";
+import { forgetBirthDate, meetsMinimumAge, readBirthDate } from "@/lib/age-check";
+import { emailLink } from "@/lib/email-link";
+import { publicEnv } from "@/lib/env";
+import { done, fail, type Result } from "@/lib/result";
+import { onboardingPath, safeNext } from "@/lib/safe-redirect";
+import { emailSchema, firstIssue, passwordSchema, usernameSchema } from "@/lib/schemas";
+import { createClient } from "@/lib/supabase/server";
+
+// Google sign-in returns here with a one-time code.
+const callback = (next: string) => `${publicEnv.siteUrl}/auth/callback?next=${encodeURIComponent(next)}`;
+
+export async function signUp(_: Result | null, form: FormData): Promise<Result> {
+  const parsed = z
+    .object({ email: emailSchema, password: passwordSchema, username: usernameSchema, displayName: z.string().trim().min(1, "Add your name.").max(60), next: z.string().optional() })
+    .safeParse(Object.fromEntries(form));
+  if (!parsed.success) return fail(firstIssue(parsed.error));
+  const { data: input } = parsed;
+  const setup = onboardingPath(safeNext(input.next));
+
+  const supabase = await createClient();
+  const birthDate = await readBirthDate();
+  if (!birthDate || !(await meetsMinimumAge(supabase, birthDate))) return fail("Enter your date of birth first. Reload the page to start again.");
+  const { data: taken } = await supabase.from("profiles").select("id").eq("username", input.username).maybeSingle();
+  if (taken) return fail("That username is taken.");
+
+  // Only the outcome of the age check goes with the account, never the date.
+  const { data, error } = await supabase.auth.signUp({
+    email: input.email,
+    password: input.password,
+    options: { emailRedirectTo: emailLink(setup), data: { username: input.username, display_name: input.displayName, age_confirmed: true } },
+  });
+  if (error) return fail(error.code === "user_already_exists" ? "An account with that email already exists. Sign in instead." : error.message);
+  await forgetBirthDate();
+  if (data.session) redirect(setup);
+  redirect(`/login?sent=confirm&email=${encodeURIComponent(input.email)}`);
+}
+
+export async function signIn(_: Result | null, form: FormData): Promise<Result> {
+  const parsed = z.object({ email: emailSchema, password: z.string().min(1, "Enter your password."), next: z.string().optional() }).safeParse(Object.fromEntries(form));
+  if (!parsed.success) return fail(firstIssue(parsed.error));
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.signInWithPassword({ email: parsed.data.email, password: parsed.data.password });
+  if (error) return fail(error.code === "email_not_confirmed" ? "Confirm your email first. Check your inbox for the link." : "That email and password don't match.");
+  redirect(safeNext(parsed.data.next));
+}
+
+export async function sendMagicLink(_: Result | null, form: FormData): Promise<Result> {
+  const parsed = z.object({ email: emailSchema, next: z.string().optional() }).safeParse(Object.fromEntries(form));
+  if (!parsed.success) return fail(firstIssue(parsed.error));
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.signInWithOtp({ email: parsed.data.email, options: { emailRedirectTo: emailLink(safeNext(parsed.data.next)) } });
+  if (error) return fail(error.status === 429 ? "Too many emails. Wait a minute and try again." : "We couldn't send the link. Try again.");
+  return done;
+}
+
+export async function signInWithGoogle(form: FormData) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: callback(safeNext(form.get("next"))) },
+  });
+  if (error || !data.url) redirect("/login?error=google");
+  redirect(data.url);
+}
+
+export async function requestPasswordReset(_: Result | null, form: FormData): Promise<Result> {
+  const parsed = emailSchema.safeParse(form.get("email"));
+  if (!parsed.success) return fail(firstIssue(parsed.error));
+  const supabase = await createClient();
+  await supabase.auth.resetPasswordForEmail(parsed.data, { redirectTo: emailLink("/reset-password") });
+  // Same answer whether or not the account exists.
+  return done;
+}
+
+export async function updatePassword(_: Result | null, form: FormData): Promise<Result> {
+  const parsed = passwordSchema.safeParse(form.get("password"));
+  if (!parsed.success) return fail(firstIssue(parsed.error));
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ password: parsed.data });
+  if (error) return fail(error.code === "same_password" ? "Choose a password you haven't used here." : "Your reset link has expired. Request a new one.");
+  redirect("/");
+}
+
+export async function signOut() {
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  redirect("/");
+}
