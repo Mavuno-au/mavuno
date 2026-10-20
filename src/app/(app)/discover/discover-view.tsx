@@ -5,7 +5,7 @@ import { PersonRow } from "@/components/people/person-row";
 import { PostItem } from "@/components/post/post-item";
 import { EmptyState, PageHeader, Section, Tabs } from "@/components/ui/page";
 import { loadActiveSpaces, loadSuggestedOrganisations } from "@/lib/data/discover";
-import { loadFeed } from "@/lib/data/posts";
+import { loadFeed, newTrendingSeed } from "@/lib/data/posts";
 import { loadSuggestions, loadTrendingTopics } from "@/lib/data/shell";
 import { compact, relativeTime } from "@/lib/format";
 
@@ -66,7 +66,7 @@ async function Overview() {
     loadActiveSpaces(6),
     loadSuggestions(4),
     loadSuggestedOrganisations(3),
-    loadFeed({ kind: "trending" }),
+    loadFeed({ kind: "trending", seed: newTrendingSeed() }, null, { previews: false }),
   ]);
 
   return (

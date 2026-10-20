@@ -48,5 +48,5 @@ async function PostResults({ query }: { query: string }) {
   if (query.length < 3) return <EmptyState title="Type at least 3 characters to search posts" />;
   const source = { kind: "search" as const, query };
   const page = await loadFeed(source);
-  return <Feed source={source} initial={page.posts} next={page.next} dayMarkers={false} end="No more results." empty={<EmptyState title={`No posts match “${query}”`}>Try fewer or different words.</EmptyState>} />;
+  return <Feed source={source} initial={page.posts} previews={page.previews} next={page.next} dayMarkers={false} end="No more results." empty={<EmptyState title={`No posts match “${query}”`}>Try fewer or different words.</EmptyState>} />;
 }

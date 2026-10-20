@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { loadContinuation, loadFeed, loadReplies, countNewPosts, type FeedPage } from "@/lib/data/posts";
+import { loadContinuation, loadFeed, loadLikers, loadReplies, countNewPosts, type FeedPage, type Likers } from "@/lib/data/posts";
 import { postRowSchema, type PostRow } from "@/lib/domain";
 import { feedSourceSchema } from "@/lib/feeds";
 import { publicEnv } from "@/lib/env";
@@ -174,6 +174,16 @@ export async function loadMoreThread(lastPostId: string): Promise<Result<PostRow
     return ok(await loadContinuation(parsed.data));
   } catch {
     return fail("Couldn't load more of this thread. Try again.");
+  }
+}
+
+export async function loadPostLikers(postId: string, before: string | null): Promise<Result<Likers>> {
+  const parsed = z.object({ postId: id, before: z.iso.datetime({ offset: true }).nullable() }).safeParse({ postId, before });
+  if (!parsed.success) return fail("That post is no longer available.");
+  try {
+    return ok(await loadLikers(parsed.data.postId, parsed.data.before));
+  } catch {
+    return fail("Couldn't load who liked this. Try again.");
   }
 }
 

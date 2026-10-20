@@ -77,6 +77,7 @@ export default async function SpacePage({ params }: PageProps<"/spaces/[slug]">)
         key={space.id}
         source={{ kind: "space", spaceId: space.id }}
         initial={page.posts}
+        previews={page.previews}
         next={page.next}
         empty={<EmptyState title="No posts yet">{role ? "Start the conversation. Your post shows here and on your profile." : "Join the space to start the conversation."}</EmptyState>}
       />

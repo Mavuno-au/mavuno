@@ -110,6 +110,7 @@ Everything that has to be true lives in `supabase/migrations`:
 | `rls_initplan_and_foreign_key_indexes` | fixes from Supabase's advisors: per-query `auth.uid()` in policies, an index on every foreign key |
 | `scheduled_posts` | posts scheduled up to 30 days ahead, published each minute by `pg_cron` through `create_post` as the member who scheduled them |
 | `age_assurance_and_notices` | the 16+ age check (only when it was confirmed is stored), deactivating and reinstating under-16 accounts and the record of those steps, moderation notices that name the rule, and legal complaints with a 7-day target |
+| `conversation_visibility` | the newest replies under each post in a page of a feed in one query, Trending drawn at random by hot score with a new seed each visit (likes on a thread's replies count towards it), who liked a post for its author only, mention suggestions from the conversation, and profile cards |
 
 Every table has row level security, and `api_grants` declares every privilege explicitly: Supabase no longer exposes new tables and functions automatically, and internal functions (publishing, notifying, purging) get no grant at all, so only database code can call them. Writes that need more than a one-row check go through `SECURITY DEFINER` functions such as `create_post`, `report_content` and `start_direct_conversation`, which check permissions, limits and blocks themselves. Rate limits (posts, messages, reports, listings, message requests) are enforced in the database, so they hold for every client.
 

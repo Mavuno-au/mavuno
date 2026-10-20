@@ -149,6 +149,7 @@ async function NearbySections({ city, radius, interest, viewer }: { city: City; 
           key={`${city.id}:${radius}`}
           source={{ kind: "local", cityId: city.id, radiusKm: radius }}
           initial={posts.posts}
+          previews={posts.previews}
           next={posts.next}
           empty={<EmptyState title="No posts nearby yet">Posts from members based within {radius} km of {city.name} show here.</EmptyState>}
         />

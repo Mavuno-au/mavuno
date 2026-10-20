@@ -10,7 +10,7 @@ import { useViewer } from "@/components/shell/viewer-context";
 import { useNow, useTimeZone } from "@/components/ui/local-time";
 import { EndOfList } from "@/components/ui/page";
 import { lastVisitKey } from "@/lib/browser-data";
-import type { PostRow } from "@/lib/domain";
+import type { PostRow, ReplyPreviews } from "@/lib/domain";
 import type { FeedSource } from "@/lib/feeds";
 import { dayLabel } from "@/lib/format";
 
@@ -44,6 +44,7 @@ function writeLastVisit(key: string, value: string) {
 export function Feed({
   source,
   initial,
+  previews: initialPreviews = {},
   next: initialNext,
   prepend = [],
   exclude = [],
@@ -54,6 +55,7 @@ export function Feed({
 }: {
   source: FeedSource;
   initial: PostRow[];
+  previews?: ReplyPreviews;
   next: string | null;
   prepend?: PostRow[];
   exclude?: string[];
@@ -67,6 +69,7 @@ export function Feed({
   const timeZone = useTimeZone();
   const today = new Date(useNow());
   const [rows, setRows] = useState(initial);
+  const [previews, setPreviews] = useState(initialPreviews);
   const [next, setNext] = useState(initialNext);
   const [seed, setSeed] = useState(initial);
   const [pending, startTransition] = useTransition();
@@ -79,6 +82,7 @@ export function Feed({
   if (seed !== initial) {
     setSeed(initial);
     setRows(initial);
+    setPreviews(initialPreviews);
     setNext(initialNext);
     setFresh(0);
   }
@@ -104,6 +108,7 @@ export function Feed({
           try {
             const page = await loadMore(source, next);
             setRows((current) => [...current, ...page.posts.filter((post) => !current.some((row) => row.id === post.id))]);
+            setPreviews((current) => ({ ...page.previews, ...current }));
             setNext(page.next);
           } catch {
             toast.error("Couldn't load more posts. Scroll to try again.");
@@ -170,7 +175,7 @@ export function Feed({
                 {label}
               </p>
             ) : null}
-            <PostItem row={row} />
+            <PostItem row={row} previews={previews[row.id]} />
             {insert && index === insert.after - 1 ? insert.node : null}
           </Fragment>
         );

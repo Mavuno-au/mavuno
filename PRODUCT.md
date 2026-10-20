@@ -10,9 +10,9 @@ Mavuno ("harvest" in Swahili) is a social network for that community. Members po
 
 ## What exists
 
-- **Posts:** text, up to four photos with descriptions, link cards and click-to-play video and audio, polls; replies, quote posts, threads; scheduling up to 30 days ahead.
-- **Feeds:** Following, Latest and Trending; spaces, topics, profiles, nearby and saved posts.
-- **Profiles:** people and organisations, with city, heritage, languages, interests and optional professional details.
+- **Posts:** text, up to four photos with descriptions, link cards and click-to-play video and audio, polls; replies, quote posts, threads; scheduling up to 30 days ahead. Mentions suggest the people in the conversation first. Before a post with a phone number, email address, bank, card, tax file or Medicare number goes up, the writer is asked to check, and such drafts are never saved in the browser. Authors can see who liked their posts; nobody else can.
+- **Feeds:** Following, Latest and Trending; spaces, topics, profiles, nearby and saved posts. Each post shows its newest replies (none, 3 or 5, chosen in Appearance). Trending is drawn afresh on each visit, weighted by how much conversation a post has.
+- **Profiles:** people and organisations, with city, heritage, languages, interests and optional professional details. Resting the mouse on a name, or tabbing to it, opens a profile card with a Follow button.
 - **Spaces:** city spaces with the city's photo, and interest spaces.
 - **Events and opportunities:** jobs, internships, scholarships, grants, mentoring, business and volunteering.
 - **Messages:** one to one and groups, with requests, reactions, read receipts and photos.

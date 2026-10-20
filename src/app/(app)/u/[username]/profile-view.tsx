@@ -67,6 +67,7 @@ export async function ProfileView({ username, tab }: { username: string; tab: Pr
         key={tab}
         source={{ kind: "profile", profileId: profile.id, tab }}
         initial={feed.posts}
+        previews={feed.previews}
         next={feed.next}
         exclude={pinned ? [pinned.id] : []}
         dayMarkers={false}
