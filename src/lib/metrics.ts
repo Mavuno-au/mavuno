@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { DISPLAY_TIME_ZONE } from "@/lib/format";
 
 // The /operations ranges: the last 7 or 30 Sydney days, compared with as many
 // days just before. See PRODUCT_METRICS.md.
@@ -36,27 +35,6 @@ export function biggestDrop<Key extends string>(changes: { key: Key; points: num
     if (worst === null || points < worst.points) worst = { key, points };
   }
   return worst?.key ?? null;
-}
-
-export function sydneyDay(now = new Date()) {
-  return now.toLocaleDateString("en-CA", { timeZone: DISPLAY_TIME_ZONE });
-}
-
-// Calendar arithmetic on YYYY-MM-DD, at noon UTC so no zone shifts the day.
-export function addDays(day: string, days: number) {
-  const date = new Date(`${day}T12:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
-export type Period = { from: string; to: string };
-
-export function periods(range: Range, today: string): { current: Period; previous: Period } {
-  const from = addDays(today, 1 - range);
-  return {
-    current: { from, to: today },
-    previous: { from: addDays(from, -range), to: addDays(from, -1) },
-  };
 }
 
 export function duration(minutes: number) {

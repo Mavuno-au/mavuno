@@ -11,13 +11,13 @@ Mavuno succeeds when a newcomer finds their people in the first day, gets a repl
 | `member_activity` | The last day each member used Mavuno (Sydney date) | Nobody through the API; only `admin_metrics()` and the member's own export |
 | `active_member_counts` | How many members were active each day, with no identities | Nobody through the API; only `admin_metrics()` |
 | Posts, follows, profiles | The existing tables | As their policies allow |
-| Fathom (optional, paid) | Page views, `guest-visit`, `signup` | Whoever has the Fathom account; admins through the Traffic tab |
+| Fathom (optional) | Page views, `guest-visit`, `signup` | Whoever has the Fathom account |
 
 The proxy calls `mark_seen()` for a signed-in member at most once a day per browser (the `mavuno-seen` cookie holds the date and member). Repeated calls the same day change nothing. Tracking started with migration `product_metrics`, so retention for people who joined before then reads low until enough days have passed.
 
 ## Ranges and changes
 
-Metrics, Activity and Traffic show the last **7 or 30 Sydney days** (30 by default; `?range=7`). Each rate shows its change in **percentage points** since the same number of days just before, and the rate that **fell most** is marked. That is the trend, not the lowest level: rates of different steps can't be compared with each other, only with their own past. A change is left out while either period has nothing to count.
+Metrics and Activity show the last **7 or 30 Sydney days** (30 by default; `?range=7`). Each rate shows its change in **percentage points** since the same number of days just before, and the rate that **fell most** is marked. That is the trend, not the lowest level: rates of different steps can't be compared with each other, only with their own past. A change is left out while either period has nothing to count.
 
 ## Metrics tab
 
@@ -52,12 +52,6 @@ Posting alone isn't activation: posting gives value, and someone who posts into 
 - *Today*: posts, replies, sign-ups, messages and reports today against yesterday, Sydney days.
 - *Posts by status*: posts and replies written in the range, by published, waiting for review, removed and deleted.
 - *Busiest authors*: the 10 profiles with the most published posts and replies in the range, linked. Only published posts count, so the list shows nothing a visitor to those profiles couldn't count.
-
-## Traffic tab (optional)
-
-Only with Fathom, a paid service: set `NEXT_PUBLIC_FATHOM_SITE_ID` and a read token in `FATHOM_API_KEY`. Without them the tab explains how to turn it on and nothing is requested. With them it shows visitors on the site now, visitors and page views in the range, top pages, referrers, countries and devices (the top 10 by visitors), and the sign-up rate.
-
-**Sign-up rate** = people who sent a `signup` event ÷ people who sent a `guest-visit` event, both counted by Fathom (`unique_conversions`). With both sides from the same tool, ad blockers hide the same share of each; sign-ups from the database over visitors from Fathom would overstate it. Only visitors not signed in send `guest-visit`, since members browsing aren't prospects. Current visitors are cached for a minute and reports for five, because every call counts against Fathom's limits.
 
 ## Health tab
 

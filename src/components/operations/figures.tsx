@@ -180,31 +180,3 @@ export function RateBars({ title, days, note }: { title: string; days: { day: st
     </figure>
   );
 }
-
-// Visits grouped by one field, busiest first, with a bar against the busiest.
-export function VisitsList({ title, rows, empty }: { title: string; rows: { name: ReactNode; key: string; visitors: number; pageviews: number }[]; empty: string }) {
-  const peak = Math.max(1, ...rows.map((row) => row.visitors));
-  return (
-    <div className="grid gap-2">
-      <div className="flex items-baseline justify-between gap-3 text-sm">
-        <h3 className="font-medium">{title}</h3>
-        <span className="font-mono text-xs text-ink-muted">visitors · views</span>
-      </div>
-      {rows.length === 0 ? (
-        <p className="text-sm text-ink-muted">{empty}</p>
-      ) : (
-        <ol className="grid gap-1.5">
-          {rows.map((row) => (
-            <li key={row.key} className="relative flex items-baseline justify-between gap-3 overflow-hidden rounded-md px-2 py-1 text-sm">
-              <span className="absolute inset-y-0 left-0 bg-primary-soft" style={{ width: `${(row.visitors / peak) * 100}%` }} aria-hidden />
-              <span className="relative min-w-0 truncate">{row.name}</span>
-              <span className="relative shrink-0 font-mono text-xs tabular">
-                {row.visitors} · <span className="text-ink-muted">{row.pageviews}</span>
-              </span>
-            </li>
-          ))}
-        </ol>
-      )}
-    </div>
-  );
-}

@@ -86,7 +86,6 @@ Admins can then make other members moderators from Moderation → Admin.
 | `SUPABASE_SERVICE_ROLE_KEY` | no | Server only. Caches translations and lets `/api/maintenance` remove erased files |
 | `MAINTENANCE_SECRET` | no | Bearer token for `POST /api/maintenance` |
 | `NEXT_PUBLIC_FATHOM_SITE_ID` | no | [Fathom](https://usefathom.com) site ID for cookieless visit counts. Nothing loads without it |
-| `FATHOM_API_KEY` | no | Server only. A Fathom API token that can read that site, for Operations → Traffic |
 | `SUPABASE_DB_URL` | for `pnpm db:push` | Direct Postgres connection string. Never commit it |
 | `RESEND_API_KEY`, `SUPABASE_ACCESS_TOKEN` | for `pnpm email:apply` | Sends sign-in emails from hello@mavuno.au through Resend, with the templates in `supabase/templates` (`pnpm email:build` regenerates them) |
 
@@ -154,7 +153,7 @@ This runs the type checker, ESLint, the unit tests (`pnpm test`) and the databas
 - Scheduled posts are published and deleted posts are purged every minute by `pg_cron`. Without it, call `POST /api/maintenance` with `Authorization: Bearer $MAINTENANCE_SECRET` on a schedule, for example a Vercel cron. That endpoint also removes erased images from Storage, which a database function cannot do.
 - Accounts deactivated for being under 16 are deleted after 30 days unless a moderator reinstates them, daily by `pg_cron` or by `/api/maintenance`. See `docs/AGE_ASSURANCE.md` and `docs/ONLINE_SAFETY.md` for what the online safety law asks of Mavuno and how it is reviewed.
 - Translations are cached for seven days.
-- Admins see product metrics, the day's activity, optional traffic and whether background jobs are keeping up (pg_cron runs included) at `/operations`.
+- Admins see product metrics, the day's activity and whether background jobs are keeping up (pg_cron runs included) at `/operations`.
 
 ## Known limits
 

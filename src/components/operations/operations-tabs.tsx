@@ -6,7 +6,6 @@ import { Tabs } from "@/components/ui/page";
 const TABS = [
   { href: "/operations", label: "Metrics" },
   { href: "/operations/activity", label: "Activity" },
-  { href: "/operations/traffic", label: "Traffic" },
   { href: "/operations/health", label: "Health" },
 ] as const;
 

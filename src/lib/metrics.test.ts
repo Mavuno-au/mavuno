@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, biggestDrop, duration, parseRange, periods, pointsChange, sydneyDay } from "./metrics";
+import { biggestDrop, duration, parseRange, pointsChange } from "./metrics";
 
 describe("parseRange", () => {
   it.each([
@@ -39,25 +39,6 @@ describe("biggestDrop", () => {
 
   it("highlights nothing when no rate fell", () => {
     expect(biggestDrop([{ key: "activation", points: 0 }, { key: "answered", points: 4 }])).toBeNull();
-  });
-});
-
-describe("periods", () => {
-  it("compares the range with as many days just before", () => {
-    expect(periods(7, "2026-10-20")).toEqual({
-      current: { from: "2026-10-14", to: "2026-10-20" },
-      previous: { from: "2026-10-07", to: "2026-10-13" },
-    });
-  });
-
-  it("crosses months", () => {
-    expect(addDays("2026-03-01", -1)).toBe("2026-02-28");
-  });
-});
-
-describe("sydneyDay", () => {
-  it("follows Sydney's calendar", () => {
-    expect(sydneyDay(new Date("2026-10-20T14:30:00Z"))).toBe("2026-10-21");
   });
 });
 
