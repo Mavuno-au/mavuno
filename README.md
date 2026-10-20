@@ -113,6 +113,7 @@ Everything that has to be true lives in `supabase/migrations`:
 | `age_assurance_and_notices` | the 16+ age check (only when it was confirmed is stored), deactivating and reinstating under-16 accounts and the record of those steps, moderation notices that name the rule, and legal complaints with a 7-day target |
 | `server_side_images` | WebP-only buckets, no direct uploads to Storage (`can_upload` decides who may upload through `/api/upload`), and posts and messages that only point at re-encoded files |
 | `automatic_check` | `post_flags`, and the service-role functions the automatic check uses to read a post and hold it for review (never reject it) |
+| `duplicate_post_hold` | `create_post` holds for review a third copy of the same text (20 characters or more, ignoring case and spacing) from one person within an hour |
 
 Every table has row level security, and `api_grants` declares every privilege explicitly: Supabase no longer exposes new tables and functions automatically, and internal functions (publishing, notifying, purging) get no grant at all, so only database code can call them. Writes that need more than a one-row check go through `SECURITY DEFINER` functions such as `create_post`, `report_content` and `start_direct_conversation`, which check permissions, limits and blocks themselves. Rate limits (posts, messages, reports, listings, message requests) are enforced in the database, so they hold for every client.
 

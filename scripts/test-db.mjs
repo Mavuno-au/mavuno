@@ -1085,6 +1085,28 @@ console.log("\nAutomatic check");
   check("a deleted post isn't held", (await q("select 1 from public.post_flags where post_id = $1", [second])).length === 0);
 }
 
+console.log("\nRepeated posts");
+{
+  const repeater = await createUser("repeater@example.com", { username: "repeater" });
+  await as(repeater);
+  const status = async (id) => (await one("select status, moderation_note from public.posts where id = $1", [id]));
+  const ad = "Cheap flights to Nairobi, message me now";
+  const once = await post(ad);
+  const twice = await post(`  ${ad.toUpperCase()}  `);
+  check("the same text twice goes up", (await status(once)).status === "published" && (await status(twice)).status === "published");
+  const third = await post(ad.replace(" ", "\n"));
+  row = await status(third);
+  check("a third copy in an hour waits for review, ignoring case and spacing", row.status === "pending" && row.moderation_note === "Held for review: posted several times in an hour", row);
+  check("short replies can repeat", (await Promise.all([1, 2, 3].map(async () => (await status(await post("Congratulations!"))).status)))
+    .every((s) => s === "published"));
+  await superuser();
+  await q("update public.posts set created_at = now() - interval '2 hours' where created_by = $1", [repeater]);
+  await as(repeater);
+  check("copies older than an hour don't count", (await status(await post(ad))).status === "published");
+  await as(mod);
+  check("moderators see the held copy", (await q("select 1 from public.review_queue where target_id = $1", [third])).length === 1);
+}
+
 console.log("\nDemo seed");
 const seeded = new PGlite({ extensions: { pg_trgm, pgcrypto } });
 await seeded.exec(stubs);

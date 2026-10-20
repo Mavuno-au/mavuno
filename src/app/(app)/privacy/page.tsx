@@ -95,6 +95,7 @@ export default function PrivacyPage() {
         <ul>
           <li>Posts, events and opportunities from an account reported in the past week are held for a moderator to check before they're public, unless the report was dismissed. During a wave of spam we may also hold new members' posts for a while.</li>
           <li>Anything reported by three different people is hidden until a moderator reviews it.</li>
+          <li>The same post shared three or more times within an hour waits for a moderator.</li>
           <li>Limits on how often you can post or send message requests to people you don't know, to stop spam.</li>
         </ul>
         <p>
