@@ -109,6 +109,10 @@ export default function PrivacyPage() {
             the United States may access our systems to provide support.
           </li>
           <li>
+            <strong>Vercel</strong> runs the website. Pages are prepared on its servers in <strong>Mumbai, India</strong>, next to our database, and delivered from servers around the world,
+            including in Australia. Vercel is a US company.
+          </li>
+          <li>
             <strong>Google</strong>, in the United States, if you choose to continue with Google.
           </li>
           <li>
