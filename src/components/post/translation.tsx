@@ -14,7 +14,8 @@ const noSubscription = () => () => {};
 type State = { kind: "original" } | { kind: "loading" } | { kind: "translated"; text: string };
 
 // `render` draws the body, so a translation is folded the same way as the original.
-export function Translation({ post, render }: { post: Post; render: (text: string) => ReactNode }) {
+// In the moderation queues (`review`), posts waiting for a decision translate too.
+export function Translation({ post, render, review = false }: { post: Post; render: (text: string) => ReactNode; review?: boolean }) {
   const viewer = useViewer();
   const router = useRouter();
   const pathname = usePathname();
@@ -22,7 +23,8 @@ export function Translation({ post, render }: { post: Post; render: (text: strin
   const target = viewer?.translationLanguage ?? browser;
   const [state, setState] = useState<State>({ kind: "original" });
 
-  if (!target || target === post.language || post.status !== "published") return render(post.body);
+  const translatable = post.status === "published" || (review && post.status === "pending");
+  if (!target || target === post.language || !translatable) return render(post.body);
 
   async function translate() {
     if (!viewer) return router.push(joinPath(pathname));

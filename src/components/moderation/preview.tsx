@@ -59,7 +59,7 @@ export function PostPreviewBlock({ preview: { post, parent } }: { preview: PostP
       {parent ? <ParentLine parent={parent} /> : null}
       {post.body ? (
         <div className="mt-2">
-          <Translation post={post} render={(text) => <RichText body={text} className={BODY} />} />
+          <Translation post={post} review render={(text) => <RichText body={text} className={BODY} />} />
         </div>
       ) : null}
       {post.images.length > 0 ? <ImageGrid images={post.images} /> : null}
