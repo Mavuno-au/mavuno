@@ -96,6 +96,7 @@ export default function PrivacyPage() {
         <ul>
           <li>Posts, events and opportunities from an account reported in the past week are held for a moderator to check before they're public, unless the report was dismissed. During a wave of spam we may also hold new members' posts for a while.</li>
           <li>Anything reported by three different people is hidden until a moderator reviews it.</li>
+          <li>The same post shared three or more times within an hour waits for a moderator.</li>
           <li>Limits on how often you can post or send message requests to people you don't know, to stop spam.</li>
         </ul>
         <p>
@@ -129,6 +130,10 @@ export default function PrivacyPage() {
           <li>
             <strong>Fathom Analytics</strong>, if enabled: anonymous visit counts processed in the United States. Fathom uses no cookies and can't identify you.
           </li>
+          <li>
+            <strong>OpenAI</strong>, in the United States, only if we turn on automatic safety checks: the text and images of posts from newer members are sent to it to check for harmful content, and
+            anything it flags waits for a moderator.
+          </li>
           <li>Videos from YouTube and similar sites only load from them when you press play.</li>
         </ul>
         <p>We stay responsible for how these providers handle your information. They may only use it to provide their service to us.</p>
@@ -140,7 +145,7 @@ export default function PrivacyPage() {
         <ul>
           <li>Everything is encrypted in transit and stored encrypted. Passwords are hashed, never stored as written.</li>
           <li>Database rules decide who can read each row, so private messages and settings can't be read by other members even through our API.</li>
-          <li>Photos are re-encoded in your browser before they upload, which removes the location and camera details phones attach.</li>
+          <li>Every photo is re-encoded on our servers before it's stored, which removes the location and camera details phones attach.</li>
           <li>Only a small number of moderators and administrators have extra access, and their moderation actions are recorded.</li>
         </ul>
         <p>If a data breach is likely to cause serious harm, we'll tell the people affected and the Office of the Australian Information Commissioner (OAIC) as quickly as we can.</p>

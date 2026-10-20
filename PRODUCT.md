@@ -26,7 +26,7 @@ Mavuno ("harvest" in Swahili) is a social network for that community. Members po
 - **Posts go up straight away; moderation starts with reports.** Content from someone with a recent report waits for a moderator, and admins can hold new members' content during a wave of spam. Authors always see their own pending content.
 - **Posts are immutable.** Create and delete with a 30-second undo; never edit. A deleted post leaves an authorless tombstone so replies survive.
 - **Mutes and blocks apply everywhere**: feeds, threads, search, suggestions, notifications and messages.
-- **Location is a city, never a point.** Nothing more precise than a city is stored about anyone, and photos are stripped of location data before upload.
+- **Location is a city, never a point.** Nothing more precise than a city is stored about anyone, and photos are re-encoded on the server, without location data, before they are stored.
 - **Store as little as possible.** Settings are private to their owner. Everything about a person is in their export and is erased with their account.
 - **The database enforces the rules.** Row level security, explicit grants and database functions decide what each person can read and do, so every client gets the same rules.
 

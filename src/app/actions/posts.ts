@@ -1,6 +1,8 @@
 "use server";
 
+import { after } from "next/server";
 import { z } from "zod";
+import { checkPost } from "@/lib/automod";
 import { loadContinuation, loadFeed, loadReplies, countNewPosts, type FeedPage } from "@/lib/data/posts";
 import { postRowSchema, type PostRow } from "@/lib/domain";
 import { feedSourceSchema } from "@/lib/feeds";
@@ -79,8 +81,10 @@ export async function createPost(input: NewPost): Promise<Result<PostRow>> {
     p_opportunity_id: post.opportunityId,
   });
   if (error) return failFrom(error);
+  const created = id.parse(postId);
+  after(() => checkPost(created));
 
-  const { data: row } = await supabase.from("post_details").select("*").eq("id", id.parse(postId)).single();
+  const { data: row } = await supabase.from("post_details").select("*").eq("id", created).single();
   return ok(postRowSchema.parse(row));
 }
 

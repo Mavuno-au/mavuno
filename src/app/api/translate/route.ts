@@ -3,7 +3,7 @@ import { z } from "zod";
 import { allow } from "@/lib/rate-limit";
 import { serverEnv } from "@/lib/server-env";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { getViewer } from "@/lib/viewer";
+import { getViewer, isModerator } from "@/lib/viewer";
 
 const requestSchema = z.object({ postId: z.uuid(), target: z.string().regex(/^[a-z]{2,3}$/) });
 const providerResponse = z.object({ translatedText: z.string() });
@@ -22,7 +22,9 @@ export async function POST(request: NextRequest) {
     supabase.from("posts").select("id, body, language, status, deleted_at").eq("id", parsed.data.postId).maybeSingle(),
   ]);
   if (!settings?.translations) return NextResponse.json({ error: "Translations are off" }, { status: 404 });
-  if (!post || post.deleted_at || post.status !== "published" || !post.body) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // Moderators read pending and held posts in their queues, often in a language they don't speak.
+  const readable = post?.status === "published" || (post?.status === "pending" && isModerator(viewer));
+  if (!post || post.deleted_at || !readable || !post.body) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const { data: cached } = await supabase
     .from("post_translations")

@@ -18,5 +18,7 @@ export const serverEnv = z
     // IndexNow tells Bing (and through it Copilot) about new pages; Vercel's cron sends CRON_SECRET.
     INDEXNOW_KEY: optional.pipe(z.string().regex(/^[A-Za-z0-9-]{8,128}$/).optional()),
     CRON_SECRET: optional,
+    // The automatic safety check on held-back authors' posts runs only with this key.
+    OPENAI_API_KEY: optional,
   })
   .parse(process.env);

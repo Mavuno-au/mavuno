@@ -1008,6 +1008,105 @@ console.log("\nReporting");
   check("other reports have no deadline and keep no contact details", row.respond_by === null && row.reports[0].contact === null && row.reports[0].reason === "intimate_images", row);
 }
 
+console.log("\nPhotos re-encoded on the server");
+{
+  await superuser();
+  rows = await q("select allowed_mime_types from storage.buckets where id in ('media', 'message-media')");
+  check("both buckets take only WebP", rows.length === 2 && rows.every((r) => r.allowed_mime_types.join() === "image/webp"), rows);
+  await as(amara);
+  await fails("members cannot upload to media directly", "insert into storage.objects (bucket_id, name) values ('media', $1)", [`${amara}/posts/raw.webp`], /row-level security/);
+  await fails("or to message attachments", "insert into storage.objects (bucket_id, name) values ('message-media', $1)", [`${conv}/raw.webp`], /row-level security/);
+  check("members may upload to their own folder through the server", (await one("select public.can_upload('media', $1) as ok", [amara])).ok === true);
+  check("but not to someone else's", (await one("select public.can_upload('media', $1) as ok", [kofi])).ok === false);
+  check("and to conversations they are in", (await one("select public.can_upload('message-media', $1) as ok", [conv])).ok === true);
+  check("no other bucket", (await one("select public.can_upload('avatars', $1) as ok", [amara])).ok === false);
+  await as(kofi);
+  check("but not conversations they aren't in", (await one("select public.can_upload('message-media', $1) as ok", [conv])).ok === false);
+  await anon();
+  await fails("guests cannot ask", "select public.can_upload('media', $1)", [amara], /permission denied/);
+  await as(amara);
+  await fails("post images must be the server's WebP", "select public.create_post('pic', 'en', null, null, null, null, null, null, $1::jsonb)",
+    [JSON.stringify([{ path: `${amara}/posts/a.jpg`, url: `${MEDIA}${amara}/posts/a.jpg` }])], /Invalid image/);
+  await fails("message images must be the server's WebP", "insert into public.messages (conversation_id, sender_id, image_paths) values ($1, $2, $3)", [conv, amara, [`${conv}/a.png`]], /Invalid attachment/);
+  await fails("and sit directly in the conversation's folder", "insert into public.messages (conversation_id, sender_id, image_paths) values ($1, $2, $3)", [conv, amara, [`${conv}/../a.webp`]], /Invalid attachment/);
+}
+
+console.log("\nAutomatic check");
+{
+  const service = () => db.exec("reset role; select set_config('request.jwt.claim.sub', '', false); set role service_role;");
+  const newcomer = await createUser("newcomer@example.com", { username: "newcomer" });
+  await as(newcomer);
+  const first = await post("My first post, with a poll", "en", null, null, null, null, null, null, "[]", JSON.stringify({ options: ["Yes", "No"] }));
+  check("a new member's post goes up straight away", (await one("select status from public.posts where id = $1", [first])).status === "published");
+  await fails("members cannot see what the check reads", "select public.automatic_check_subject($1)", [first], /permission denied/);
+  await fails("or hold posts", "select public.automatic_hold($1, '{hate}')", [first], /permission denied/);
+  await service();
+  row = await one("select public.automatic_check_subject($1) as s", [first]);
+  check("the check reads a new member's text and poll", row.s?.text === "My first post, with a poll\nYes\nNo" && row.s.images.length === 0, row);
+  await as(mod);
+  const modPost = await post("A note from the moderators");
+  const regular = await createUser("regular@example.com", { username: "regular" });
+  await superuser();
+  await q("update public.profiles set created_at = now() - interval '2 days' where id = $1", [regular]);
+  await as(regular);
+  const earlier = await post("Hello again");
+  await superuser();
+  await q("update public.posts set created_at = now() - interval '1 day' where id = $1", [earlier]);
+  await as(regular);
+  const later = await post("Back with news");
+  await service();
+  check("but not a moderator's", (await one("select public.automatic_check_subject($1) as s", [modPost])).s === null);
+  check("nor an established member's", (await one("select public.automatic_check_subject($1) as s", [later])).s === null);
+  check("whose first post was checked", (await one("select public.automatic_check_subject($1) as s", [earlier])).s !== null);
+  await fails("categories are checked", "select public.automatic_hold($1, $2)", [first, ["Not a category"]], /Invalid categories/);
+  const countBefore = (await one("select posts_count from public.profiles where id = $1", [newcomer])).posts_count;
+  await q("select public.automatic_hold($1, $2)", [first, ["harassment", "hate"]]);
+  row = await one("select status, moderation_note from public.posts where id = $1", [first]);
+  check("a flagged post goes back to review, never rejected", row.status === "pending" && row.moderation_note === "Held for review after an automatic check", row);
+  check("and stops counting on the profile", (await one("select posts_count from public.profiles where id = $1", [newcomer])).posts_count === countBefore - 1);
+  check("a post is checked once", (await one("select public.automatic_check_subject($1) as s", [first])).s === null);
+  await as(kofi);
+  check("members cannot read flags", (await q("select * from public.post_flags")).length === 0);
+  await as(mod);
+  row = await one("select flags from public.review_queue where target_id = $1", [first]);
+  check("moderators see the categories in the review queue", row?.flags?.join() === "harassment,hate", row);
+  await q("select public.moderate_approve_posts(array[$1]::uuid[])", [first]);
+  check("a moderator can publish it again", (await one("select status from public.posts where id = $1", [first])).status === "published");
+  await as(newcomer);
+  const second = await post("Another post");
+  await service();
+  await q("select public.automatic_hold($1, '{violence}')", [second]);
+  await as(newcomer);
+  await q("select public.delete_post($1)", [second]);
+  await superuser();
+  check("deleting a post forgets its flags", (await q("select 1 from public.post_flags where post_id = $1", [second])).length === 0);
+  await service();
+  await q("select public.automatic_hold($1, '{violence}')", [second]);
+  check("a deleted post isn't held", (await q("select 1 from public.post_flags where post_id = $1", [second])).length === 0);
+}
+
+console.log("\nRepeated posts");
+{
+  const repeater = await createUser("repeater@example.com", { username: "repeater" });
+  await as(repeater);
+  const status = async (id) => (await one("select status, moderation_note from public.posts where id = $1", [id]));
+  const ad = "Cheap flights to Nairobi, message me now";
+  const once = await post(ad);
+  const twice = await post(`  ${ad.toUpperCase()}  `);
+  check("the same text twice goes up", (await status(once)).status === "published" && (await status(twice)).status === "published");
+  const third = await post(ad.replace(" ", "\n"));
+  row = await status(third);
+  check("a third copy in an hour waits for review, ignoring case and spacing", row.status === "pending" && row.moderation_note === "Held for review: posted several times in an hour", row);
+  check("short replies can repeat", (await Promise.all([1, 2, 3].map(async () => (await status(await post("Congratulations!"))).status)))
+    .every((s) => s === "published"));
+  await superuser();
+  await q("update public.posts set created_at = now() - interval '2 hours' where created_by = $1", [repeater]);
+  await as(repeater);
+  check("copies older than an hour don't count", (await status(await post(ad))).status === "published");
+  await as(mod);
+  check("moderators see the held copy", (await q("select 1 from public.review_queue where target_id = $1", [third])).length === 1);
+}
+
 console.log("\nDemo seed");
 const seeded = new PGlite({ extensions: { pg_trgm, pgcrypto } });
 await seeded.exec(stubs);

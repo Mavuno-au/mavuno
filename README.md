@@ -83,8 +83,9 @@ Admins can then make other members moderators from Moderation → Admin.
 | `NEXT_PUBLIC_SITE_URL` | yes | Public URL, used in auth emails and metadata |
 | `NEXT_PUBLIC_AUTH_GOOGLE` | no | `true` shows "Continue with Google". Enable the provider in Supabase first |
 | `TRANSLATE_API_URL`, `TRANSLATE_API_KEY` | no | A [LibreTranslate](https://github.com/LibreTranslate/LibreTranslate)-compatible API. Without it, Translate opens Google Translate |
-| `SUPABASE_SERVICE_ROLE_KEY` | no | Server only. Caches translations and lets `/api/maintenance` remove erased files |
+| `SUPABASE_SERVICE_ROLE_KEY` | for photos | Server only. Stores uploaded photos after re-encoding them; without it photo uploads are off. Also caches translations and lets `/api/maintenance` remove erased files |
 | `MAINTENANCE_SECRET` | no | Bearer token for `POST /api/maintenance` |
+| `OPENAI_API_KEY` | no | Turns on the automatic check: after a post is created, posts from members without a track record (new, or reported in the past week) go to OpenAI's `omni-moderation-latest`, and a flagged post goes back to the review queue with its categories. It never rejects. Needs `SUPABASE_SERVICE_ROLE_KEY`; without either key nothing is sent |
 | `NEXT_PUBLIC_FATHOM_SITE_ID` | no | [Fathom](https://usefathom.com) site ID for cookieless visit counts. Nothing loads without it |
 | `NEXT_PUBLIC_GA_MEASUREMENT_ID` | no | Google Analytics 4 ID (G-…). Advertising features and Google Signals stay off |
 | `SUPABASE_DB_URL` | for `pnpm db:push` | Direct Postgres connection string. Never commit it |
@@ -111,6 +112,9 @@ Everything that has to be true lives in `supabase/migrations`:
 | `rls_initplan_and_foreign_key_indexes` | fixes from Supabase's advisors: per-query `auth.uid()` in policies, an index on every foreign key |
 | `scheduled_posts` | posts scheduled up to 30 days ahead, published each minute by `pg_cron` through `create_post` as the member who scheduled them |
 | `age_assurance_and_notices` | the 16+ age check (only when it was confirmed is stored), deactivating and reinstating under-16 accounts and the record of those steps, moderation notices that name the rule, and legal complaints with a 7-day target |
+| `server_side_images` | WebP-only buckets, no direct uploads to Storage (`can_upload` decides who may upload through `/api/upload`), and posts and messages that only point at re-encoded files |
+| `automatic_check` | `post_flags`, and the service-role functions the automatic check uses to read a post and hold it for review (never reject it) |
+| `duplicate_post_hold` | `create_post` holds for review a third copy of the same text (20 characters or more, ignoring case and spacing) from one person within an hour |
 
 Every table has row level security, and `api_grants` declares every privilege explicitly: Supabase no longer exposes new tables and functions automatically, and internal functions (publishing, notifying, purging) get no grant at all, so only database code can call them. Writes that need more than a one-row check go through `SECURITY DEFINER` functions such as `create_post`, `report_content` and `start_direct_conversation`, which check permissions, limits and blocks themselves. Rate limits (posts, messages, reports, listings, message requests) are enforced in the database, so they hold for every client.
 
@@ -119,7 +123,7 @@ Every table has row level security, and `api_grants` declares every privilege ex
 - **Nothing new is public before review when it needs to be.** Posts, events and opportunities from members without a good reputation (a member for an hour, something approved before, nothing reported recently) wait for a moderator. Authors see their own pending items. Three reports from different people hold a post for review. Admins can turn premoderation off.
 - **Posts are immutable.** Create and delete, never edit. Deleting blanks a post at once and keeps its content privately for 30 seconds so Undo works; then it is erased and an authorless tombstone keeps other people's replies in their thread.
 - **Mutes and blocks apply everywhere**: feeds, threads, search, suggestions, notifications and messages. A muted person's profile can still be visited; a blocked one is unavailable in both directions.
-- **Store as little as possible.** Settings are private to their owner. Location is a city, never coordinates. Photos are re-encoded in the browser, which strips EXIF and location data. Deleting an account erases the profile, posts, likes, messages sent, settings and uploaded files. The JSON export includes everything stored about the person.
+- **Store as little as possible.** Settings are private to their owner. Location is a city, never coordinates. Photos are re-encoded on the server (`/api/upload`, with sharp) before they are stored, which strips EXIF and location data; members cannot write to Storage directly. Deleting an account erases the profile, posts, likes, messages sent, settings and uploaded files. The JSON export includes everything stored about the person.
 
 ### App structure
 
