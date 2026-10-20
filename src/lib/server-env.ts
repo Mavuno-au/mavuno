@@ -12,5 +12,6 @@ export const serverEnv = z
     TRANSLATE_API_KEY: optional,
     SUPABASE_SERVICE_ROLE_KEY: optional,
     MAINTENANCE_SECRET: optional,
+    FATHOM_API_KEY: optional,
   })
   .parse(process.env);

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Chip } from "@/components/ui/page";
 import { cn } from "@/lib/cn";
 import { dayLabel } from "@/lib/format";
 
@@ -21,8 +22,30 @@ export function Stat({ label, value, note }: { label: string; value: ReactNode; 
   );
 }
 
+export type Change = { points: number | null; worst: boolean };
+
+// The move since the period before, in percentage points. The rate that fell
+// furthest is marked, since a level only means something against its own past.
+function ChangeNote({ change }: { change: Change }) {
+  if (change.points === null) return null;
+  const points = `${change.points > 0 ? "+" : change.points < 0 ? "−" : "±"}${Math.abs(change.points)} pts`;
+  const text = (
+    <>
+      {points}
+      <span className="sr-only"> on the period before</span>
+    </>
+  );
+  return change.worst ? (
+    <Chip tone="warning" className="mt-1 font-mono tabular">
+      {text} · fell most
+    </Chip>
+  ) : (
+    <span className="mt-0.5 block font-mono text-xs text-ink-muted tabular">{text}</span>
+  );
+}
+
 // A labelled share with a bar, e.g. "Posted on day one · 42% · 21 of 50".
-export function ShareRow({ label, part, whole, hint }: { label: string; part: number; whole: number; hint?: string }) {
+export function ShareRow({ label, part, whole, hint, change }: { label: string; part: number; whole: number; hint?: ReactNode; change?: Change }) {
   const width = whole === 0 ? 0 : Math.round((part / whole) * 100);
   return (
     <div className="grid gap-1.5">
@@ -36,11 +59,25 @@ export function ShareRow({ label, part, whole, hint }: { label: string; part: nu
           <span className="ml-2 font-mono text-xs text-ink-muted tabular">
             {part} of {whole}
           </span>
+          {change ? <ChangeNote change={change} /> : null}
         </span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-wash" aria-hidden>
         <div className="h-full rounded-full bg-primary" style={{ width: `${width}%` }} />
       </div>
+    </div>
+  );
+}
+
+// A labelled figure that isn't a share, e.g. a median.
+export function ValueRow({ label, value, hint }: { label: string; value: ReactNode; hint?: ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="text-[15px]">
+        {label}
+        {hint ? <span className="block text-xs text-ink-muted">{hint}</span> : null}
+      </span>
+      <span className="shrink-0 font-mono font-semibold tabular">{value}</span>
     </div>
   );
 }
@@ -90,5 +127,84 @@ export function DailyBars({ title, days, className }: { title: string; days: { d
         </table>
       </div>
     </figure>
+  );
+}
+
+// The share of each day's sign-ups that reached a milestone. A day still
+// counting is drawn lighter until all of its sign-ups have had their window.
+export function RateBars({ title, days, note }: { title: string; days: { day: string; part: number; whole: number; complete: boolean }[]; note?: string }) {
+  const part = days.reduce((sum, entry) => sum + entry.part, 0);
+  const whole = days.reduce((sum, entry) => sum + entry.whole, 0);
+  const first = days[0];
+  const last = days.at(-1);
+  return (
+    <figure className="grid gap-2">
+      <figcaption className="flex items-baseline justify-between gap-3 text-sm">
+        <span className="font-medium">{title}</span>
+        <span className="font-mono text-xs text-ink-muted tabular">
+          {share(part, whole)} of {whole}
+        </span>
+      </figcaption>
+      <div className="flex h-20 items-end gap-[3px]" aria-hidden>
+        {days.map((entry) => (
+          <div
+            key={entry.day}
+            title={`${dayLabel(`${entry.day}T12:00:00Z`)}: ${entry.whole === 0 ? "no sign-ups" : `${share(entry.part, entry.whole)} of ${entry.whole}`}${entry.complete ? "" : ", still counting"}`}
+            className={cn("min-h-px flex-1 rounded-t-sm", entry.whole === 0 ? "bg-hairline" : entry.complete ? "bg-primary" : "bg-primary/35")}
+            style={{ height: entry.whole === 0 ? "1px" : `${Math.max(2, (entry.part / entry.whole) * 100)}%` }}
+          />
+        ))}
+      </div>
+      {first && last ? (
+        <div className="flex justify-between font-mono text-[11px] text-ink-muted" aria-hidden>
+          <span>{dayLabel(`${first.day}T12:00:00Z`)}</span>
+          <span>{dayLabel(`${last.day}T12:00:00Z`)}</span>
+        </div>
+      ) : null}
+      {note ? <p className="text-xs text-ink-muted">{note}</p> : null}
+      {/* Tables ignore sr-only's 1px box, so a hidden one still stretches the page; the div clips it. */}
+      <div className="sr-only">
+        <table>
+          <caption>{title} per sign-up day</caption>
+          <tbody>
+            {days.map((entry) => (
+              <tr key={entry.day}>
+                <th scope="row">{entry.day}</th>
+                <td>{entry.whole === 0 ? "No sign-ups" : `${entry.part} of ${entry.whole}`}</td>
+                <td>{entry.complete ? "Complete" : "Still counting"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </figure>
+  );
+}
+
+// Visits grouped by one field, busiest first, with a bar against the busiest.
+export function VisitsList({ title, rows, empty }: { title: string; rows: { name: ReactNode; key: string; visitors: number; pageviews: number }[]; empty: string }) {
+  const peak = Math.max(1, ...rows.map((row) => row.visitors));
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-baseline justify-between gap-3 text-sm">
+        <h3 className="font-medium">{title}</h3>
+        <span className="font-mono text-xs text-ink-muted">visitors · views</span>
+      </div>
+      {rows.length === 0 ? (
+        <p className="text-sm text-ink-muted">{empty}</p>
+      ) : (
+        <ol className="grid gap-1.5">
+          {rows.map((row) => (
+            <li key={row.key} className="relative flex items-baseline justify-between gap-3 overflow-hidden rounded-md px-2 py-1 text-sm">
+              <span className="absolute inset-y-0 left-0 bg-primary-soft" style={{ width: `${(row.visitors / peak) * 100}%` }} aria-hidden />
+              <span className="relative min-w-0 truncate">{row.name}</span>
+              <span className="relative shrink-0 font-mono text-xs tabular">
+                {row.visitors} · <span className="text-ink-muted">{row.pageviews}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
   );
 }

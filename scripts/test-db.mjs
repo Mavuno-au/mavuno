@@ -643,7 +643,7 @@ console.log("\nActivity and metrics");
   const metrics = (await one("select public.admin_metrics() as m")).m;
   check(
     "admins see the funnel",
-    metrics.active.day === 2 && metrics.daily.length === 30 && metrics.retention.length === 3 && metrics.signups.total > 5 && typeof metrics.answered.posts === "number",
+    metrics.active.day === 2 && metrics.daily.length === 30 && metrics.current.retention.length === 3 && metrics.signups.total > 5 && typeof metrics.current.answered.posts === "number",
     { active: metrics.active, signups: metrics.signups },
   );
   const health = (await one("select public.admin_health() as h")).h;
@@ -1006,6 +1006,125 @@ console.log("\nReporting");
   check("moderators see how to contact the complainant", row.reports[0].contact === "hana@example.com", row.reports);
   row = await one("select respond_by, reports from public.report_queue where target_id = $1", [image]);
   check("other reports have no deadline and keep no contact details", row.respond_by === null && row.reports[0].contact === null && row.reports[0].reason === "intimate_images", row);
+}
+
+console.log("\nOperations");
+{
+  const lead = (await one("select id from public.profiles where username = 'site_lead'")).id;
+  const joinedAgo = (id, interval) => q("update public.profiles set created_at = now() - $2::interval where id = $1", [id, interval]);
+
+  const ada = await createUser("ops_ada@example.com", { username: "ops_ada" });
+  const ben = await createUser("ops_ben@example.com", { username: "ops_ben" });
+  const cy = await createUser("ops_cy@example.com", { username: "ops_cy" });
+  // Activation: a reader who liked posts by 3 people, an author whose post was liked, and someone who did neither.
+  const reader = await createUser("ops_reader@example.com", { username: "ops_reader" });
+  const author = await createUser("ops_author@example.com", { username: "ops_author" });
+  const quiet = await createUser("ops_quiet@example.com", { username: "ops_quiet" });
+  const fresh = await createUser("ops_fresh@example.com", { username: "ops_fresh" });
+  await as(ada);
+  const byAda = await post("Activation post by Ada");
+  await as(ben);
+  const byBen = await post("Activation post by Ben");
+  await as(cy);
+  const byCy = await post("Activation post by Cy");
+  await as(reader);
+  for (const id of [byAda, byBen, byCy]) await q("insert into public.likes (user_id, post_id) values ($1, $2)", [reader, id]);
+  await as(fresh);
+  for (const id of [byAda, byBen, byCy]) await q("insert into public.likes (user_id, post_id) values ($1, $2)", [fresh, id]);
+  await as(author);
+  const hello = await post("Hello, I just joined");
+  await as(ben);
+  await q("insert into public.likes (user_id, post_id) values ($1, $2)", [ben, hello]);
+  await superuser();
+  for (const id of [reader, author, quiet]) await joinedAgo(id, "13 hours");
+  await q("update public.likes set created_at = now() - interval '12 hours 30 minutes' where user_id = $1 or post_id = $2", [reader, hello]);
+  await q("update public.posts set created_at = now() - interval '12 hours 30 minutes' where id = $1", [hello]);
+
+  // First day: one newcomer followed two people in their first day, another nobody. Neither is activated.
+  const follower = await createUser("ops_follower@example.com", { username: "ops_follower" });
+  const loner = await createUser("ops_loner@example.com", { username: "ops_loner" });
+  await as(follower);
+  await q("insert into public.follows (follower_id, followee_id) values ($1, $2), ($1, $3)", [follower, ada, ben]);
+  await superuser();
+  for (const id of [follower, loner]) await joinedAgo(id, "2 days");
+  await q("update public.follows set created_at = now() - interval '47 hours' where follower_id = $1", [follower]);
+
+  // Answered: a first post replied to after 30 minutes, and a post only its author liked.
+  const newcomer = await createUser("ops_newcomer@example.com", { username: "ops_newcomer" });
+  await as(newcomer);
+  const firstPost = await post("My very first post");
+  await as(ben);
+  const reply = await post("Welcome!", "en", null, firstPost);
+  await as(ada);
+  const ignored = await post("Anyone around?");
+  await superuser();
+  // Members can't like their own posts, but a like from the author must not count if one ever exists.
+  await q("insert into public.likes (user_id, post_id) values ($1, $2)", [ada, ignored]);
+  await q("update public.posts set created_at = now() - interval '2 days', published_at = now() - interval '2 days' where id = $1", [firstPost]);
+  await q("update public.posts set created_at = now() - interval '2 days' + interval '30 minutes' where id = $1", [reply]);
+  await q("update public.posts set published_at = now() - interval '2 days' where id = $1", [ignored]);
+
+  // The period before: someone who joined 40 days ago.
+  await joinedAgo(await createUser("ops_earlier@example.com", { username: "ops_earlier" }), "40 days");
+
+  await as(lead);
+  const metrics = (await one("select public.admin_metrics(30) as m")).m;
+  const { activation, activationByDay, firstDay, answered } = metrics.current;
+  check("activation counts value received within 12 hours, from sign-ups at least 12 hours old", activation.eligible === 5 && activation.activated === 2, activation);
+  check(
+    "activation is broken down by sign-up day",
+    activationByDay.reduce((sum, day) => sum + day.eligible, 0) === 5 && activationByDay.every((day) => typeof day.complete === "boolean"),
+    activationByDay,
+  );
+  check("first-day figures wait for a full first day", firstDay.eligible === 2 && firstDay.followed === 1 && firstDay.medianFollows === 1, firstDay);
+  check("posts count as answered by a reply, quote or like from someone else within a day", answered.posts === 2 && answered.answered === 1, answered);
+  check("first posts are answered separately, with the median time to an answer", answered.firstPosts === 1 && answered.firstAnswered === 1 && Math.round(answered.medianMinutes) === 30, answered);
+  check("the period before has the same rates", metrics.previous.signups === 1 && metrics.previous.activationByDay === undefined && metrics.signups.previousRange === 1, metrics.previous);
+  const week = (await one("select public.admin_metrics(7) as m")).m;
+  check("a 7-day range has 7 days of bars", week.days === 7 && week.daily.length === 7, week.daily.length);
+  await fails("ranges are 7 or 30 days", "select public.admin_metrics(14)", [], /7 or 30/);
+
+  await superuser();
+  await q("update public.posts set created_at = now() - interval '1 day' where id = $1", [byCy]);
+  await as(lead);
+  const activity = (await one("select public.admin_activity(7) as a")).a;
+  check(
+    "activity compares today with yesterday",
+    ["posts", "replies", "signups", "messages", "reports"].every((name) => typeof activity.compare[name]?.today === "number") && activity.compare.posts.yesterday >= 1,
+    activity.compare,
+  );
+  check("activity breaks posts down by status, in order", activity.statuses.map((s) => s.status).join() === "published,pending,rejected,deleted", activity.statuses);
+  check("the busiest authors are at most 10, busiest first", activity.authors.length <= 10 && activity.authors.length > 0 && activity.authors.every((a, i, all) => i === 0 || all[i - 1].posts >= a.posts), activity.authors);
+
+  const before = (await one("select public.admin_health() as h")).h;
+  check("health says when pg_cron can't be read", before.cron === null, before.cron);
+  await superuser();
+  await q("insert into public.scheduled_posts (created_by, author_id, body, scheduled_at) values ($1, $1, 'Stuck', now() - interval '10 minutes')", [quiet]);
+  await q("update public.profile_settings set age_deactivated_at = now() - interval '32 days' where id = $1", [loner]);
+  await db.exec(`
+    create schema cron;
+    create table cron.job (jobid bigint primary key, jobname text, schedule text, active boolean default true);
+    create table cron.job_run_details (runid bigserial primary key, jobid bigint, status text, return_message text, start_time timestamptz);
+    insert into cron.job values (1, 'mavuno-purge-deleted-posts', '* * * * *');
+    insert into cron.job_run_details (jobid, status, return_message, start_time) values
+      (1, 'failed', 'ERROR: boom', now() - interval '2 minutes'),
+      (1, 'succeeded', '1 row', now() - interval '1 minute');
+  `);
+  await as(lead);
+  const after = (await one("select public.admin_health() as h")).h;
+  check("health counts scheduled posts overdue by more than 5 minutes", after.overdueScheduled === before.overdueScheduled + 1 && after.oldestOverdueScheduled !== null, after);
+  check("health counts accounts waiting to be deleted for age, and overdue ones", after.ageDeactivated === before.ageDeactivated + 1 && after.agePurgeOverdue === before.agePurgeOverdue + 1, after);
+  check(
+    "health lists pg_cron jobs with failed runs in the last day",
+    after.cron?.length === 1 && after.cron[0].failedLastDay === 1 && after.cron[0].lastStatus === "succeeded" && after.cron[0].lastError === "ERROR: boom",
+    after.cron,
+  );
+  await superuser();
+  await db.exec("drop schema cron cascade");
+
+  await as(ada);
+  await fails("members cannot see activity", "select public.admin_activity()", [], /Only admins/);
+  for (const sql of ["select public.cron_health()", "select public.metric_rates(current_date, current_date)"]) await fails(`members cannot call ${sql.slice(14, sql.indexOf("("))}`, sql, [], /permission denied/);
 }
 
 console.log("\nDemo seed");
