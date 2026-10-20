@@ -1008,6 +1008,29 @@ console.log("\nReporting");
   check("other reports have no deadline and keep no contact details", row.respond_by === null && row.reports[0].contact === null && row.reports[0].reason === "intimate_images", row);
 }
 
+console.log("\nPhotos re-encoded on the server");
+{
+  await superuser();
+  rows = await q("select allowed_mime_types from storage.buckets where id in ('media', 'message-media')");
+  check("both buckets take only WebP", rows.length === 2 && rows.every((r) => r.allowed_mime_types.join() === "image/webp"), rows);
+  await as(amara);
+  await fails("members cannot upload to media directly", "insert into storage.objects (bucket_id, name) values ('media', $1)", [`${amara}/posts/raw.webp`], /row-level security/);
+  await fails("or to message attachments", "insert into storage.objects (bucket_id, name) values ('message-media', $1)", [`${conv}/raw.webp`], /row-level security/);
+  check("members may upload to their own folder through the server", (await one("select public.can_upload('media', $1) as ok", [amara])).ok === true);
+  check("but not to someone else's", (await one("select public.can_upload('media', $1) as ok", [kofi])).ok === false);
+  check("and to conversations they are in", (await one("select public.can_upload('message-media', $1) as ok", [conv])).ok === true);
+  check("no other bucket", (await one("select public.can_upload('avatars', $1) as ok", [amara])).ok === false);
+  await as(kofi);
+  check("but not conversations they aren't in", (await one("select public.can_upload('message-media', $1) as ok", [conv])).ok === false);
+  await anon();
+  await fails("guests cannot ask", "select public.can_upload('media', $1)", [amara], /permission denied/);
+  await as(amara);
+  await fails("post images must be the server's WebP", "select public.create_post('pic', 'en', null, null, null, null, null, null, $1::jsonb)",
+    [JSON.stringify([{ path: `${amara}/posts/a.jpg`, url: `${MEDIA}${amara}/posts/a.jpg` }])], /Invalid image/);
+  await fails("message images must be the server's WebP", "insert into public.messages (conversation_id, sender_id, image_paths) values ($1, $2, $3)", [conv, amara, [`${conv}/a.png`]], /Invalid attachment/);
+  await fails("and sit directly in the conversation's folder", "insert into public.messages (conversation_id, sender_id, image_paths) values ($1, $2, $3)", [conv, amara, [`${conv}/../a.webp`]], /Invalid attachment/);
+}
+
 console.log("\nDemo seed");
 const seeded = new PGlite({ extensions: { pg_trgm, pgcrypto } });
 await seeded.exec(stubs);

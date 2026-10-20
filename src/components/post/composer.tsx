@@ -159,7 +159,7 @@ export function Composer({ mode, autoFocus, onPosted, onCancel }: { mode: Compos
           images.map(async (image) => {
             const file = await uploadMedia({ ownerId: me.id, kind: "posts", blob: image.blob });
             uploaded.push(file);
-            return { ...file, width: image.width, height: image.height, alt: image.alt.trim() };
+            return { ...file, alt: image.alt.trim() };
           }),
         );
         const post = {

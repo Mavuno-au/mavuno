@@ -133,7 +133,7 @@ export default function PrivacyPage() {
         <ul>
           <li>Everything is encrypted in transit and stored encrypted. Passwords are hashed, never stored as written.</li>
           <li>Database rules decide who can read each row, so private messages and settings can't be read by other members even through our API.</li>
-          <li>Photos are re-encoded in your browser before they upload, which removes the location and camera details phones attach.</li>
+          <li>Every photo is re-encoded on our servers before it's stored, which removes the location and camera details phones attach.</li>
           <li>Only a small number of moderators and administrators have extra access, and their moderation actions are recorded.</li>
         </ul>
         <p>If a data breach is likely to cause serious harm, we'll tell the people affected and the Office of the Australian Information Commissioner (OAIC) as quickly as we can.</p>

@@ -58,7 +58,7 @@ export default function AboutPage() {
             <strong>No ads, and we never sell your data.</strong> Mavuno is free to use.
           </li>
           <li>
-            <strong>As little about you as we can.</strong> We store the city you choose, never where you are. Photos are cleaned of location data before they leave your phone.
+            <strong>As little about you as we can.</strong> We store the city you choose, never where you are. Photos are cleaned of location data before they're stored.
           </li>
           <li>
             <strong>A safe place to speak.</strong> Posts go up straight away, every report goes to a real moderator, and mutes and blocks apply everywhere.
