@@ -19,6 +19,7 @@ import type { PersonSummary } from "@/lib/domain";
 import type { EditableProfile, SpaceChoice } from "@/lib/data/settings";
 import type { City } from "@/lib/data/shell";
 import { compact } from "@/lib/format";
+import { toUsername } from "@/lib/schemas";
 
 const STEPS = ["About you", "Follow a few people", "Join spaces", "How Mavuno works"] as const;
 
@@ -142,7 +143,7 @@ function AboutYou({ profile, cities, onSaved }: { profile: EditableProfile; citi
           <Input id="displayName" value={form.displayName} maxLength={60} required autoComplete="name" onChange={(event) => setForm({ ...form, displayName: event.target.value })} />
         </Field>
         <Field label="Username" htmlFor="username">
-          <Input id="username" value={form.username} maxLength={30} required autoCapitalize="none" className="font-mono" onChange={(event) => setForm({ ...form, username: event.target.value })} />
+          <Input id="username" value={form.username} maxLength={30} required autoCapitalize="none" className="font-mono" onChange={(event) => setForm({ ...form, username: toUsername(event.target.value) })} />
         </Field>
       </div>
       <Field label="Bio" htmlFor="bio" hint={<span className="font-mono text-xs tabular">{LIMITS.bio - form.bio.length} left</span>}>

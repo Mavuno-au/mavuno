@@ -4,6 +4,9 @@ import { useId, useState } from "react";
 import { Input, Select } from "@/components/ui/field";
 import { MONTHS } from "@/lib/age";
 
+// Only digits ever reach the field, so the browser never shows its vague "requested format" message.
+const digits = (value: string) => value.replace(/\D/g, "");
+
 export function BirthDateFields({ autoFocus }: { autoFocus?: boolean }) {
   const id = useId();
   // Controlled, so a form action that fails doesn't clear what was typed.
@@ -16,7 +19,7 @@ export function BirthDateFields({ autoFocus }: { autoFocus?: boolean }) {
           <label htmlFor={`${id}-day`} className="text-xs text-ink-muted">
             Day
           </label>
-          <Input id={`${id}-day`} name="day" value={date.day} onChange={(event) => setDate({ ...date, day: event.target.value })} inputMode="numeric" pattern="[0-9]{1,2}" maxLength={2} autoComplete="bday-day" required autoFocus={autoFocus} />
+          <Input id={`${id}-day`} name="day" value={date.day} onChange={(event) => setDate({ ...date, day: digits(event.target.value) })} inputMode="numeric" maxLength={2} autoComplete="bday-day" required autoFocus={autoFocus} />
         </div>
         <div className="grid gap-1">
           <label htmlFor={`${id}-month`} className="text-xs text-ink-muted">
@@ -37,7 +40,7 @@ export function BirthDateFields({ autoFocus }: { autoFocus?: boolean }) {
           <label htmlFor={`${id}-year`} className="text-xs text-ink-muted">
             Year
           </label>
-          <Input id={`${id}-year`} name="year" value={date.year} onChange={(event) => setDate({ ...date, year: event.target.value })} inputMode="numeric" pattern="[0-9]{4}" maxLength={4} autoComplete="bday-year" required />
+          <Input id={`${id}-year`} name="year" value={date.year} onChange={(event) => setDate({ ...date, year: digits(event.target.value) })} inputMode="numeric" maxLength={4} autoComplete="bday-year" required />
         </div>
       </div>
       <p className="text-sm text-ink-muted">We use it only to check you're old enough to join, then delete it. It's never shown or stored.</p>

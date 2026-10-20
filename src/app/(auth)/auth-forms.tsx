@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 import { requestPasswordReset, sendMagicLink, signIn, signUp, updatePassword } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Field, FormError, Input } from "@/components/ui/field";
+import { toUsername } from "@/lib/schemas";
 
 export function SignInForm({ next }: { next: string }) {
   const [mode, setMode] = useState<"password" | "link">("password");
@@ -45,20 +46,64 @@ export function SignInForm({ next }: { next: string }) {
 
 export function SignUpForm({ next }: { next: string }) {
   const [state, action, pending] = useActionState(signUp, null);
+  // Controlled, so an error from the server (a taken username) doesn't clear the form.
+  const [form, setForm] = useState({ displayName: "", username: "", email: "", password: "" });
+  // Until someone edits the username, it follows their name.
+  const [usernameEdited, setUsernameEdited] = useState(false);
+  const username = usernameEdited ? form.username : toUsername(form.displayName.trim());
+  const usernameHint =
+    username.length === 0
+      ? "Letters, numbers and underscores. Your profile will be at mavuno.au/@username."
+      : username.length < 3
+        ? "Use at least 3 letters or numbers."
+        : `Your profile will be at mavuno.au/@${username}.`;
+
   return (
     <form action={action} className="grid gap-4">
       <input type="hidden" name="next" value={next} />
       <Field label="Your name" htmlFor="displayName">
-        <Input id="displayName" name="displayName" autoComplete="name" maxLength={60} required autoFocus />
+        <Input
+          id="displayName"
+          name="displayName"
+          autoComplete="name"
+          maxLength={60}
+          required
+          autoFocus
+          value={form.displayName}
+          onChange={(event) => setForm({ ...form, displayName: event.target.value })}
+        />
       </Field>
-      <Field label="Username" htmlFor="username" hint="Your profile will be at mavuno.au/@username.">
-        <Input id="username" name="username" autoComplete="username" pattern="[A-Za-z0-9_]{3,30}" minLength={3} maxLength={30} required />
+      <Field label="Username" htmlFor="username" hint={usernameHint}>
+        <Input
+          id="username"
+          name="username"
+          autoComplete="username"
+          autoCapitalize="none"
+          spellCheck={false}
+          maxLength={30}
+          required
+          className="font-mono"
+          value={username}
+          onChange={(event) => {
+            setUsernameEdited(true);
+            setForm({ ...form, username: toUsername(event.target.value) });
+          }}
+        />
       </Field>
       <Field label="Email" htmlFor="email">
-        <Input id="email" name="email" type="email" autoComplete="email" required />
+        <Input id="email" name="email" type="email" autoComplete="email" required value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
       </Field>
       <Field label="Password" htmlFor="password" hint="At least 8 characters.">
-        <Input id="password" name="password" type="password" autoComplete="new-password" minLength={8} required />
+        <Input
+          id="password"
+          name="password"
+          type="password"
+          autoComplete="new-password"
+          minLength={8}
+          required
+          value={form.password}
+          onChange={(event) => setForm({ ...form, password: event.target.value })}
+        />
       </Field>
       <FormError message={state?.ok === false ? state.error : null} />
       <Button type="submit" size="lg" disabled={pending}>
