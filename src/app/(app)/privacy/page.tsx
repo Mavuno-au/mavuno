@@ -122,6 +122,10 @@ export default function PrivacyPage() {
           <li>
             <strong>Fathom Analytics</strong>, if enabled: anonymous visit counts processed in the United States. Fathom uses no cookies and can't identify you.
           </li>
+          <li>
+            <strong>OpenAI</strong>, in the United States, only if we turn on automatic safety checks: the text and images of posts from newer members are sent to it to check for harmful content, and
+            anything it flags waits for a moderator.
+          </li>
           <li>Videos from YouTube and similar sites only load from them when you press play.</li>
         </ul>
         <p>We stay responsible for how these providers handle your information. They may only use it to provide their service to us.</p>

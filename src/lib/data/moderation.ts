@@ -145,6 +145,7 @@ const reviewRows = z.array(
     note: z.string().nullable(),
     parent_id: id.nullable(),
     created_at: z.string(),
+    flags: z.array(z.string()).nullable(),
   }),
 );
 
@@ -162,6 +163,8 @@ export type ReviewItem = {
   author: ProfileCard | null;
   language: string;
   note: string | null;
+  // Categories the automatic check flagged, if it held this.
+  flags: string[];
   createdAt: string;
   subject: ReviewSubject;
 };
@@ -209,6 +212,7 @@ export async function loadReviewQueue(): Promise<ReviewItem[]> {
     author: row.profile_id ? (cards.get(row.profile_id) ?? null) : null,
     language: row.language,
     note: row.note,
+    flags: row.flags ?? [],
     createdAt: row.created_at,
     subject: subjectOf(row),
   }));

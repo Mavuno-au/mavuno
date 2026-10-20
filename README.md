@@ -85,6 +85,7 @@ Admins can then make other members moderators from Moderation → Admin.
 | `TRANSLATE_API_URL`, `TRANSLATE_API_KEY` | no | A [LibreTranslate](https://github.com/LibreTranslate/LibreTranslate)-compatible API. Without it, Translate opens Google Translate |
 | `SUPABASE_SERVICE_ROLE_KEY` | for photos | Server only. Stores uploaded photos after re-encoding them; without it photo uploads are off. Also caches translations and lets `/api/maintenance` remove erased files |
 | `MAINTENANCE_SECRET` | no | Bearer token for `POST /api/maintenance` |
+| `OPENAI_API_KEY` | no | Turns on the automatic check: after a post is created, posts from members without a track record (new, or reported in the past week) go to OpenAI's `omni-moderation-latest`, and a flagged post goes back to the review queue with its categories. It never rejects. Needs `SUPABASE_SERVICE_ROLE_KEY`; without either key nothing is sent |
 | `NEXT_PUBLIC_FATHOM_SITE_ID` | no | [Fathom](https://usefathom.com) site ID for cookieless visit counts. Nothing loads without it |
 | `SUPABASE_DB_URL` | for `pnpm db:push` | Direct Postgres connection string. Never commit it |
 | `RESEND_API_KEY`, `SUPABASE_ACCESS_TOKEN` | for `pnpm email:apply` | Sends sign-in emails from hello@mavuno.au through Resend, with the templates in `supabase/templates` (`pnpm email:build` regenerates them) |
@@ -111,6 +112,7 @@ Everything that has to be true lives in `supabase/migrations`:
 | `scheduled_posts` | posts scheduled up to 30 days ahead, published each minute by `pg_cron` through `create_post` as the member who scheduled them |
 | `age_assurance_and_notices` | the 16+ age check (only when it was confirmed is stored), deactivating and reinstating under-16 accounts and the record of those steps, moderation notices that name the rule, and legal complaints with a 7-day target |
 | `server_side_images` | WebP-only buckets, no direct uploads to Storage (`can_upload` decides who may upload through `/api/upload`), and posts and messages that only point at re-encoded files |
+| `automatic_check` | `post_flags`, and the service-role functions the automatic check uses to read a post and hold it for review (never reject it) |
 
 Every table has row level security, and `api_grants` declares every privilege explicitly: Supabase no longer exposes new tables and functions automatically, and internal functions (publishing, notifying, purging) get no grant at all, so only database code can call them. Writes that need more than a one-row check go through `SECURITY DEFINER` functions such as `create_post`, `report_content` and `start_direct_conversation`, which check permissions, limits and blocks themselves. Rate limits (posts, messages, reports, listings, message requests) are enforced in the database, so they hold for every client.
 

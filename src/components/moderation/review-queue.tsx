@@ -31,6 +31,35 @@ const kindLabel = (item: ReviewItem) => {
   }
 };
 
+const FLAG_LABELS: Record<string, string> = {
+  harassment: "Harassment",
+  "harassment/threatening": "Threats",
+  hate: "Hate",
+  "hate/threatening": "Hateful threats",
+  illicit: "Illegal activity",
+  "illicit/violent": "Weapons or violent crime",
+  "self-harm": "Self-harm",
+  "self-harm/intent": "Self-harm intent",
+  "self-harm/instructions": "Self-harm instructions",
+  sexual: "Sexual content",
+  "sexual/minors": "Sexual content involving minors",
+  violence: "Violence",
+  "violence/graphic": "Graphic violence",
+};
+
+function Flags({ flags }: { flags: string[] }) {
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-1 text-sm text-ink-muted">
+      <span title="A model's guess, and a weaker one outside English. You decide.">Automatic check:</span>
+      {flags.map((flag) => (
+        <Chip key={flag} tone="danger">
+          {FLAG_LABELS[flag] ?? flag}
+        </Chip>
+      ))}
+    </div>
+  );
+}
+
 function Keycap({ label }: { label: string }) {
   return (
     <kbd aria-hidden className="-mr-1 hidden rounded border border-current/30 px-1 font-mono text-[11px] leading-4 opacity-70 sm:inline-block">
@@ -77,6 +106,7 @@ function ReviewRow({ item, onDone, onMove }: { item: ReviewItem; onDone: () => v
           <Chip tone="warning">{item.note}</Chip>
         </p>
       ) : null}
+      {item.flags.length > 0 ? <Flags flags={item.flags} /> : null}
       <SubjectPreview subject={item.subject} />
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button size="sm" disabled={pending} onClick={() => decide(true)} aria-keyshortcuts="a">

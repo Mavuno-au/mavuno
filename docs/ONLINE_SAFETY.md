@@ -40,7 +40,7 @@ Last reviewed: 20 October 2026. Next review: October 2027, or sooner (see Review
 
 **The most serious material.** Child sexual exploitation material and pro-terror material are removed straight away, the account is closed, and we report it to the AFP-led Australian Centre to Counter Child Exploitation (ACCCE) or to police. We comply with eSafety removal notices within 24 hours. Moderators are told not to download or forward such material.
 
-**Safety by design.** Message requests from people you don't follow, limits on new requests per day, the option to accept messages from nobody or only people you follow, mute and block that apply everywhere, photos re-encoded to remove location data, city-level location only.
+**Safety by design.** Message requests from people you don't follow, limits on new requests per day, the option to accept messages from nobody or only people you follow, mute and block that apply everywhere, photos re-encoded to remove location data, city-level location only. When `OPENAI_API_KEY` is set, posts from members without a track record (and their photos) are checked by OpenAI's moderation model, and anything it flags goes back to the review queue with the categories it found. It never removes anything: a moderator decides, because the model is weaker in Swahili, Somali and Amharic.
 
 **Accountability.** Moderation decisions are logged (`moderation_actions`), admins see how many reports are open at `/operations`, and we will answer eSafety's requests for information about how the codes are being met.
 
