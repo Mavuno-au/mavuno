@@ -15,6 +15,7 @@ export default async function SavedPage() {
       <Feed
         source={{ kind: "saved" }}
         initial={page.posts}
+        previews={page.previews}
         next={page.next}
         dayMarkers={false}
         end="That's everything you've saved."

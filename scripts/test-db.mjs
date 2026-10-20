@@ -232,7 +232,7 @@ await as(kofi);
 rows = await q("select id from public.feed_following()");
 check("following feed has followed people's posts", rows.some((r) => r.id === post1));
 check("following feed leaves out replies", !rows.some((r) => r.id === reply1));
-check("trending ranks recent posts", (await q("select id from public.feed_trending()")).length >= 3);
+check("trending ranks recent posts", (await q("select post->>'id' as id from public.feed_trending()")).length >= 3);
 check("trending topics are counted", (await q("select topic from public.trending_topics()")).some((r) => r.topic === "afrofest"));
 rows = await q("select id from public.post_ancestors($1)", [reply1]);
 check("a reply's ancestors resolve", rows.length === 1 && rows[0].id === post1, rows);
@@ -1105,6 +1105,121 @@ console.log("\nRepeated posts");
   check("copies older than an hour don't count", (await status(await post(ad))).status === "published");
   await as(mod);
   check("moderators see the held copy", (await q("select 1 from public.review_queue where target_id = $1", [third])).length === 1);
+}
+
+console.log("\nConversation");
+{
+  const user = (name) => createUser(`${name}@example.com`, { username: name });
+  const writer = await user("conv_writer");
+  const first = await user("conv_first");
+  const second = await user("conv_second");
+  const third = await user("conv_third");
+  const reader = await user("conv_reader");
+  const blocked = await user("conv_blocked");
+  const muted = await user("conv_muted");
+  const friend = await user("conv_friend");
+
+  await as(writer);
+  const root = await post("Where's the best suya in Brisbane?");
+  const other = await post("And the best jollof?");
+  const continued = await post("Asking for a market stall", "en", null, root);
+  await as(first);
+  const firstReply = await post("Try the West End markets", "en", null, root);
+  await as(blocked);
+  await post("Nowhere good", "en", null, root);
+  await as(muted);
+  await post("Who cares", "en", null, root);
+  await as(second);
+  const secondReply = await post("Mt Gravatt has a good one", "en", null, root);
+  await as(third);
+  const deleted = await post("Ignore me", "en", null, root);
+  await q("select public.delete_post($1)", [deleted]);
+  const thirdReply = await post("Agreed with @conv_second", "en", null, root);
+  const otherReply = await post("Mine, obviously", "en", null, other);
+  await as(reader);
+  await q("insert into public.blocks (blocker_id, blocked_id) values ($1, $2)", [reader, blocked]);
+  await q("insert into public.mutes (muter_id, muted_id) values ($1, $2)", [reader, muted]);
+  await q("insert into public.follows (follower_id, followee_id) values ($1, $2)", [reader, friend]);
+
+  rows = await q("select id, parent_id from public.reply_previews($1::uuid[], 3)", [`{${root},${other}}`]);
+  const under = (id) => rows.filter((r) => r.parent_id === id).map((r) => r.id);
+  check("previews show the newest replies under each post, oldest first", JSON.stringify(under(root)) === JSON.stringify([firstReply, secondReply, thirdReply]), under(root));
+  check("previews for a whole page come from one query", JSON.stringify(under(other)) === JSON.stringify([otherReply]), under(other));
+  check("previews leave out the thread's continuation, blocked and muted people and deleted replies", !rows.some((r) => [continued, deleted].includes(r.id)) && rows.length === 4, rows.length);
+  check("previews show at most 5 replies, and none when asked for none",
+    (await q("select id from public.reply_previews($1::uuid[], 50)", [`{${root}}`])).length === 3 && (await q("select id from public.reply_previews($1::uuid[], 0)", [`{${root}}`])).length === 0);
+  await anon();
+  check("guests see previews", (await q("select id from public.reply_previews($1::uuid[], 2)", [`{${root}}`])).length === 2);
+
+  const hot = async (id) => (await one("select hot_score from public.posts where id = $1", [id])).hot_score;
+  const before = await hot(root);
+  await as(friend);
+  await q("insert into public.likes (user_id, post_id) values ($1, $2)", [friend, secondReply]);
+  check("a like on a reply counts towards its thread's trending score", (await hot(root)) > before, { before, after: await hot(root) });
+  const liked = await hot(root);
+  await as(first);
+  await q("insert into public.likes (user_id, post_id) values ($1, $2)", [first, secondReply]);
+  check("someone who already replied counts once", (await hot(root)) === liked);
+
+  await as(reader);
+  const draw = async (seed, limit = 50, after = null) =>
+    q("select trending_score::text as score, post->>'id' as id from public.feed_trending($1, $2, $3, $4)", [seed, after?.score ?? null, after?.id ?? null, limit]);
+  const all = await draw(7);
+  check("the same seed draws the same order", JSON.stringify(all) === JSON.stringify(await draw(7)));
+  const orders = new Set();
+  for (const seed of [1, 2, 3, 4, 5, 6, 8, 9]) orders.add((await draw(seed)).map((r) => r.id).join());
+  check("other seeds draw other orders", orders.size > 1, orders.size);
+  const paged = [];
+  let page = await draw(7, 2);
+  while (page.length > 0) {
+    paged.push(...page);
+    page = await draw(7, 2, page.at(-1));
+  }
+  check("later pages of a draw continue it without overlapping", JSON.stringify(paged) === JSON.stringify(all) && new Set(paged.map((r) => r.id)).size === paged.length, { paged: paged.length, all: all.length });
+  await as(muted);
+  const mutedPost = await post("A top-level post from someone muted");
+  await as(reader);
+  check("trending leaves out people the viewer muted", !(await draw(7)).some((r) => r.id === mutedPost));
+  check("a draw is in order of its scores", all.every((r, i) => i === 0 || Number(all[i - 1].score) >= Number(r.score)));
+
+  await as(writer);
+  rows = await q("select username, following, follows_you from public.post_likers($1)", [secondReply]).catch(() => null);
+  check("only the author sees who liked a post", rows === null);
+  await as(second);
+  rows = await q("select username from public.post_likers($1)", [secondReply]);
+  check("the author sees who liked their post, newest first", rows.map((r) => r.username).join() === "conv_first,conv_friend", rows);
+  await q("insert into public.blocks (blocker_id, blocked_id) values ($1, $2)", [second, friend]);
+  check("who liked a post leaves out blocked people", (await q("select username from public.post_likers($1)", [secondReply])).map((r) => r.username).join() === "conv_first");
+  rows = await q("select username from public.post_likers($1, now() - interval '1 day')", [secondReply]);
+  check("who liked a post pages by time", rows.length === 0, rows);
+  await anon();
+  await fails("guests cannot see who liked a post", "select * from public.post_likers($1)", [secondReply], /permission denied/);
+
+  await as(reader);
+  rows = await q("select username from public.mention_suggestions('', $1)", [thirdReply]);
+  check(
+    "replies suggest the person replied to, the thread's author, the others in it, then people you follow",
+    rows.map((r) => r.username).join() === "conv_third,conv_writer,conv_second,conv_first,conv_friend",
+    rows.map((r) => r.username),
+  );
+  rows = await q("select username from public.mention_suggestions('conv_', $1, null, 20)", [thirdReply]);
+  check("typing keeps the conversation first, then matches everyone else", rows[0]?.username === "conv_third" && rows.some((r) => r.username === "conv_writer") && rows.at(-1)?.username !== "conv_third", rows.map((r) => r.username));
+  check("suggestions leave out the writer, muted and blocked people", !rows.some((r) => ["conv_reader", "conv_muted", "conv_blocked"].includes(r.username)), rows.map((r) => r.username));
+  rows = await q("select username from public.mention_suggestions('', null, $1)", [root]);
+  check("quotes suggest the quoted author first", rows[0]?.username === "conv_writer" && rows.length === 2, rows.map((r) => r.username));
+  rows = await q("select username from public.mention_suggestions('')");
+  check("a bare @ elsewhere suggests people you follow", rows.map((r) => r.username).join() === "conv_friend", rows);
+  await anon();
+  await fails("guests get no mention suggestions", "select * from public.mention_suggestions('conv')", [], /permission denied/);
+
+  await as(writer);
+  await q("insert into public.follows (follower_id, followee_id) values ($1, $2)", [writer, reader]);
+  await as(reader);
+  row = await one("select username, follows_you, following, posts_count from public.profile_preview('Conv_Writer')");
+  check("profile cards say whether they follow you", row.username === "conv_writer" && row.follows_you && !row.following && row.posts_count === 2, row);
+  check("profile cards are empty across a block", (await q("select * from public.profile_preview('conv_blocked')")).length === 0);
+  await anon();
+  check("guests see profile cards", (await one("select follows_you from public.profile_preview('conv_writer')")).follows_you === false);
 }
 
 console.log("\nDemo seed");

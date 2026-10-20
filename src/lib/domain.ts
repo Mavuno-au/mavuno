@@ -237,6 +237,18 @@ export type Tombstone = Extract<PostRow, { kind: "tombstone" }>;
 
 export const parsePosts = (rows: unknown) => z.array(postRowSchema).parse(rows ?? []);
 
+// The newest replies under each post of a feed page, by the id of the post they answer.
+export type ReplyPreviews = Record<string, PostRow[]>;
+
+export function parseReplyPreviews(rows: unknown): ReplyPreviews {
+  const previews: ReplyPreviews = {};
+  for (const reply of parsePosts(rows)) {
+    if (!reply.parentId) continue;
+    (previews[reply.parentId] ??= []).push(reply);
+  }
+  return previews;
+}
+
 // Where a post sits in a thread its author continued by replying to themselves.
 // A capped thread is longer than the size shown.
 export type ThreadPlace = { position: number; size: number; capped: boolean };
@@ -277,6 +289,47 @@ export const suggestionSchema = z
   }));
 export type PersonSummary = z.infer<typeof suggestionSchema>;
 export const parsePeople = (rows: unknown) => z.array(suggestionSchema).parse(rows ?? []);
+
+// What a profile card shows when someone hovers over a name.
+const profilePreviewSchema = z
+  .object({
+    id,
+    username: z.string(),
+    display_name: z.string(),
+    avatar_url: z.string().nullable(),
+    colour: colourSchema,
+    bio: z.string(),
+    headline: z.string().nullable(),
+    account_type: accountTypeSchema,
+    org_verified: z.boolean(),
+    followers_count: z.number(),
+    following_count: z.number(),
+    posts_count: z.number(),
+    following: z.boolean(),
+    follows_you: z.boolean(),
+    muted: z.boolean(),
+  })
+  .transform((p) => ({
+    id: p.id,
+    username: p.username,
+    displayName: p.display_name,
+    avatarUrl: p.avatar_url,
+    colour: p.colour,
+    bio: p.bio,
+    headline: p.headline,
+    accountType: p.account_type,
+    verified: p.org_verified,
+    followers: p.followers_count,
+    following: p.following_count,
+    posts: p.posts_count,
+    viewerFollows: p.following,
+    followsYou: p.follows_you,
+    muted: p.muted,
+  }));
+export type ProfilePreview = z.infer<typeof profilePreviewSchema>;
+
+// No row means the profile is gone or across a block.
+export const parseProfilePreview = (rows: unknown) => z.array(profilePreviewSchema).parse(rows ?? [])[0] ?? null;
 
 export const CITY_PHOTO_COLUMNS = "photo_url, photo_thumb_url, photo_author, photo_license, photo_license_url, photo_source_url";
 

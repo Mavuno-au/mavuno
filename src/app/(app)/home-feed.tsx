@@ -6,9 +6,9 @@ import { JsonLd } from "@/components/seo/json-ld";
 import { WhoToFollow } from "@/components/people/who-to-follow";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState, PageHeader, Tabs } from "@/components/ui/page";
-import { loadFeed } from "@/lib/data/posts";
+import { loadFeed, newTrendingSeed } from "@/lib/data/posts";
 import { loadSuggestions, loadWhoToFollowBlock } from "@/lib/data/shell";
-import type { HomeFeed } from "@/lib/feeds";
+import type { FeedSource, HomeFeed } from "@/lib/feeds";
 import { siteJsonLd } from "@/lib/structured-data";
 import { getViewer } from "@/lib/viewer";
 
@@ -21,7 +21,8 @@ const FEEDS: Record<HomeFeed, { label: string; href: string }> = {
 export async function HomeFeedView({ feed }: { feed: HomeFeed }) {
   const viewer = await getViewer();
   const feeds: HomeFeed[] = viewer ? ["following", "latest", "trending"] : ["trending", "latest"];
-  const [page, whoToFollow] = await Promise.all([loadFeed({ kind: feed }), feed === "trending" ? Promise.resolve(null) : loadWhoToFollowBlock(viewer)]);
+  const source: FeedSource = feed === "trending" ? { kind: "trending", seed: newTrendingSeed() } : { kind: feed };
+  const [page, whoToFollow] = await Promise.all([loadFeed(source), feed === "trending" ? Promise.resolve(null) : loadWhoToFollowBlock(viewer)]);
   // An empty Following feed lists people to follow instead.
   const suggestions = viewer && feed === "following" && page.posts.length === 0 ? await loadSuggestions(5) : [];
   // Wide screens show suggestions in the side column; narrower ones get them after the fifth post.
@@ -52,8 +53,9 @@ export async function HomeFeedView({ feed }: { feed: HomeFeed }) {
       )}
       <Feed
         key={feed}
-        source={{ kind: feed }}
+        source={source}
         initial={page.posts}
+        previews={page.previews}
         next={page.next}
         dayMarkers={feed !== "trending"}
         insert={inline}

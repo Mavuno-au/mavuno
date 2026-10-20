@@ -5,7 +5,8 @@ import { z } from "zod";
 export const feedSourceSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("following") }),
   z.object({ kind: z.literal("latest") }),
-  z.object({ kind: z.literal("trending") }),
+  // Each visit draws Trending with a new seed; its later pages reuse it.
+  z.object({ kind: z.literal("trending"), seed: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER) }),
   z.object({ kind: z.literal("saved") }),
   z.object({ kind: z.literal("space"), spaceId: z.uuid() }),
   z.object({ kind: z.literal("topic"), topic: z.string().regex(/^[a-z][a-z0-9_]{1,39}$/) }),

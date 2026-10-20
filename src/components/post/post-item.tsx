@@ -9,8 +9,10 @@ import { deletePost, loadMoreReplies, pinPost, restorePost, setLike, setSaved, u
 import { setRelation } from "@/app/actions/social";
 import { ReportDialog } from "@/components/moderation/report-dialog";
 import { ConfirmBlockDialog } from "@/components/people/confirm-block-dialog";
+import { ProfileHoverCard } from "@/components/people/profile-card";
 import { EventAttachment, ImageGrid, LinkCard, OpportunityAttachment, QuotedBlock } from "@/components/post/attachments";
 import { Composer } from "@/components/post/composer";
+import { LikeCount } from "@/components/post/likers";
 import { PollView } from "@/components/post/poll";
 import { RichText } from "@/components/post/rich-text";
 import { Translation } from "@/components/post/translation";
@@ -46,17 +48,20 @@ export function PostItem({
   thread,
   place,
   pinned = false,
+  previews = [],
 }: {
   row: PostRow;
   variant?: Variant;
   thread?: Thread;
   place?: ThreadPlace;
   pinned?: boolean;
+  // The newest replies, shown under the post in a feed.
+  previews?: PostRow[];
 }) {
   const [state, setState] = useState<RowState>("shown");
   if (row.kind === "tombstone") return <TombstoneItem row={row} depth={thread?.depth ?? 0} />;
   if (state === "removed" && variant !== "focus") return null;
-  return <LivePost post={row} variant={variant} thread={thread} place={place} pinned={pinned} state={state} setState={setState} />;
+  return <LivePost post={row} variant={variant} thread={thread} place={place} pinned={pinned} previews={previews} state={state} setState={setState} />;
 }
 
 function TombstoneItem({ row, depth }: { row: Extract<PostRow, { kind: "tombstone" }>; depth: number }) {
@@ -68,7 +73,7 @@ function TombstoneItem({ row, depth }: { row: Extract<PostRow, { kind: "tombston
           <span className="font-mono">[deleted]</span> This post was deleted.
         </span>
       </div>
-      {row.replies > 0 ? <Replies postId={row.id} total={row.replies} depth={depth} added={[]} /> : null}
+      {row.replies > 0 ? <Replies postId={row.id} total={row.replies} depth={depth} previews={[]} added={[]} /> : null}
     </article>
   );
 }
@@ -79,6 +84,7 @@ function LivePost({
   thread,
   place,
   pinned,
+  previews,
   state,
   setState,
 }: {
@@ -87,6 +93,7 @@ function LivePost({
   thread?: Thread;
   place?: ThreadPlace;
   pinned: boolean;
+  previews: PostRow[];
   state: RowState;
   setState: (state: RowState) => void;
 }) {
@@ -237,14 +244,18 @@ function LivePost({
       )}
     >
       <div className="flex gap-3">
-        <Link href={`/@${post.author.username}`} className="shrink-0" aria-label={post.author.displayName}>
-          <Avatar person={post.author} size={compactRow ? "sm" : "md"} />
-        </Link>
+        <ProfileHoverCard username={post.author.username} className="shrink-0">
+          <Link href={`/@${post.author.username}`} className="block" aria-label={post.author.displayName}>
+            <Avatar person={post.author} size={compactRow ? "sm" : "md"} />
+          </Link>
+        </ProfileHoverCard>
         <div className="min-w-0 flex-1">
           <header className="flex min-w-0 items-center gap-1.5 text-[15px]">
-            <Link href={`/@${post.author.username}`} className="truncate font-semibold hover:underline">
-              {post.author.displayName}
-            </Link>
+            <ProfileHoverCard username={post.author.username} className="flex min-w-0">
+              <Link href={`/@${post.author.username}`} className="truncate font-semibold hover:underline">
+                {post.author.displayName}
+              </Link>
+            </ProfileHoverCard>
             {post.author.verified ? <BadgeCheck className="size-4 shrink-0 text-primary" aria-label="Verified organisation" /> : null}
             <span className="hidden truncate font-mono text-[13px] text-ink-muted sm:inline">@{post.author.username}</span>
             <span className="font-mono text-[13px] text-ink-muted">·</span>
@@ -351,9 +362,7 @@ function LivePost({
                   <Heart className={cn(liked && "fill-current")} />
                 </Action>
               ) : likes > 0 ? (
-                <span className="flex items-center gap-1.5 px-2 font-mono text-[13px]" title="Likes">
-                  <Heart className="size-4" /> {compact(likes)}
-                </span>
+                <LikeCount postId={post.id} likes={likes} />
               ) : null}
               <Action label={saved ? "Remove from saved" : "Save"} onClick={toggleSave} active={saved}>
                 <Bookmark className={cn(saved && "fill-current")} />
@@ -383,7 +392,7 @@ function LivePost({
 
       {showReplies && replyTotal > 0 ? (
         <div className={depth >= MAX_INDENT ? "" : compactRow ? "ml-10" : "ml-[3.25rem]"}>
-          <Replies postId={post.id} total={replyTotal} depth={depth} added={added} />
+          <Replies postId={post.id} total={replyTotal} depth={depth} previews={previews} added={added} />
         </div>
       ) : null}
 
@@ -476,9 +485,10 @@ function Action({
 
 type RepliesState = { kind: "closed" } | { kind: "loading" } | { kind: "open"; rows: PostRow[]; next: string | null };
 
-// Threads expand in place under a post, a page at a time. Replies the reader
-// just wrote (`added`) show straight away.
-function Replies({ postId, total, depth, added }: { postId: string; total: number; depth: number; added: PostRow[] }) {
+// Threads expand in place under a post, a page at a time. Until then a feed
+// shows the newest replies (`previews`). Replies the reader just wrote
+// (`added`) show straight away.
+function Replies({ postId, total, depth, previews, added }: { postId: string; total: number; depth: number; previews: PostRow[]; added: PostRow[] }) {
   const [state, setState] = useState<RepliesState>({ kind: "closed" });
   const [, startTransition] = useTransition();
 
@@ -495,7 +505,7 @@ function Replies({ postId, total, depth, added }: { postId: string; total: numbe
     });
   }
 
-  const loaded = state.kind === "open" ? state.rows : [];
+  const loaded = state.kind === "open" ? state.rows : previews;
   const rows = [...loaded, ...added.filter((row) => !loaded.some((item) => item.id === row.id))];
   const remaining = total - rows.length;
   const thread = { parentId: postId, depth: depth + 1 };
@@ -517,7 +527,7 @@ function Replies({ postId, total, depth, added }: { postId: string; total: numbe
         ) : null}
         {state.kind !== "open" && remaining > 0 ? (
           <button type="button" aria-keyshortcuts="o" data-for={postId} onClick={() => load(null)} disabled={state.kind === "loading"} className="font-medium text-primary hover:underline disabled:opacity-60">
-            {state.kind === "loading" ? "Loading…" : rows.length > 0 ? `Show ${count(remaining, "more reply", "more replies")}` : count(total, "reply", "replies")}
+            {state.kind === "loading" ? "Loading…" : previews.length > 0 ? `Show all ${total}` : rows.length > 0 ? `Show ${count(remaining, "more reply", "more replies")}` : count(total, "reply", "replies")}
           </button>
         ) : null}
         {state.kind === "open" ? (

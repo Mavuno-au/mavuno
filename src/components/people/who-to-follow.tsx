@@ -76,7 +76,7 @@ export function WhoToFollow({ initial, className }: { initial: WhoToFollowPage; 
         <>
           <div aria-busy={refreshing}>
             {people.map((person) => (
-              <PersonRow key={person.id} person={person} detail={person.reason} compact />
+              <PersonRow key={person.id} person={person} detail={person.reason} compact card />
             ))}
           </div>
           <Link href="/discover/people" className="mt-1 inline-block text-sm text-primary hover:underline">See more people</Link>

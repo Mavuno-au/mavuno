@@ -24,6 +24,17 @@ describe("tokenize", () => {
     expect(segments.find((s) => s.kind === "url")).toMatchObject({ href: "https://en.wikipedia.org/wiki/Jollof_(dish)" });
   });
 
+  it("ends links at an ellipsis or curly quotes", () => {
+    expect(firstUrl("Read https://example.org/story… then tell me")).toBe("https://example.org/story");
+    expect(firstUrl("She said “see https://example.org/a”.")).toBe("https://example.org/a");
+    expect(firstUrl("It’s at ‘https://example.org/b’, I think")).toBe("https://example.org/b");
+    expect(firstUrl("www.mavuno.au’s new look")).toBe("https://www.mavuno.au");
+    expect(tokenize("https://example.org/x…")).toEqual([
+      { kind: "url", text: "https://example.org/x", href: "https://example.org/x" },
+      { kind: "text", text: "…" },
+    ]);
+  });
+
   it("links bare www addresses over https", () => {
     expect(firstUrl("visit www.mavuno.au today")).toBe("https://www.mavuno.au");
   });

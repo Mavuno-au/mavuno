@@ -4,6 +4,7 @@ import { AtSign, CalendarCheck, Heart, MessageCircle, Repeat2, ShieldAlert, User
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { FollowButton } from "@/components/people/follow-button";
+import { ProfileHoverCard } from "@/components/people/profile-card";
 import { Avatar } from "@/components/ui/avatar";
 import { LocalTime, useNow } from "@/components/ui/local-time";
 import { cn } from "@/lib/cn";
@@ -99,9 +100,11 @@ export function NotificationRow({ group, owner, followable }: { group: Notificat
           <>
             <div className="flex items-center gap-1">
               {actors.slice(0, 3).map((actor) => (
-                <Link key={actor.id} href={`/@${actor.username}`}>
-                  <Avatar person={actor} size="sm" />
-                </Link>
+                <ProfileHoverCard key={actor.id} username={actor.username}>
+                  <Link href={`/@${actor.username}`} className="block">
+                    <Avatar person={actor} size="sm" />
+                  </Link>
+                </ProfileHoverCard>
               ))}
               {actors.length > 3 ? <span className="flex size-7 items-center justify-center rounded-full bg-wash font-mono text-[11px]">+{actors.length - 3}</span> : null}
               <span className="ml-auto font-mono text-xs text-ink-muted">
@@ -110,9 +113,11 @@ export function NotificationRow({ group, owner, followable }: { group: Notificat
             </div>
             <p className="mt-1.5 text-[15px]">
               {first ? (
-                <Link href={`/@${first.username}`} className="font-semibold hover:underline">
-                  {first.displayName}
-                </Link>
+                <ProfileHoverCard username={first.username}>
+                  <Link href={`/@${first.username}`} className="font-semibold hover:underline">
+                    {first.displayName}
+                  </Link>
+                </ProfileHoverCard>
               ) : null}
               {others > 0 ? ` and ${others} ${others === 1 ? "other" : "others"}` : ""} {latest.type === "event_rsvp" && others > 0 ? "are going to" : VERBS[latest.type]}
               {latest.type === "event_rsvp" && latest.event ? (

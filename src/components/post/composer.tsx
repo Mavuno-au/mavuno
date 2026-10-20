@@ -18,6 +18,7 @@ import { LANGUAGES, LIMITS, POLL_DURATIONS } from "@/lib/catalogue";
 import { cn } from "@/lib/cn";
 import type { Post, PostRow } from "@/lib/domain";
 import { fullDate } from "@/lib/format";
+import { findPersonalInfo, personalInfoWarning, type PersonalInfo } from "@/lib/personal-info";
 import { initialSchedule, scheduledDate, scheduleProblem, type ScheduleDraft } from "@/lib/schedule";
 import { displayUrl, tokenize } from "@/lib/text";
 import { draftPrefix } from "@/lib/browser-data";
@@ -78,6 +79,8 @@ export function Composer({ mode, autoFocus, onPosted, onCancel }: { mode: Compos
   const [cardChoice, setCardChoice] = useState<string | null | undefined>(undefined);
   const [previewing, setPreviewing] = useState(false);
   const [schedule, setSchedule] = useState<ScheduleDraft | null>(null);
+  // Personal details found when the writer pressed Post, until they edit or post anyway.
+  const [personal, setPersonal] = useState<PersonalInfo[]>([]);
   const now = new Date(useNow());
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -86,7 +89,7 @@ export function Composer({ mode, autoFocus, onPosted, onCancel }: { mode: Compos
     body,
     setBody,
     viewerId: viewer?.id ?? null,
-    priority: mode.kind === "reply" ? [mode.parent.author] : mode.kind === "quote" ? [mode.quoted.author] : [],
+    context: mode.kind === "reply" ? { kind: "reply", postId: mode.parent.id } : mode.kind === "quote" ? { kind: "quote", postId: mode.quoted.id } : { kind: "none" },
   });
 
   useEffect(() => {
@@ -150,8 +153,11 @@ export function Composer({ mode, autoFocus, onPosted, onCancel }: { mode: Compos
     }
   }
 
-  function submit() {
+  function submit({ checked = false } = {}) {
     if (!canSubmit) return;
+    const found = checked ? [] : findPersonalInfo(body);
+    setPersonal(found);
+    if (found.length > 0) return;
     startTransition(async () => {
       const uploaded: { path: string }[] = [];
       try {
@@ -282,7 +288,10 @@ export function Composer({ mode, autoFocus, onPosted, onCancel }: { mode: Compos
           maxLength={LIMITS.postBody + 200}
           placeholder={placeholder(mode)}
           aria-label={PLACEHOLDERS[mode.kind]}
-          onChange={(event) => setBody(event.target.value)}
+          onChange={(event) => {
+            setBody(event.target.value);
+            setPersonal([]);
+          }}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
           onSelect={mentions.onSelect}
@@ -360,93 +369,114 @@ export function Composer({ mode, autoFocus, onPosted, onCancel }: { mode: Compos
           </div>
         ) : null}
 
-        <div className="mt-2 flex flex-wrap items-center gap-1">
-          {mode.kind !== "quote" ? (
-            <>
-              <input
-                ref={fileInput}
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif"
-                multiple
-                hidden
-                onChange={(event) => {
-                  if (event.target.files) void addFiles(event.target.files);
-                  event.target.value = "";
+        {personal.length > 0 ? (
+          <div role="alert" className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-md bg-wash px-3 py-2 text-sm">
+            <span>{personalInfoWarning(personal)}</span>
+            <span className="ml-auto flex gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setPersonal([]);
+                  togglePreview(false);
                 }}
-              />
-              <Button variant="ghost" size="icon" aria-label="Add images" title="Add images" disabled={images.length >= LIMITS.images || poll !== null} onClick={() => fileInput.current?.click()}>
-                <ImagePlus className="text-primary" />
+              >
+                Edit
               </Button>
-            </>
-          ) : null}
-          {mode.kind === "post" ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={poll ? "Remove poll" : "Add a poll"}
-              title={poll ? "Remove poll" : "Add a poll"}
-              aria-pressed={poll !== null}
-              disabled={images.length > 0}
-              onClick={() => setPoll(poll ? null : { options: ["", ""], durationHours: 24 })}
-            >
-              <BarChart3 className="text-primary" />
-            </Button>
-          ) : null}
-          {schedulable ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={schedule ? "Don't schedule" : "Schedule for later"}
-              title={schedule ? "Don't schedule" : "Schedule for later"}
-              aria-pressed={schedule !== null}
-              onClick={() => setSchedule(schedule ? null : initialSchedule(new Date()))}
-            >
-              <CalendarClock className="text-primary" />
-            </Button>
-          ) : null}
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={previewing ? "Back to editing" : "Preview"}
-            title={previewing ? "Edit (Esc)" : "Preview (⌘/Ctrl+Shift+P)"}
-            aria-pressed={previewing}
-            onClick={() => togglePreview(!previewing)}
-          >
-            {previewing ? <PenLine className="text-primary" /> : <Eye className="text-primary" />}
-          </Button>
-          <select aria-label="Language of this post" value={language} onChange={(event) => setLanguage(event.target.value)} className="h-8 max-w-36 rounded-md bg-transparent px-1 text-sm text-ink-muted hover:bg-wash">
-            {LANGUAGES.map((option) => (
-              <option key={option.code} value={option.code}>
-                {option.name}
-              </option>
-            ))}
-          </select>
-          <span className="ml-auto flex items-center gap-3">
-            {restored ? (
-              <span className="font-mono text-xs text-ink-muted">
-                draft restored ·{" "}
-                <button
-                  type="button"
-                  className="hover:text-ink"
-                  onClick={() => setBody("")}
-                >
-                  discard
-                </button>
-              </span>
-            ) : null}
-            <span className={cn("w-10 text-right font-mono text-[13px] tabular", remaining < 0 ? "text-destructive" : remaining < 200 ? "text-ink" : "text-ink-muted/60")}>
-              {remaining < 500 ? remaining : ""}
+              <Button size="sm" onClick={() => submit({ checked: true })}>
+                Post anyway
+              </Button>
             </span>
-            {onCancel ? (
-              <Button variant="ghost" size="sm" onClick={onCancel}>
-                Cancel
+          </div>
+        ) : (
+          <div className="mt-2 flex flex-wrap items-center gap-1">
+            {mode.kind !== "quote" ? (
+              <>
+                <input
+                  ref={fileInput}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  multiple
+                  hidden
+                  onChange={(event) => {
+                    if (event.target.files) void addFiles(event.target.files);
+                    event.target.value = "";
+                  }}
+                />
+                <Button variant="ghost" size="icon" aria-label="Add images" title="Add images" disabled={images.length >= LIMITS.images || poll !== null} onClick={() => fileInput.current?.click()}>
+                  <ImagePlus className="text-primary" />
+                </Button>
+              </>
+            ) : null}
+            {mode.kind === "post" ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={poll ? "Remove poll" : "Add a poll"}
+                title={poll ? "Remove poll" : "Add a poll"}
+                aria-pressed={poll !== null}
+                disabled={images.length > 0}
+                onClick={() => setPoll(poll ? null : { options: ["", ""], durationHours: 24 })}
+              >
+                <BarChart3 className="text-primary" />
               </Button>
             ) : null}
-            <Button type="submit" size="sm" disabled={!canSubmit} className={schedule ? "min-w-[7.5rem]" : "min-w-[5.75rem]"} title="⌘/Ctrl + Enter">
-              {schedule ? (pending ? "Scheduling…" : "Schedule post") : pending ? "Posting…" : mode.kind === "reply" ? "Reply" : mode.kind === "quote" ? "Quote" : "Post"}
+            {schedulable ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={schedule ? "Don't schedule" : "Schedule for later"}
+                title={schedule ? "Don't schedule" : "Schedule for later"}
+                aria-pressed={schedule !== null}
+                onClick={() => setSchedule(schedule ? null : initialSchedule(new Date()))}
+              >
+                <CalendarClock className="text-primary" />
+              </Button>
+            ) : null}
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={previewing ? "Back to editing" : "Preview"}
+              title={previewing ? "Edit (Esc)" : "Preview (⌘/Ctrl+Shift+P)"}
+              aria-pressed={previewing}
+              onClick={() => togglePreview(!previewing)}
+            >
+              {previewing ? <PenLine className="text-primary" /> : <Eye className="text-primary" />}
             </Button>
-          </span>
-        </div>
+            <select aria-label="Language of this post" value={language} onChange={(event) => setLanguage(event.target.value)} className="h-8 max-w-36 rounded-md bg-transparent px-1 text-sm text-ink-muted hover:bg-wash">
+              {LANGUAGES.map((option) => (
+                <option key={option.code} value={option.code}>
+                  {option.name}
+                </option>
+              ))}
+            </select>
+            <span className="ml-auto flex items-center gap-3">
+              {restored ? (
+                <span className="font-mono text-xs text-ink-muted">
+                  draft restored ·{" "}
+                  <button
+                    type="button"
+                    className="hover:text-ink"
+                    onClick={() => setBody("")}
+                  >
+                    discard
+                  </button>
+                </span>
+              ) : null}
+              <span className={cn("w-10 text-right font-mono text-[13px] tabular", remaining < 0 ? "text-destructive" : remaining < 200 ? "text-ink" : "text-ink-muted/60")}>
+                {remaining < 500 ? remaining : ""}
+              </span>
+              {onCancel ? (
+                <Button variant="ghost" size="sm" onClick={onCancel}>
+                  Cancel
+                </Button>
+              ) : null}
+              <Button type="submit" size="sm" disabled={!canSubmit} className={schedule ? "min-w-[7.5rem]" : "min-w-[5.75rem]"} title="⌘/Ctrl + Enter">
+                {schedule ? (pending ? "Scheduling…" : "Schedule post") : pending ? "Posting…" : mode.kind === "reply" ? "Reply" : mode.kind === "quote" ? "Quote" : "Post"}
+              </Button>
+            </span>
+          </div>
+        )}
       </div>
     </form>
   );

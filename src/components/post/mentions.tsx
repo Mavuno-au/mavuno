@@ -1,42 +1,25 @@
 "use client";
 
 import { useEffect, useState, type KeyboardEvent, type RefObject } from "react";
-import { z } from "zod";
 import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/cn";
-import { parsePeople, type PersonSummary, type ProfileCard } from "@/lib/domain";
+import { parsePeople, type PersonSummary } from "@/lib/domain";
 import { getBrowserClient } from "@/lib/supabase/browser";
 
 type Query = { text: string; start: number };
 type Person = Pick<PersonSummary, "id" | "username" | "displayName" | "avatarUrl" | "colour">;
 
+// The post being replied to or quoted, whose people are suggested first.
+export type MentionContext = { kind: "none" } | { kind: "reply"; postId: string } | { kind: "quote"; postId: string };
+
 const AT_CARET = /(?:^|[^A-Za-z0-9_.@/])@([A-Za-z0-9_]{0,30})$/;
 const LIMIT = 6;
 
-const PERSON = "id, username, display_name, avatar_url, colour:effective_colour, bio, headline, account_type, org_verified, followers_count";
-
-// A bare @ suggests people the writer follows; typing searches everyone.
-async function suggest(text: string, viewerId: string): Promise<Person[]> {
-  const supabase = getBrowserClient();
-  if (text) {
-    const { data } = await supabase.rpc("search_profiles", { p_query: text, p_limit: LIMIT + 1 });
-    return parsePeople(data);
-  }
-  const { data } = await supabase
-    .from("follows")
-    .select(`person:profiles!follows_followee_id_fkey(${PERSON})`)
-    .eq("follower_id", viewerId)
-    .order("created_at", { ascending: false })
-    .limit(LIMIT);
-  return parsePeople(z.array(z.object({ person: z.unknown() })).parse(data ?? []).map((row) => row.person));
-}
-
-// People in the conversation (the post being replied to or quoted) come first
-// when they match; the writer is never suggested.
-function rank(found: Person[], priority: ProfileCard[], text: string, viewerId: string) {
-  const matches = (person: Person) => !text || person.username.startsWith(text.toLowerCase()) || person.displayName.toLowerCase().includes(text.toLowerCase());
-  const first = priority.filter(matches);
-  return [...first, ...found.filter((person) => !first.some((p) => p.id === person.id))].filter((person) => person.id !== viewerId).slice(0, LIMIT);
+// The database orders suggestions: in a reply, the person replied to, the
+// thread's author, others in the thread, then people the writer follows.
+async function suggest(text: string, replyTo: string | null, quoteOf: string | null): Promise<Person[]> {
+  const { data, error } = await getBrowserClient().rpc("mention_suggestions", { p_query: text, p_reply_to: replyTo, p_quote_of: quoteOf, p_limit: LIMIT });
+  return error ? [] : parsePeople(data);
 }
 
 export function useMentions({
@@ -44,28 +27,30 @@ export function useMentions({
   body,
   setBody,
   viewerId,
-  priority,
+  context,
 }: {
   textarea: RefObject<HTMLTextAreaElement | null>;
   body: string;
   setBody: (body: string) => void;
   viewerId: string | null;
-  priority: ProfileCard[];
+  context: MentionContext;
 }) {
   const [query, setQuery] = useState<Query | null>(null);
   const [found, setFound] = useState<{ text: string; people: Person[] }>({ text: "", people: [] });
   const [active, setActive] = useState(0);
   const text = query?.text ?? null;
-  const results = query && viewerId && found.text === query.text ? rank(found.people, priority, query.text, viewerId) : [];
+  const results = query && viewerId && found.text === query.text ? found.people : [];
+  const replyTo = context.kind === "reply" ? context.postId : null;
+  const quoteOf = context.kind === "quote" ? context.postId : null;
 
   useEffect(() => {
     if (text === null || !viewerId) return;
     const timer = setTimeout(async () => {
-      setFound({ text, people: await suggest(text, viewerId) });
+      setFound({ text, people: await suggest(text, replyTo, quoteOf) });
       setActive(0);
     }, text ? 150 : 0);
     return () => clearTimeout(timer);
-  }, [text, viewerId]);
+  }, [text, viewerId, replyTo, quoteOf]);
 
   function onSelect() {
     const element = textarea.current;

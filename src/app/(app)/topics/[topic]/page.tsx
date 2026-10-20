@@ -28,7 +28,7 @@ export default async function TopicPage({ params }: PageProps<"/topics/[topic]">
   return (
     <>
       <PageHeader title={`#${source.topic}`} back="/discover" />
-      <Feed source={source} initial={page.posts} next={page.next} empty={<EmptyState title={`No posts about #${source.topic} yet`}>Use #{source.topic} in a post to start the conversation.</EmptyState>} />
+      <Feed source={source} initial={page.posts} previews={page.previews} next={page.next} empty={<EmptyState title={`No posts about #${source.topic} yet`}>Use #{source.topic} in a post to start the conversation.</EmptyState>} />
     </>
   );
 }
