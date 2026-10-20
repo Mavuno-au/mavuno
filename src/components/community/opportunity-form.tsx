@@ -66,7 +66,7 @@ export function OpportunityForm({ target, cities }: { target: Target; cities: Ci
           ? "Saved"
           : result.data.status === "published"
             ? "Posted. Share it from its page so your followers see it."
-            : "Sent for review. A moderator checks listings from new members, usually within a day.",
+            : "Sent for review. A moderator will check it, usually within a day.",
       );
       router.push(`/opportunities/${result.data.id}`);
       router.refresh();

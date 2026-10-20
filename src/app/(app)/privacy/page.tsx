@@ -93,7 +93,7 @@ export default function PrivacyPage() {
         <h2>Decisions made automatically</h2>
         <p>Some decisions are made by rules in our software rather than by a person:</p>
         <ul>
-          <li>A new member's first post, event or opportunity is held for a moderator to check before it's public. So are posts from an account reported in the past week, unless the report was dismissed.</li>
+          <li>Posts, events and opportunities from an account reported in the past week are held for a moderator to check before they're public, unless the report was dismissed. During a wave of spam we may also hold new members' posts for a while.</li>
           <li>Anything reported by three different people is hidden until a moderator reviews it.</li>
           <li>Limits on how often you can post or send message requests to people you don't know, to stop spam.</li>
         </ul>

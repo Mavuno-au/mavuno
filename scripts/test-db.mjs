@@ -108,6 +108,9 @@ let rows = await q("select * from public.profile_settings");
 check("settings are private to their owner", rows.length === 1 && rows[0].id === kofi, rows.length);
 
 console.log("\nPremoderation");
+await superuser();
+check("new members aren't held for review by default", (await one("select premoderation from public.site_settings")).premoderation === false);
+await q("update public.site_settings set premoderation = true");
 await as(amara);
 const first = await post("My first post on Mavuno!");
 row = await one("select status from public.posts where id = $1", [first]);
@@ -1011,7 +1014,7 @@ await seeded.exec(stubs);
 for (const file of readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()) await seeded.exec(readFileSync(join(dir, file), "utf8"));
 await seeded.exec(readFileSync(join(root, "supabase/seed.sql"), "utf8"));
 const counts = (await seeded.query("select (select count(*)::int from public.profiles) as profiles, (select count(*)::int from public.posts where status = 'published') as posts, (select count(*)::int from public.events where status = 'published') as events, (select premoderation from public.site_settings) as premoderation")).rows[0];
-check("the demo seed creates people, an organisation, published posts and an event", counts.profiles === 5 && counts.posts === 5 && counts.events === 1 && counts.premoderation === true, counts);
+check("the demo seed creates people, an organisation, published posts and an event", counts.profiles === 5 && counts.posts === 5 && counts.events === 1 && counts.premoderation === false, counts);
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

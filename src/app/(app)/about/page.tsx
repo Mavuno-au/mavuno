@@ -61,7 +61,7 @@ export default function AboutPage() {
             <strong>As little about you as we can.</strong> We store the city you choose, never where you are. Photos are cleaned of location data before they leave your phone.
           </li>
           <li>
-            <strong>A safe place to speak.</strong> New members' first posts are checked before they go public, reports go to real moderators, and mutes and blocks apply everywhere.
+            <strong>A safe place to speak.</strong> Posts go up straight away, every report goes to a real moderator, and mutes and blocks apply everywhere.
           </li>
           <li>
             <strong>Your data is yours.</strong> Download everything we hold about you, or delete your account, at any time from Settings.

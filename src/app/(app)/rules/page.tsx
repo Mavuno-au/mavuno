@@ -87,12 +87,18 @@ export default function RulesPage() {
         <h2>How moderation works</h2>
         <ul>
           <li>
-            <strong>New members:</strong> your first post, event or opportunity is checked by a moderator before it goes public. After that, posts go out straight away. If your account has been reported in
-            the past week and the report wasn't dismissed, your new posts are checked again before they go public.
+            <strong>Posts go up straight away.</strong> We don't check posts before they're public. Moderation starts with your reports, so please use them.
           </li>
           <li>
             <strong>Reports:</strong> report anything from its menu. The person you report is never told who reported them. When three people report the same thing, it's hidden until a moderator looks at
             it.
+          </li>
+          <li>
+            <strong>After a report:</strong> if your account has been reported in the past week and the report wasn't dismissed, your new posts, events and opportunities are checked by a moderator before they
+            go public.
+          </li>
+          <li>
+            <strong>Waves of spam:</strong> if we see one, we may check new members' posts for a while before they go public.
           </li>
           <li>
             <strong>Mute and block:</strong> you can mute or block anyone yourself. They aren't told. A block also stops them seeing your posts or messaging you, including through an organisation they run.

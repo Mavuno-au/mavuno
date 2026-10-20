@@ -3,7 +3,7 @@
 -- Sign in as amara@example.com (admin), kofi@example.com, hana@example.com or
 -- tendai@example.com.
 
--- Demo authors have no review history yet, so their posts go straight out.
+-- New members' posts aren't held for review unless an admin turns it on.
 update public.site_settings set premoderation = false;
 
 insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at, confirmation_token, recovery_token, email_change_token_new, email_change)
@@ -80,5 +80,3 @@ begin
   perform public.create_post('Anyone else at UQ? Starting a study group for first-years in data science. #students #tech', 'en', null, null, null, (select id from public.spaces where slug = 'brisbane'));
 end;
 $$;
-
-update public.site_settings set premoderation = true;

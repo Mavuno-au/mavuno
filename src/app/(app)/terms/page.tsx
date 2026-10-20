@@ -61,7 +61,7 @@ export default function TermsPage() {
 
         <h2>5. Opportunities, events and fundraisers</h2>
         <p>
-          Jobs, scholarships, events, fundraisers and other listings are posted by members and organisations, not by us. Moderators check new members' first listings, but we can't check every detail of
+          Jobs, scholarships, events, fundraisers and other listings are posted by members and organisations, not by us. Moderators review listings that people report, but we can't check every detail of
           every one. Make your own enquiries before you apply, pay, travel or meet anyone, and <strong>never pay to apply</strong> for anything. Report anything that looks wrong.
         </p>
 

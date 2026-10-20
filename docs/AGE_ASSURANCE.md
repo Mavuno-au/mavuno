@@ -13,7 +13,7 @@ eSafety's guidance says self-declaration alone is not enough, so no single step 
 | 1. Date of birth at sign-up | Before choosing email or Google, people enter a date of birth (day, month, year, with no hint of the cut-off). Under 16: no account is created, and the same browser can't try again for 24 hours. | `src/app/(auth)/signup`, `src/app/actions/age.ts` |
 | 2. Existing accounts | Everyone who joined before the check, or through Google from the sign-in page, is asked once before they can use Mavuno. Until then the database lets them read but not post, reply, like, follow or message. | `src/app/onboarding/age`, `is_active_member()` |
 | 3. Community reports | Anyone can report an account or post as "Someone under 16". | report dialog, report queue |
-| 4. Moderator review | Moderators see under-16 reports, and anything they notice in posts or profiles, and can deactivate the account. New members' first posts are already reviewed before they go public. | Moderation → Reports, Moderation → Age checks |
+| 4. Moderator review | Moderators see under-16 reports, and anything they notice in posts or profiles, and can deactivate the account. Accounts with a recent report have their posts reviewed before they go public. | Moderation → Reports, Moderation → Age checks |
 | 5. Deactivation with notice | The person sees a notice saying why, what happens next and how to ask for a review. Their posts, events and opportunities are hidden, they can download their data, and support services (Kids Helpline, eSafety) are listed. | `src/app/deactivated` |
 | 6. Review by email | A moderator who didn't make the decision offers a choice: a short unrecorded video call, a letter from a school, TAFE, university or employer, or ID if the person prefers. Government ID is never the only option (s63DB). | Moderation → Age checks → Reinstate |
 | 7. Deletion | Accounts not reinstated within 30 days are deleted with everything in them, by `purge_deactivated_accounts()` (daily with `pg_cron`, or `/api/maintenance`). | migration `age_assurance_and_notices` |
@@ -33,7 +33,7 @@ Moderators also see the decision in `moderation_actions` (`deactivate` and `rein
 
 ## Why this is proportionate
 
-Mavuno is small, free, has no ads and no recommender system built on engagement, and is aimed at adults in African Australian communities. eSafety expects steps in proportion to a platform's size and risk. We don't use facial age estimation or third-party ID services: the cost and the privacy risk of sending members' faces or documents to a vendor outweigh the benefit at our scale. Human review of new members' first posts, community reports and a quick, respectful review path fit how the service already works.
+Mavuno is small, free, has no ads and no recommender system built on engagement, and is aimed at adults in African Australian communities. eSafety expects steps in proportion to a platform's size and risk. We don't use facial age estimation or third-party ID services: the cost and the privacy risk of sending members' faces or documents to a vendor outweigh the benefit at our scale. Community reports, moderators acting on what they see, and a quick, respectful review path fit how the service already works.
 
 ## Review
 

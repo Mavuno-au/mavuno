@@ -140,7 +140,7 @@ export function ReviewBanner({ review, what }: { review: Review; what: string })
       return (
         <div role="status" className="border-b border-hairline bg-primary-soft px-4 py-3 text-sm sm:px-6">
           <p className="font-medium">Sent for review</p>
-          <p className="text-ink-muted">A moderator checks listings from new members, usually within a day. Until then only its hosts can see this {what}.</p>
+          <p className="text-ink-muted">A moderator will check it, usually within a day. Until then only its hosts can see this {what}.</p>
         </div>
       );
     case "rejected":

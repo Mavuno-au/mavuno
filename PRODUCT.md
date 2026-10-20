@@ -18,12 +18,12 @@ Mavuno ("harvest" in Swahili) is a social network for that community. Members po
 - **Messages:** one to one and groups, with requests, reactions, read receipts and photos.
 - **Notifications:** in-app, grouped.
 - **Languages:** posts carry their language; members can translate posts.
-- **Safety:** mute, block, reports, review of new members' content, moderation tools.
+- **Safety:** mute, block, reports, review after a report (and of new members' content when an admin turns it on), moderation tools.
 - **Data:** JSON export and account deletion.
 
 ## Rules every feature keeps
 
-- **Nothing is public before review when it needs to be.** Content from members without a good reputation waits for a moderator. Authors always see their own pending content.
+- **Posts go up straight away; moderation starts with reports.** Content from someone with a recent report waits for a moderator, and admins can hold new members' content during a wave of spam. Authors always see their own pending content.
 - **Posts are immutable.** Create and delete with a 30-second undo; never edit. A deleted post leaves an authorless tombstone so replies survive.
 - **Mutes and blocks apply everywhere**: feeds, threads, search, suggestions, notifications and messages.
 - **Location is a city, never a point.** Nothing more precise than a city is stored about anyone, and photos are stripped of location data before upload.

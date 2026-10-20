@@ -294,7 +294,7 @@ function Created({ saved }: { saved: SavedListing }) {
   if (saved.status !== "published") {
     return (
       <EmptyState title="Sent for review" action={view}>
-        A moderator checks listings from new members, usually within a day. Until then only its hosts can see it, on its page.
+        A moderator will check it, usually within a day. Until then only its hosts can see it, on its page.
       </EmptyState>
     );
   }

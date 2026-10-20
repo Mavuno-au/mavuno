@@ -305,8 +305,8 @@ export function OnboardingFlow({
             <Step index={3} current={step} title={STEPS[3]}>
               <ul className="grid gap-4 text-[15px]">
                 <li>
-                  <p className="font-medium">Your first posts may wait for a quick review</p>
-                  <p className="text-ink-muted">Moderators check posts from new members before they go public. You'll see a badge on yours until then. Once you've been here a little while and had something approved, posts go up straight away.</p>
+                  <p className="font-medium">Your posts go up straight away</p>
+                  <p className="text-ink-muted">Everyone can see what you post as soon as you post it, so follow the community rules. If something of yours is reported, a moderator takes a look.</p>
                 </li>
                 <li>
                   <p className="font-medium">Report, mute and block</p>

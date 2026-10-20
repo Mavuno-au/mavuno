@@ -201,7 +201,7 @@ export function Composer({ mode, autoFocus, onPosted, onCancel }: { mode: Compos
 
         clear();
         const pendingReview = result.data.kind === "post" && result.data.status === "pending";
-        toast(pendingReview ? "Sent for review. A moderator checks new members' first posts, usually within a day." : mode.kind === "reply" ? "Reply posted" : "Posted");
+        toast(pendingReview ? "Sent for review. A moderator will check it, usually within a day." : mode.kind === "reply" ? "Reply posted" : "Posted");
         onPosted?.(result.data);
       } catch (error) {
         await removeMedia(uploaded.map((file) => file.path));

@@ -4,7 +4,7 @@ The social network for African Australians. *Mavuno* is Swahili for harvest.
 
 Members post text, photos, links, videos and polls; follow people and organisations; join city and interest spaces; find events and opportunities (jobs, scholarships, grants, mentoring, business); message one to one or in groups; and find each other city by city without anyone's precise location being stored.
 
-The product keeps a few firm rules: a quiet three-column layout, flat rows instead of cards, immutable posts with a 30-second undo on delete, reputation-based review before new members' content goes public, grouped notifications, mutes and blocks that apply everywhere, and storing as little as possible about people.
+The product keeps a few firm rules: a quiet three-column layout, flat rows instead of cards, immutable posts with a 30-second undo on delete, moderation that starts with reports, grouped notifications, mutes and blocks that apply everywhere, and storing as little as possible about people.
 
 ## Stack
 
@@ -65,7 +65,7 @@ Open http://localhost:3000.
 
 ### Your first moderator
 
-Moderators review new members' first posts and handle reports. Make yourself an admin once, in the SQL editor:
+Moderators handle reports and the review queue. Make yourself an admin once, in the SQL editor:
 
 ```sql
 update public.profile_settings set site_role = 'admin'

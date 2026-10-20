@@ -25,7 +25,7 @@ Last reviewed: 20 October 2026. Next review: October 2027, or sooner (see Review
 | Age of users | 16 and older, with layered age checks | Lowers |
 | Private messaging with strangers | Yes, but limited: message requests, a daily cap on requests, "who can message you" settings, block | Raises |
 | Images | Yes, in posts and messages; location data stripped | Raises |
-| Pre-moderation | A new member's first post, event and opportunity, and posts after a recent report, are reviewed before going public | Lowers |
+| Review | Posts after a recent report are reviewed before going public; admins can also hold new members' posts during a wave of spam | Lowers |
 | Discoverability | City-level only, never precise location | Lowers |
 
 **Our assessment: Tier 2.** Messaging and images mean we can't claim the lowest tier, and the size, adult audience and pre-moderation keep us out of the highest. We apply the Tier 2 minimum compliance measures, and several Tier 1 ones where they cost little (pre-moderation, rate limits on contact with strangers).
