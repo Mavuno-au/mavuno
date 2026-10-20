@@ -9,8 +9,10 @@ import { RsvpButtons } from "@/components/community/rsvp";
 import { RichText } from "@/components/post/rich-text";
 import { Avatar } from "@/components/ui/avatar";
 import { EVENT_CATEGORIES } from "@/lib/catalogue";
+import { JsonLd } from "@/components/seo/json-ld";
 import { PageHeader } from "@/components/ui/page";
 import { loadEvent, type CommunityEvent } from "@/lib/data/community";
+import { eventJsonLd } from "@/lib/structured-data";
 import { displayUrl } from "@/lib/text";
 import { getViewer, type Viewer } from "@/lib/viewer";
 
@@ -41,6 +43,8 @@ export default async function EventPage({ params }: PageProps<"/events/[id]">) {
 
   return (
     <>
+      {/* Search engines only list events with a place people can go to. */}
+      {event.review.kind === "published" && event.format !== "online" ? <JsonLd data={eventJsonLd(event)} /> : null}
       <PageHeader title="Event" back="/events" meta={EVENT_CATEGORIES[event.category]} />
       <ReviewBanner review={event.review} what="event" />
       {event.cancelled ? (

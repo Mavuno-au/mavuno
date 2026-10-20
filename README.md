@@ -86,6 +86,7 @@ Admins can then make other members moderators from Moderation → Admin.
 | `SUPABASE_SERVICE_ROLE_KEY` | no | Server only. Caches translations and lets `/api/maintenance` remove erased files |
 | `MAINTENANCE_SECRET` | no | Bearer token for `POST /api/maintenance` |
 | `NEXT_PUBLIC_FATHOM_SITE_ID` | no | [Fathom](https://usefathom.com) site ID for cookieless visit counts. Nothing loads without it |
+| `NEXT_PUBLIC_GA_MEASUREMENT_ID` | no | Google Analytics 4 ID (G-…). Advertising features and Google Signals stay off |
 | `SUPABASE_DB_URL` | for `pnpm db:push` | Direct Postgres connection string. Never commit it |
 | `RESEND_API_KEY`, `SUPABASE_ACCESS_TOKEN` | for `pnpm email:apply` | Sends sign-in emails from hello@mavuno.au through Resend, with the templates in `supabase/templates` (`pnpm email:build` regenerates them) |
 

@@ -23,6 +23,10 @@ const CONTACT = "bakari@mentorsoutreach.org";
 const OPERATOR = "Mentors Outreach";
 // One hour for every one-time link and code.
 const LINK_LIFETIME_SECONDS = 3600;
+// Sign-in emails across the whole site per hour. Supabase's default (2) is for
+// its own test sender; with Resend the real cap is the Resend plan (the free
+// plan sends 100 a day).
+const EMAILS_PER_HOUR = 100;
 
 const C = { ground: "#f6f4ef", surface: "#ffffff", ink: "#1b1a17", muted: "#67625a", hairline: "#e6e1d8", primary: "#12704f" };
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
@@ -164,6 +168,7 @@ async function apply(dryRun) {
     uri_allow_list: [`${SITE}/**`, `https://www.mavuno.au/**`, "http://localhost:3000/**"].join(","),
     mailer_autoconfirm: false,
     mailer_otp_exp: LINK_LIFETIME_SECONDS,
+    rate_limit_email_sent: EMAILS_PER_HOUR,
     smtp_host: "smtp.resend.com",
     smtp_port: "465",
     smtp_user: "resend",

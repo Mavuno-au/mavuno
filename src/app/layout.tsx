@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import { Analytics } from "@/components/shell/analytics";
 import { publicEnv } from "@/lib/env";
+import { serverEnv } from "@/lib/server-env";
 import { THEME_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
@@ -17,6 +18,10 @@ export const metadata: Metadata = {
   openGraph: { siteName: "Mavuno", type: "website", locale: "en_AU" },
   twitter: { card: "summary_large_image" },
   robots: { "max-image-preview": "large" },
+  verification: {
+    google: serverEnv.GOOGLE_SITE_VERIFICATION,
+    other: serverEnv.BING_SITE_VERIFICATION ? { "msvalidate.01": serverEnv.BING_SITE_VERIFICATION } : undefined,
+  },
 };
 
 export const viewport: Viewport = {
@@ -35,7 +40,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body className="min-h-dvh">
         {children}
-        <Analytics siteId={publicEnv.fathomSiteId} />
+        <Analytics fathomSiteId={publicEnv.fathomSiteId} googleAnalyticsId={publicEnv.googleAnalyticsId} />
         <Toaster position="bottom-center" offset={{ bottom: 88 }} mobileOffset={{ bottom: 88 }} toastOptions={{ className: "!bg-popover !text-ink !border-hairline" }} />
       </body>
     </html>

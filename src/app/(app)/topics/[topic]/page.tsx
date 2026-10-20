@@ -5,8 +5,19 @@ import { EmptyState, PageHeader } from "@/components/ui/page";
 import { loadFeed } from "@/lib/data/posts";
 import { feedSourceSchema } from "@/lib/feeds";
 
+// A topic with only a post or two is a thin page; it's indexed once it has a few.
+const INDEXED_FROM = 3;
+
 export async function generateMetadata({ params }: PageProps<"/topics/[topic]">): Promise<Metadata> {
-  return { title: `#${(await params).topic}` };
+  const topic = (await params).topic.toLowerCase();
+  const parsed = feedSourceSchema.safeParse({ kind: "topic", topic });
+  const posts = parsed.success ? (await loadFeed(parsed.data)).posts.length : 0;
+  return {
+    title: `#${topic}`,
+    description: `Posts about #${topic} from African Australians on Mavuno.`,
+    alternates: { canonical: `/topics/${topic}` },
+    robots: posts < INDEXED_FROM ? { index: false, follow: true } : undefined,
+  };
 }
 
 export default async function TopicPage({ params }: PageProps<"/topics/[topic]">) {

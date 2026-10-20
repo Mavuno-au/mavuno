@@ -52,6 +52,7 @@ export default function PrivacyPage() {
         <ul>
           <li>The last day you used Mavuno, so we can count how many members are active. It's never shown to anyone, and the daily totals we keep have no names attached.</li>
           <li>Your IP address and browser details, which our hosting provider records in sign-in and security logs.</li>
+          <li>How the site is used (pages visited, how people arrived, device and approximate region), through Google Analytics, described below.</li>
           <li>The cookies and browser storage described below.</li>
         </ul>
         <h3>From other people</h3>
@@ -120,6 +121,12 @@ export default function PrivacyPage() {
             it here first.
           </li>
           <li>
+            <strong>Google Analytics</strong>, to understand how people find and use Mavuno: pages visited, how you arrived (for example from a search or a shared link), your
+            approximate region, device and browser. Google processes this in the United States. Its advertising features and Google Signals are turned off, so it isn't used for ads
+            or linked to your Google account. You can opt out with Google's <a href="https://tools.google.com/dlpage/gaoptout" target="_blank" rel="noopener noreferrer">browser add-on</a>{" "}
+            or by blocking cookies for mavuno.au.
+          </li>
+          <li>
             <strong>Fathom Analytics</strong>, if enabled: anonymous visit counts processed in the United States. Fathom uses no cookies and can't identify you.
           </li>
           <li>Videos from YouTube and similar sites only load from them when you press play.</li>
@@ -165,8 +172,9 @@ export default function PrivacyPage() {
             created. If you tell us you're under 16, a cookie without any personal details stops that browser signing up again for 24 hours.
           </li>
           <li>Your theme, and drafts of posts you haven't finished, are kept in your own browser. Drafts are cleared when you sign out.</li>
+          <li>Google Analytics cookies (names starting with <code>_ga</code>), which count visits to mavuno.au. They're set for this site only and last up to two years.</li>
         </ul>
-        <p>We don't use advertising or cross-site tracking cookies.</p>
+        <p>We don't use advertising cookies or track you across other sites.</p>
 
         <h2>Your choices and rights</h2>
         <ul>

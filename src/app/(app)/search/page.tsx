@@ -8,7 +8,8 @@ import { loadFeed } from "@/lib/data/posts";
 import { withFollowing } from "@/lib/data/profiles";
 import { getViewer } from "@/lib/viewer";
 
-export const metadata: Metadata = { title: "Search" };
+// Search results are endless near-duplicates of the pages they link to.
+export const metadata: Metadata = { title: "Search", robots: { index: false, follow: true } };
 
 export default async function SearchPage({ searchParams }: PageProps<"/search">) {
   const params = await searchParams;

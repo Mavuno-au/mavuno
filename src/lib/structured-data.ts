@@ -1,3 +1,4 @@
+import type { CommunityEvent } from "@/lib/data/community";
 import type { Profile } from "@/lib/data/profiles";
 import type { Post } from "@/lib/domain";
 import { publicEnv } from "@/lib/env";
@@ -48,5 +49,76 @@ export function profileJsonLd(profile: Profile) {
       interactionStatistic: [count("FollowAction", profile.followers_count)],
       agentInteractionStatistic: [count("WriteAction", profile.posts_count), count("FollowAction", profile.following_count)],
     },
+  };
+}
+
+// https://schema.org/Organization and https://schema.org/WebSite, on the home
+// page, so search engines know the site's name, logo and owner.
+export function siteJsonLd() {
+  const url = absoluteUrl("/");
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": `${url}#organization`,
+        name: "Mavuno",
+        url,
+        logo: absoluteUrl("/brand/mavuno-app-icon-4096.png"),
+        description: "The social network for African Australians.",
+        sameAs: ["https://github.com/Mavuno-au/mavuno"],
+      },
+      {
+        "@type": "WebSite",
+        "@id": `${url}#website`,
+        name: "Mavuno",
+        alternateName: "Mavuno, the social network for African Australians",
+        url,
+        inLanguage: "en-AU",
+        publisher: { "@id": `${url}#organization` },
+      },
+    ],
+  };
+}
+
+const ATTENDANCE: Record<CommunityEvent["format"], string> = {
+  in_person: "https://schema.org/OfflineEventAttendanceMode",
+  online: "https://schema.org/OnlineEventAttendanceMode",
+  hybrid: "https://schema.org/MixedEventAttendanceMode",
+};
+
+// https://developers.google.com/search/docs/appearance/structured-data/event
+// The online link is only shared with people going, so the virtual location
+// points at the event's page instead.
+export function eventJsonLd(event: CommunityEvent) {
+  const url = absoluteUrl(`/events/${event.id}`);
+  const place = {
+    "@type": "Place",
+    name: event.venue ?? event.city ?? "Australia",
+    address: {
+      "@type": "PostalAddress",
+      ...(event.address ? { streetAddress: event.address } : {}),
+      ...(event.city ? { addressLocality: event.city } : {}),
+      addressCountry: "AU",
+    },
+  };
+  const online = { "@type": "VirtualLocation", url };
+  return {
+    "@context": "https://schema.org",
+    "@type": "Event",
+    "@id": url,
+    url,
+    name: event.title,
+    description: event.description.slice(0, 500),
+    startDate: event.startsAt,
+    ...(event.endsAt ? { endDate: event.endsAt } : {}),
+    eventStatus: event.cancelled ? "https://schema.org/EventCancelled" : "https://schema.org/EventScheduled",
+    eventAttendanceMode: ATTENDANCE[event.format],
+    location: event.format === "online" ? online : event.format === "hybrid" ? [place, online] : place,
+    ...(event.coverUrl ? { image: [event.coverUrl] } : {}),
+    organizer: agent(event.host),
+    ...(event.free || event.ticketUrl
+      ? { offers: { "@type": "Offer", url: event.ticketUrl ?? url, ...(event.free ? { price: 0, priceCurrency: "AUD" } : {}), availability: "https://schema.org/InStock" } }
+      : {}),
   };
 }

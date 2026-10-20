@@ -24,8 +24,11 @@ export async function profileMetadata(username: string): Promise<Metadata> {
   const page = await loadProfile(username, viewer);
   if (page.kind !== "profile") return { title: "Profile" };
   const { profile } = page;
+  // A profile with no posts and no bio is a thin page; keep it out of search until it isn't.
+  const thin = profile.posts_count === 0 && !profile.bio && !profile.headline;
   return {
     title: `${profile.display_name} (@${profile.username})`,
+    robots: thin ? { index: false, follow: true } : undefined,
     description: profile.bio || profile.headline || `${profile.display_name} on Mavuno`,
     alternates: { canonical: `/@${profile.username}`, types: { "application/atom+xml": [{ url: `/@${profile.username}/feed.xml`, title: `Posts by ${profile.display_name}` }] } },
     // The share image is drawn by ./opengraph-image.tsx.

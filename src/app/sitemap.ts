@@ -17,6 +17,7 @@ const postRows = z.array(z.object({ id: z.uuid(), created_at: z.string(), author
 const profileRows = z.array(z.object({ username: z.string(), updated_at: z.string() }));
 const spaceRows = z.array(z.object({ slug: z.string(), created_at: z.string(), last_post_at: z.string().nullable() }));
 const eventRows = z.array(z.object({ id: z.uuid(), created_at: z.string() }));
+const opportunityRows = z.array(z.object({ id: z.uuid(), created_at: z.string() }));
 
 async function readPages<T>(read: (from: number, to: number) => PromiseLike<{ data: unknown }>, parse: (rows: unknown) => T[], max: number) {
   const all: T[] = [];
@@ -28,12 +29,13 @@ async function readPages<T>(read: (from: number, to: number) => PromiseLike<{ da
   return all;
 }
 
-// What a guest can read: published posts, profiles with posts, spaces and published events.
+// What a guest can read: published posts, profiles with posts, spaces,
+// published events, and opportunities still open.
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const supabase = createGuestClient();
   const url = (path: string) => new URL(path, publicEnv.siteUrl).href;
 
-  const [posts, profiles, spaces, events] = await Promise.all([
+  const [posts, profiles, spaces, events, opportunities] = await Promise.all([
     readPages(
       (from, to) =>
         supabase
@@ -53,12 +55,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ),
     supabase.from("spaces").select("slug, created_at, last_post_at").order("members_count", { ascending: false }).limit(PAGE),
     supabase.from("events").select("id, created_at").eq("status", "published").order("starts_at", { ascending: false }).limit(PAGE),
+    supabase
+      .from("opportunities")
+      .select("id, created_at")
+      .eq("status", "published")
+      .is("closed_at", null)
+      .or(`deadline_at.is.null,deadline_at.gt.${new Date().toISOString()}`)
+      .order("created_at", { ascending: false })
+      .limit(PAGE),
   ]);
 
   return [
     ...STATIC_PATHS.map((path) => ({ url: url(path), changeFrequency: "hourly" as const })),
     ...spaceRows.parse(spaces.data ?? []).map((space) => ({ url: url(`/spaces/${space.slug}`), lastModified: space.last_post_at ?? space.created_at, changeFrequency: "daily" as const })),
     ...eventRows.parse(events.data ?? []).map((event) => ({ url: url(`/events/${event.id}`), lastModified: event.created_at })),
+    ...opportunityRows.parse(opportunities.data ?? []).map((opportunity) => ({ url: url(`/opportunities/${opportunity.id}`), lastModified: opportunity.created_at, changeFrequency: "daily" as const })),
     ...profiles.map((profile) => ({ url: url(`/@${profile.username}`), lastModified: profile.updated_at })),
     ...posts.flatMap((post) => (post.author ? [{ url: url(`/@${post.author.username}/posts/${post.id}`), lastModified: post.created_at }] : [])),
   ];

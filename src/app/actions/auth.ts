@@ -33,7 +33,9 @@ export async function signUp(_: Result | null, form: FormData): Promise<Result> 
     password: input.password,
     options: { emailRedirectTo: emailLink(setup), data: { username: input.username, display_name: input.displayName, age_confirmed: true } },
   });
-  if (error) return fail(error.code === "user_already_exists" ? "An account with that email already exists. Sign in instead." : error.message);
+  if (error?.code === "user_already_exists") return fail("An account with that email already exists. Sign in instead.");
+  if (error?.status === 429) return fail("We're sending a lot of sign-up emails right now. Wait a few minutes and try again.");
+  if (error) return fail(error.message);
   await forgetBirthDate();
   if (data.session) redirect(setup);
   redirect(`/login?sent=confirm&email=${encodeURIComponent(input.email)}`);

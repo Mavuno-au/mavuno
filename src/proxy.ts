@@ -11,6 +11,15 @@ const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: DISPLAY_TIME_ZO
 // Refreshes the Supabase session cookie before every page renders, and counts
 // signed-in members as active for the day (see /operations).
 export async function proxy(request: NextRequest) {
+  // Profiles live at /@username; /u/ is only the route behind that rewrite, so
+  // anyone landing on it is sent to the one address search engines should index.
+  const { pathname } = request.nextUrl;
+  if (pathname.startsWith("/u/") && !pathname.includes("/opengraph-image")) {
+    const url = request.nextUrl.clone();
+    url.pathname = `/@${pathname.slice(3)}`;
+    return NextResponse.redirect(url, 308);
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(publicEnv.supabaseUrl, publicEnv.supabaseKey, {

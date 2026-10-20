@@ -17,12 +17,16 @@ const ROLES: Record<SpaceRole, string> = { owner: "You started this space", mode
 
 export async function generateMetadata({ params }: PageProps<"/spaces/[slug]">): Promise<Metadata> {
   const found = await loadSpace((await params).slug, await getViewer());
+  if (!found) return { title: "Space" };
+  const { space } = found;
+  // City spaces are titled the way people search for them.
+  const city = space.kind === "city";
   return {
-    title: found?.space.name ?? "Space",
-    description: found?.space.description || undefined,
-    alternates: found
-      ? { canonical: `/spaces/${found.space.slug}`, types: { "application/atom+xml": [{ url: `/spaces/${found.space.slug}/feed.xml`, title: `Posts in ${found.space.name}` }] } }
-      : undefined,
+    title: city ? `African community in ${space.name}` : space.name,
+    description:
+      space.description ||
+      (city ? `Events, jobs, scholarships and people from the African community in ${space.name}, on Mavuno.` : `${space.name} on Mavuno, the social network for African Australians.`),
+    alternates: { canonical: `/spaces/${space.slug}`, types: { "application/atom+xml": [{ url: `/spaces/${space.slug}/feed.xml`, title: `Posts in ${space.name}` }] } },
   };
 }
 

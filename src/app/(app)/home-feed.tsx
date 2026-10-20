@@ -2,12 +2,14 @@ import Link from "next/link";
 import { HomeComposer } from "@/components/post/home-composer";
 import { Feed } from "@/components/post/feed";
 import { PersonRow } from "@/components/people/person-row";
+import { JsonLd } from "@/components/seo/json-ld";
 import { WhoToFollow } from "@/components/people/who-to-follow";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState, PageHeader, Tabs } from "@/components/ui/page";
 import { loadFeed } from "@/lib/data/posts";
 import { loadSuggestions, loadWhoToFollowBlock } from "@/lib/data/shell";
 import type { HomeFeed } from "@/lib/feeds";
+import { siteJsonLd } from "@/lib/structured-data";
 import { getViewer } from "@/lib/viewer";
 
 const FEEDS: Record<HomeFeed, { label: string; href: string }> = {
@@ -30,6 +32,7 @@ export async function HomeFeedView({ feed }: { feed: HomeFeed }) {
 
   return (
     <>
+      <JsonLd data={siteJsonLd()} />
       <PageHeader title="Home">
         <Tabs tabs={feeds.map((item) => ({ href: FEEDS[item].href, label: FEEDS[item].label, active: item === feed }))} />
       </PageHeader>
