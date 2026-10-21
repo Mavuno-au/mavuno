@@ -1,7 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useId, useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
 type DialogProps = {
@@ -31,6 +31,11 @@ function OpenDialog({ onClose, onKeyDown, title, description, children, footer, 
   const opener = useRef<HTMLElement | null>(null);
   const titleId = useId();
   const descriptionId = useId();
+  // The content mounts only once the dialog is showing, because React focuses
+  // autoFocus elements as they mount and focus can't land in a closed dialog.
+  // When nothing asks for focus it stays where showModal put it: on Close, or
+  // on the dialog itself when there's no Close.
+  const [shown, setShown] = useState(false);
 
   // A layout effect, so a parent closing the dialog by unmounting it closes
   // it while it's still in the page and focus goes back to the opener.
@@ -39,6 +44,7 @@ function OpenDialog({ onClose, onKeyDown, title, description, children, footer, 
     if (!dialog) return;
     opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     if (!dialog.open) dialog.showModal();
+    setShown(true);
     return () => {
       if (dialog.open) dialog.close();
       restoreFocus(dialog);
@@ -99,9 +105,9 @@ function OpenDialog({ onClose, onKeyDown, title, description, children, footer, 
             {description}
           </p>
         ) : null}
-        {children}
+        {shown ? children : null}
       </div>
-      {footer ? <div className="flex justify-end gap-2 border-t border-hairline px-5 py-3">{footer}</div> : null}
+      {shown && footer ? <div className="flex justify-end gap-2 border-t border-hairline px-5 py-3">{footer}</div> : null}
     </dialog>
   );
 }
