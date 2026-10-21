@@ -20,9 +20,9 @@ export function LiveCounts({ viewerId, initial, children }: { viewerId: string |
     const supabase = getBrowserClient();
     const channel = supabase
       .channel(`counts:${viewerId}`, { config: { private: true } })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `recipient_id=eq.${viewerId}` }, () =>
-        setCounts((current) => ({ ...current, notifications: current.notifications + 1 })),
-      )
+      // The badge counts groups, so a fresh like on an already-liked post
+      // changes nothing: the database says.
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `recipient_id=eq.${viewerId}` }, async () => setCounts(await refreshCounts()))
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, async (payload: RealtimePostgresInsertPayload<{ sender_id: string | null }>) => {
         // The database leaves out muted, archived and already-read conversations.
         if (payload.new.sender_id !== viewerId) setCounts(await refreshCounts());

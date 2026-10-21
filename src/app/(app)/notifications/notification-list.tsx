@@ -10,7 +10,7 @@ import { useTimeZone } from "@/components/ui/local-time";
 import { Button } from "@/components/ui/button";
 import { EndOfList, PageHeader, Tabs, type Tab } from "@/components/ui/page";
 import { dayLabel } from "@/lib/format";
-import { groupNotifications, isFilterKey, type NotificationFilterKey } from "@/lib/notifications";
+import { isFilterKey, type NotificationFilterKey, type NotificationGroup } from "@/lib/notifications";
 import { NotificationRow } from "./notification-row";
 
 const POLL_MS = 30_000;
@@ -35,6 +35,8 @@ function saveFilter(filter: NotificationFilterKey) {
 }
 
 const subscribe = () => () => {};
+
+const byNewest = (a: NotificationGroup, b: NotificationGroup) => b.latestAt.localeCompare(a.latestAt) || b.key.localeCompare(a.key);
 
 // A visit without a filter in the address reopens the one chosen last time.
 // The server can't know it, so nothing renders until the browser has looked.
@@ -114,60 +116,80 @@ function Inbox({
 }) {
   const timeZone = useTimeZone();
   const { clear } = useCounts();
-  const [rows, setRows] = useState(initial.notifications);
+  const [groups, setGroups] = useState(initial.groups);
   const [next, setNext] = useState(initial.next);
+  const [groupedBy, setGroupedBy] = useState(initial.timeZone);
   const [arrived, setArrived] = useState<NotificationPage | null>(null);
   const [failed, setFailed] = useState(false);
   const [loading, startLoading] = useTransition();
   const sentinel = useRef<HTMLDivElement>(null);
 
-  const newest = rows[0]?.createdAt ?? null;
-  const latestUnread = rows.find((row) => row.unread)?.id ?? null;
+  const newest = groups[0]?.latestAt ?? null;
+  const latestUnread = groups.find((group) => group.unread)?.key ?? null;
 
   // Rows keep their unread look for this visit; the database is told after they have been seen.
   useEffect(() => {
     if (own) clear("notifications");
-    if (latestUnread !== null) void markNotificationsRead(recipientId);
-  }, [latestUnread, own, recipientId, clear]);
+    if (latestUnread !== null) void markNotificationsRead(recipientId, filter);
+  }, [latestUnread, own, recipientId, filter, clear]);
+
+  // The server cut the first page by the site's day. Once the device's zone
+  // is known and differs, the page is cut again by the reader's.
+  useEffect(() => {
+    if (timeZone === groupedBy) return;
+    let cancelled = false;
+    void loadNotifications({ recipientId, filter, timeZone, cursor: { kind: "first" } })
+      .then((result) => {
+        if (cancelled || !result.ok) return;
+        setGroups(result.data.groups);
+        setNext(result.data.next);
+        setGroupedBy(result.data.timeZone);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [timeZone, groupedBy, recipientId, filter]);
 
   function merge(page: NotificationPage) {
     setArrived(null);
     // A full page of arrivals may not reach what is already shown, so it replaces the list.
     if (page.next) {
-      setRows(page.notifications);
+      setGroups(page.groups);
       setNext(page.next);
       return;
     }
-    setRows((current) => [...page.notifications.filter((row) => !current.some((shown) => shown.id === row.id)), ...current]);
+    // A group that grew takes its new place at the top.
+    setGroups((current) => [...page.groups, ...current.filter((shown) => !page.groups.some((group) => group.key === shown.key))].sort(byNewest));
   }
 
   useEffect(() => {
     const timer = setInterval(async () => {
       if (document.visibilityState !== "visible") return;
-      const result = await loadNotifications({ recipientId, filter, cursor: newest ? { kind: "after", at: newest } : { kind: "first" } }).catch(() => null);
+      const result = await loadNotifications({ recipientId, filter, timeZone: groupedBy, cursor: newest ? { kind: "after", at: newest } : { kind: "first" } }).catch(() => null);
       if (!result?.ok) return;
       const page = result.data;
       // With nothing on screen there is nothing to keep in place.
       if (newest === null) {
-        setRows(page.notifications);
+        setGroups(page.groups);
         setNext(page.next);
         return;
       }
-      setArrived(page.notifications.length > 0 ? page : null);
+      setArrived(page.groups.length > 0 ? page : null);
     }, POLL_MS);
     return () => clearInterval(timer);
-  }, [recipientId, filter, newest]);
+  }, [recipientId, filter, newest, groupedBy]);
 
   function loadOlder() {
     if (!next) return;
     startLoading(async () => {
-      const result = await loadNotifications({ recipientId, filter, cursor: { kind: "before", at: next } }).catch(() => null);
+      const result = await loadNotifications({ recipientId, filter, timeZone: groupedBy, cursor: { kind: "before", ...next } }).catch(() => null);
       if (!result?.ok) {
         setFailed(true);
         return;
       }
       setFailed(false);
-      setRows((current) => [...current, ...result.data.notifications.filter((row) => !current.some((shown) => shown.id === row.id))]);
+      setGroups((current) => [...current, ...result.data.groups.filter((group) => !current.some((shown) => shown.key === group.key))]);
       setNext(result.data.next);
     });
   }
@@ -180,10 +202,9 @@ function Inbox({
     return () => observer.disconnect();
   });
 
-  const groups = groupNotifications(rows, timeZone);
   const leftOff = groups.findIndex((group, index) => index > 0 && !group.unread && groups[index - 1]?.unread);
   const now = new Date();
-  const fresh = arrived?.notifications.length ?? 0;
+  const fresh = arrived?.groups.length ?? 0;
 
   const pill =
     arrived ? (
@@ -210,9 +231,9 @@ function Inbox({
       ) : (
         <>
           {groups.map((group, index) => {
-            const label = dayLabel(group.latest.createdAt, now, timeZone);
+            const label = dayLabel(group.latestAt, now, timeZone);
             const previous = groups[index - 1];
-            const startsDay = !previous || dayLabel(previous.latest.createdAt, now, timeZone) !== label;
+            const startsDay = !previous || dayLabel(previous.latestAt, now, timeZone) !== label;
             return (
               <Fragment key={group.key}>
                 {index === leftOff ? (
@@ -223,7 +244,7 @@ function Inbox({
                   </p>
                 ) : null}
                 {startsDay ? <p className="border-b border-hairline px-4 py-1.5 font-mono text-xs text-ink-muted sm:px-6" suppressHydrationWarning>{label}</p> : null}
-                <NotificationRow group={group} owner={owner} followable={own} />
+                <NotificationRow group={group} recipientId={recipientId} owner={owner} followable={own} timeZone={groupedBy} />
               </Fragment>
             );
           })}

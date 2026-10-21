@@ -1,15 +1,17 @@
 "use client";
 
-import { AtSign, CalendarCheck, Heart, MessageCircle, Repeat2, ShieldAlert, UserPlus, Users } from "lucide-react";
+import { AtSign, CalendarCheck, Heart, MessageCircle, Repeat2, ShieldAlert, ShieldCheck, UserPlus, Users } from "lucide-react";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useState, useTransition, type ReactNode } from "react";
+import { toast } from "sonner";
+import { loadNotificationGroup } from "@/app/actions/notifications";
 import { FollowButton } from "@/components/people/follow-button";
 import { ProfileHoverCard } from "@/components/people/profile-card";
 import { Avatar } from "@/components/ui/avatar";
 import { LocalTime, useNow } from "@/components/ui/local-time";
 import { cn } from "@/lib/cn";
 import { calendarDate } from "@/lib/format";
-import type { Notification, NotificationGroup, NotificationType } from "@/lib/notifications";
+import { isExpandable, type Notification, type NotificationGroup, type NotificationType } from "@/lib/notifications";
 import { appealDeadline, appealIsOpen, ruleOf } from "@/lib/rules";
 
 const ICONS: Record<NotificationType, ReactNode> = {
@@ -34,18 +36,19 @@ const VERBS: Record<NotificationType, string> = {
   moderation: "",
 };
 
-const isThread = (type: NotificationType) => type === "reply" || type === "mention";
+const theirWords = (type: NotificationType) => type === "reply" || type === "mention" || type === "quote";
 
 function href(latest: Notification, owner: string) {
   if (latest.type === "event_rsvp" && latest.event) return `/events/${latest.event.id}`;
-  if (latest.post && latest.actor && (isThread(latest.type) || latest.type === "quote")) return `/@${latest.actor.username}/posts/${latest.post.id}`;
+  if (latest.post && latest.actor && theirWords(latest.type)) return `/@${latest.actor.username}/posts/${latest.post.id}`;
   if (latest.post) return `/@${owner}/posts/${latest.post.id}`;
   if (latest.actor) return `/@${latest.actor.username}`;
   return null;
 }
 
 // Removals and suspensions link to the rule and to how to appeal (terms,
-// section 6). Deactivated accounts have their own page for a review.
+// section 6). Deactivated accounts have their own page for a review. A notice
+// without a rule is good news: a held post went up, an account is back.
 function ModerationNotice({ notification }: { notification: Notification }) {
   const { notice } = notification;
   const deadline = appealDeadline(notification.createdAt);
@@ -53,7 +56,11 @@ function ModerationNotice({ notification }: { notification: Notification }) {
   return (
     <>
       <p className="text-[15px]">
-        <span className="mr-1.5 rounded bg-destructive-soft px-1.5 py-0.5 font-mono text-xs text-destructive">moderation</span>
+        {notice ? (
+          <span className="mr-1.5 rounded bg-destructive-soft px-1.5 py-0.5 font-mono text-xs text-destructive">moderation</span>
+        ) : (
+          <span className="mr-1.5 rounded bg-primary-soft px-1.5 py-0.5 font-mono text-xs text-primary">update</span>
+        )}
         {notification.message}
       </p>
       {notice && notice.rule !== "age" ? (
@@ -78,20 +85,45 @@ function ModerationNotice({ notification }: { notification: Notification }) {
 
 // Follow buttons only show on the viewer's own inbox: an organisation's
 // notifications say whether the organisation follows back, not the viewer.
-export function NotificationRow({ group, owner, followable }: { group: NotificationGroup; owner: string; followable: boolean }) {
+export function NotificationRow({ group, recipientId, owner, followable, timeZone }: { group: NotificationGroup; recipientId: string; owner: string; followable: boolean; timeZone: string }) {
+  const [items, setItems] = useState<Notification[] | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const { latest, actors } = group;
+  const [loading, startLoading] = useTransition();
+  const { latest, actors, actorCount, count } = group;
   const [first] = actors;
-  const others = actors.length - 1;
+  const others = actorCount - 1;
   const target = href(latest, owner);
-  const followingBack = (actorId: string) => group.items.some((item) => item.actor?.id === actorId && item.followingActor);
-  const expandable = group.items.length > 1 && (latest.type === "follow" || isThread(latest.type));
-  const theirWords = isThread(latest.type) || latest.type === "quote";
+  const expandable = isExpandable(group);
+  const good = latest.type === "moderation" && !latest.notice;
+
+  function toggle() {
+    if (expanded) {
+      setExpanded(false);
+      return;
+    }
+    if (items) {
+      setExpanded(true);
+      return;
+    }
+    startLoading(async () => {
+      try {
+        const result = await loadNotificationGroup({ recipientId, key: group.key, timeZone });
+        if (!result.ok) {
+          toast.error(result.error);
+          return;
+        }
+        setItems(result.data);
+        setExpanded(true);
+      } catch {
+        toast.error("Couldn't reach Mavuno. Check your connection and try again.");
+      }
+    });
+  }
 
   return (
     <article className={cn("flex gap-3 border-b border-hairline px-4 py-3 sm:px-6", group.unread && "bg-primary-soft/40")}>
       <span className={cn("mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full border-2 [&>svg]:size-4", group.unread ? "border-primary text-primary" : "border-rail text-ink-muted")}>
-        {ICONS[latest.type]}
+        {good ? <ShieldCheck /> : ICONS[latest.type]}
       </span>
       <div className="min-w-0 flex-1">
         {latest.type === "moderation" ? (
@@ -99,14 +131,14 @@ export function NotificationRow({ group, owner, followable }: { group: Notificat
         ) : (
           <>
             <div className="flex items-center gap-1">
-              {actors.slice(0, 3).map((actor) => (
+              {actors.map((actor) => (
                 <ProfileHoverCard key={actor.id} username={actor.username}>
                   <Link href={`/@${actor.username}`} className="block">
                     <Avatar person={actor} size="sm" />
                   </Link>
                 </ProfileHoverCard>
               ))}
-              {actors.length > 3 ? <span className="flex size-7 items-center justify-center rounded-full bg-wash font-mono text-[11px]">+{actors.length - 3}</span> : null}
+              {actorCount > actors.length ? <span className="flex size-7 items-center justify-center rounded-full bg-wash font-mono text-[11px]">+{actorCount - actors.length}</span> : null}
               <span className="ml-auto font-mono text-xs text-ink-muted">
                 <LocalTime iso={latest.createdAt} />
               </span>
@@ -132,13 +164,13 @@ export function NotificationRow({ group, owner, followable }: { group: Notificat
 
         {latest.post?.body ? (
           target ? (
-            <Link href={target} className={cn("mt-1.5 block", theirWords ? "text-[15px]" : "line-clamp-3 rounded-md border border-hairline px-3 py-2 text-sm text-ink-muted")}>
+            <Link href={target} className={cn("mt-1.5 block", theirWords(latest.type) ? "text-[15px]" : "line-clamp-3 rounded-md border border-hairline px-3 py-2 text-sm text-ink-muted")}>
               {latest.post.body}
             </Link>
           ) : null
         ) : null}
 
-        {followable && latest.type === "follow" && first && actors.length === 1 ? (
+        {followable && latest.type === "follow" && first && actorCount === 1 ? (
           <div className="mt-2">
             <FollowButton profileId={first.id} following={latest.followingActor} followsYou />
           </div>
@@ -146,25 +178,25 @@ export function NotificationRow({ group, owner, followable }: { group: Notificat
 
         {expandable ? (
           <div className="mt-2">
-            <button type="button" aria-expanded={expanded} className="text-sm font-medium text-primary hover:underline" onClick={() => setExpanded((value) => !value)}>
-              {expanded ? "Hide" : latest.type === "follow" ? `See all ${actors.length}` : `See all ${group.items.length}`}
+            <button type="button" aria-expanded={expanded} disabled={loading} className="text-sm font-medium text-primary hover:underline disabled:opacity-60" onClick={toggle}>
+              {expanded ? "Hide" : loading ? "Loading…" : latest.type === "follow" ? `See all ${actorCount}` : `See all ${count}`}
             </button>
-            {expanded && latest.type === "follow" ? (
+            {expanded && items && latest.type === "follow" ? (
               <ul className="mt-2 grid gap-2 border-l border-rail pl-3">
-                {actors.map((actor) => (
-                  <li key={actor.id} className="flex items-center gap-2">
+                {items.flatMap((item) => (item.actor ? [{ item, actor: item.actor }] : [])).map(({ item, actor }) => (
+                  <li key={item.id} className="flex items-center gap-2">
                     <Avatar person={actor} size="sm" />
                     <Link href={`/@${actor.username}`} className="min-w-0 flex-1 truncate text-sm font-medium hover:underline">
                       {actor.displayName}
                     </Link>
-                    {followable ? <FollowButton profileId={actor.id} following={followingBack(actor.id)} followsYou /> : null}
+                    {followable ? <FollowButton profileId={actor.id} following={item.followingActor} followsYou /> : null}
                   </li>
                 ))}
               </ul>
             ) : null}
-            {expanded && latest.type !== "follow" ? (
+            {expanded && items && latest.type !== "follow" ? (
               <ul className="mt-2 grid gap-3 border-l border-rail pl-3">
-                {group.items.map((item) => {
+                {items.map((item) => {
                   const link = href(item, owner);
                   return (
                     <li key={item.id} className="min-w-0 text-sm">

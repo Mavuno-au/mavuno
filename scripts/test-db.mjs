@@ -1828,6 +1828,265 @@ console.log("\nPeople and discovery");
   check("dismissals go with the dismissed account", (await q("select * from public.suggestion_dismissals where dismissed_id = $1", [writer])).length === 0);
 }
 
+console.log("\nGrouped notifications");
+{
+  const user = (name) => createUser(`${name}@example.com`, { username: name, display_name: name.replace("ng_", "") });
+  const author = await user("ng_author");
+  const fans = [];
+  for (let i = 1; i <= 4; i++) fans.push(await user(`ng_fan${i}`));
+  const [fan1, fan2, fan3, fan4] = fans;
+  const groups = (types = null, before = null, limit = 20) =>
+    q("select * from public.notification_groups($1, $2::public.notification_type[], 'Australia/Brisbane', $3, $4, null, $5)", [author, types ? `{${types.join(",")}}` : null, before?.at ?? null, before?.key ?? null, limit]);
+  const unread = async () => (await one("select public.unread_notification_count() as n")).n;
+
+  await as(author);
+  const liked = await post("A post people will like");
+  for (const fan of fans) {
+    await as(fan);
+    await q("insert into public.likes (user_id, post_id) values ($1, $2)", [fan, liked]);
+  }
+  await as(author);
+  check("the badge counts groups, not rows: four likes on one post are one", (await unread()) === 1);
+  rows = await groups();
+  check("likes on a post are one row with three faces and the full count", rows.length === 1 && rows[0].type === "like" && rows[0].count === 4 && rows[0].actor_count === 4 && rows[0].actors.length === 3 && rows[0].unread_count === 4, rows[0]);
+  check("the newest like leads the row", rows[0]?.latest?.actor?.username === "ng_fan4" && rows[0]?.actors[0]?.username === "ng_fan4", rows[0]?.latest?.actor);
+
+  for (const fan of [fan1, fan2]) {
+    await as(fan);
+    await q("insert into public.follows (follower_id, followee_id) values ($1, $2)", [fan, author]);
+  }
+  await as(fan3);
+  const first = await post("Looking at this one", "en", null, liked);
+  const second = await post("And again", "en", null, liked);
+  const mentionRoot = await post("Hi @ng_author, have you seen this?");
+  await as(fan4);
+  await post("@ng_author this one too", "en", null, mentionRoot);
+  await as(author);
+  rows = await groups();
+  const kinds = rows.map((r) => `${r.type}:${r.count}`);
+  check("follows share a row by day, every reply has its own, mentions share a thread", kinds.length === 5 && kinds.filter((k) => k === "reply:1").length === 2 && kinds.includes("follow:2") && kinds.includes("mention:2") && kinds.includes("like:4"), kinds);
+  check("the badge counts five groups", (await unread()) === 5);
+  const page = await groups(null, null, 2);
+  const rest = await groups(null, { at: page[1].latest_at, key: page[1].key }, 20);
+  check("groups page by latest activity and key without repeating", page.length === 2 && rest.length === 3 && new Set([...page, ...rest].map((r) => r.key)).size === 5, { page: page.map((r) => r.key), rest: rest.map((r) => r.key) });
+  rows = await groups(["reply"]);
+  check("a filter keeps only its types", rows.length === 2 && rows.every((r) => r.type === "reply"), rows.map((r) => r.type));
+  const follows = rows = await groups(["follow"]);
+  const items = await q("select * from public.notification_group_items($1, $2, 'Australia/Brisbane')", [author, follows[0].key]);
+  check("a group lists its members on request", items.length === 2 && items.every((i) => i.type === "follow"), items.map((i) => i.type));
+  check("the newest notification carries the post it is about", rows.every((r) => r.latest.recipient_id === author) && page.every((r) => r.type !== "reply" || r.latest.post?.id), page.map((r) => r.latest.post));
+
+  await q("select public.mark_notifications_read($1, '{like}')", [author]);
+  check("opening a tab marks only its notifications read", (await one("select count(*)::int as n from public.notifications where recipient_id = $1 and read_at is null and type = 'like'", [author])).n === 0 && (await unread()) === 4);
+  await q("select public.mark_notifications_read($1)", [author]);
+  check("without a tab everything is read", (await unread()) === 0);
+
+  await as(fan1);
+  await q("delete from public.follows where follower_id = $1 and followee_id = $2", [fan1, author]);
+  await as(author);
+  rows = await groups(["follow"]);
+  check("a follow since undone is not shown", rows.length === 1 && rows[0].actor_count === 1 && rows[0].actors[0].username === "ng_fan2", rows[0]);
+
+  await superuser();
+  await q("update public.posts set status = 'pending' where id = $1", [second]);
+  await as(author);
+  rows = await groups(["reply"]);
+  check("a reply later held for review leaves the inbox", rows.length === 1 && rows[0].latest.post.id === first, rows.map((r) => r.latest.post?.id));
+  rows = await groups(["like"]);
+  check("likes on your own post stay whatever its status", rows.length === 1);
+  await superuser();
+  check("a post published on creation sends no notice", (await one("select count(*)::int as n from public.notifications where recipient_id = $1 and type = 'moderation'", [fan3])).n === 0);
+  await as(mod);
+  await q("select public.moderate_content('post', $1, true)", [second]);
+  await as(fan3);
+  rows = await q("select message, rule, post_id from public.notification_details where recipient_id = $1 and type = 'moderation'", [fan3]);
+  check("a held post that goes up tells its author", rows.length === 1 && rows[0].message === "Your reply is up. Thanks for waiting." && rows[0].rule === null && rows[0].post_id === second, rows);
+  await superuser();
+  await q("update public.posts set status = 'pending' where id = $1", [second]);
+  await as(fan3);
+  check("the notice stands only while the post is up", (await q("select 1 from public.notification_details where recipient_id = $1 and type = 'moderation'", [fan3])).length === 0);
+  await as(fan1);
+  check("nobody reads another person's groups", (await groups()).length === 0);
+  await anon();
+  await fails("guests have no notifications", "select * from public.notification_groups($1)", [author], /permission denied/);
+}
+
+console.log("\nBlocks in messages");
+{
+  const user = (name) => createUser(`${name}@example.com`, { username: name, display_name: name.replace("mb_", "") });
+  const a = await user("mb_a");
+  const b = await user("mb_b");
+  const c = await user("mb_c");
+  const d = await user("mb_d");
+  const follow = async (who, whom) => {
+    await as(who);
+    await q("insert into public.follows (follower_id, followee_id) values ($1, $2)", [who, whom]);
+  };
+  await follow(a, b);
+  await follow(b, a);
+  await as(a);
+  const aPost = await post("Written by a");
+  await as(b);
+  const bPost = await post("Written by b");
+  await q("insert into public.likes (user_id, post_id) values ($1, $2)", [b, aPost]);
+  await as(a);
+  await q("insert into public.likes (user_id, post_id) values ($1, $2)", [a, bPost]);
+  const direct = (await one("select public.start_direct_conversation($1) as id", [b])).id;
+  await q("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Hello b')", [direct, a]);
+  // The embedded clock ticks in milliseconds, so a read position set in the same tick as the message would hide it.
+  await superuser();
+  await q("update public.conversation_participants set last_read_at = last_read_at - interval '1 second' where conversation_id = $1 and user_id = $2", [direct, b]);
+  await as(b);
+  check("before a block the conversation is there", (await one("select public.unread_message_count() as n")).n === 1 && (await q("select 1 from public.conversation_list where id = $1", [direct])).length === 1);
+
+  await as(a);
+  await q("insert into public.blocks (blocker_id, blocked_id) values ($1, $2)", [a, b]);
+  await superuser();
+  check("blocking removes likes both ways", (await one("select count(*)::int as n from public.likes where (user_id, post_id) in (($1, $2), ($3, $4))", [a, bPost, b, aPost])).n === 0 && (await one("select like_count from public.posts where id = $1", [aPost])).like_count === 0);
+  check("and their like notifications", (await one("select count(*)::int as n from public.notifications where type = 'like' and recipient_id in ($1, $2)", [a, b])).n === 0);
+  for (const [who, name] of [[a, "the blocker"], [b, "the blocked person"]]) {
+    await as(who);
+    check(`${name} no longer sees the direct conversation`, (await q("select 1 from public.conversation_list where id = $1", [direct])).length === 0 && (await q("select 1 from public.conversations where id = $1", [direct])).length === 0);
+    check(`${name} cannot read its messages`, (await q("select 1 from public.messages where conversation_id = $1", [direct])).length === 0);
+    check(`${name}'s badge forgets it`, (await one("select public.unread_message_count() as n")).n === 0);
+  }
+  await as(a);
+  await q("delete from public.blocks where blocker_id = $1 and blocked_id = $2", [a, b]);
+  await as(b);
+  check("unblocking brings the conversation back", (await q("select 1 from public.conversation_list where id = $1", [direct])).length === 1);
+
+  await as(a);
+  await q("insert into public.blocks (blocker_id, blocked_id) values ($1, $2)", [a, d]);
+  await fails("a group can't start with two people who have a block", "select public.create_group_conversation('Picnic', $1::uuid[])", [`{${b},${d}}`], /d can't be added to this group/);
+  await as(c);
+  const group = (await one("select public.create_group_conversation('Picnic', $1::uuid[]) as id", [`{${a},${b}}`])).id;
+  await fails("nobody is added to a group with someone they have a block with", "select public.add_group_members($1, $2::uuid[])", [group, `{${d}}`], /d can't be added to this group/);
+  await as(d);
+  await fails("whichever side blocked", "select public.create_group_conversation('Picnic', $1::uuid[])", [`{${a}}`], /can't be added to this group/);
+
+  await as(c);
+  const request = (await one("select public.start_direct_conversation($1) as id", [b])).id;
+  await q("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'May I?')", [request, c]);
+  await as(b);
+  // One unread direct message, the group invite from c, and now c's request.
+  check("message requests count in the badge", (await one("select my_status from public.conversation_list where id = $1", [request])).my_status === "pending" && (await one("select public.unread_message_count() as n")).n === 3);
+}
+
+console.log("\nGroup history");
+{
+  const user = (name) => createUser(`${name}@example.com`, { username: name });
+  const owner = await user("gh_owner");
+  const old = await user("gh_old");
+  const fresh = await user("gh_new");
+  const shared = await user("gh_shared");
+  for (const member of [old, fresh, shared]) {
+    await as(member);
+    await q("insert into public.follows (follower_id, followee_id) values ($1, $2)", [member, owner]);
+  }
+  await as(owner);
+  const group = (await one("select public.create_group_conversation('History', $1::uuid[]) as id", [`{${old}}`])).id;
+  const before = (await one("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Before anyone else joined') returning id", [group, owner])).id;
+  const photo = `${group}/early.webp`;
+  await q("insert into public.messages (conversation_id, sender_id, image_paths) values ($1, $2, $3)", [group, owner, [photo]]);
+  await superuser();
+  await q("insert into storage.objects (bucket_id, name) values ('message-media', $1)", [photo]);
+  await as(old);
+  await q("insert into public.message_reactions (message_id, user_id, emoji) values ($1, $2, '👍')", [before, old]);
+  await as(owner);
+  await q("select public.add_group_members($1, $2::uuid[])", [group, `{${fresh}}`]);
+  await q("select public.add_group_members($1, $2::uuid[], true)", [group, `{${shared}}`]);
+
+  await as(fresh);
+  check("someone added later reads nothing from before they joined", (await q("select 1 from public.messages where conversation_id = $1", [group])).length === 0);
+  row = await one("select unread_count, last_message, history_from from public.conversation_list where id = $1", [group]);
+  check("their inbox shows no earlier preview or unread", row.unread_count === 0 && row.last_message === null && row.history_from !== null, row);
+  check("nor earlier photos", (await q("select 1 from storage.objects where name = $1", [photo])).length === 0);
+  check("nor reactions to earlier messages", (await q("select 1 from public.message_reactions where message_id = $1", [before])).length === 0);
+  await as(shared);
+  check("someone given the history reads it all", (await q("select 1 from public.messages where conversation_id = $1", [group])).length === 2 && (await q("select 1 from storage.objects where name = $1", [photo])).length === 1);
+  check("and is told so", (await one("select history_from::text as t from public.conversation_list where id = $1", [group])).t === "-infinity");
+  await as(owner);
+  await q("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'After they joined')", [group, owner]);
+  await superuser();
+  await q("update public.conversation_participants set last_read_at = last_read_at - interval '1 second' where conversation_id = $1 and user_id = $2", [group, fresh]);
+  await as(fresh);
+  rows = await q("select body from public.messages where conversation_id = $1", [group]);
+  check("new messages reach everyone", rows.length === 1 && rows[0].body === "After they joined", rows);
+  row = await one("select unread_count, last_message->>'body' as preview from public.conversation_list where id = $1", [group]);
+  check("the inbox counts from when they joined", row.unread_count === 1 && row.preview === "After they joined", row);
+  const reply = (await one("insert into public.messages (conversation_id, sender_id, body, reply_to_id) values ($1, $2, 'Replying to what?', $3) returning reply_to_id", [group, fresh, before])).reply_to_id;
+  check("replies can't point at messages the sender can't read", reply === null);
+  await as(old);
+  check("people there from the start still read everything", (await q("select 1 from public.messages where conversation_id = $1", [group])).length === 4);
+}
+
+console.log("\nRate limits");
+{
+  const user = (name) => createUser(`${name}@example.com`, { username: name });
+  const poster = await user("rl_poster");
+  await as(poster);
+  for (let i = 1; i <= 10; i++) await post(`Post number ${i}`);
+  await fails("posts are limited to 10 a minute", "select public.create_post('Post number 11')", [], /10 times a minute/);
+  const posts = await q("select id from public.posts where created_by = $1", [poster]);
+
+  const reporter = await user("rl_reporter");
+  await as(reporter);
+  for (const { id } of posts.slice(0, 5)) await q("select public.report_content('post', $1, 'spam')", [id]);
+  await fails("reports are limited to 5 a minute", "select public.report_content('post', $1, 'spam')", [posts[5].id], /5 reports a minute/);
+
+  const founder = await user("rl_founder");
+  await as(founder);
+  for (let i = 1; i <= 3; i++) await q("select public.create_space($1, $2, 'A space', 'interest')", [`rl-space-${i}`, `Space ${i}`]);
+  await fails("spaces are limited to 3 a day", "select public.create_space('rl-space-4', 'Space 4', 'A space', 'interest')", [], /3 spaces a day/);
+
+  const lister = await user("rl_lister");
+  await as(lister);
+  for (let i = 1; i <= 10; i++) {
+    await q("insert into public.events (host_id, created_by, title, starts_at, city_id, venue_name) values ($1, $1, $2, now() + interval '7 days', $3, 'Hall')", [lister, `Listing ${i}`, brisbane]);
+  }
+  await fails("events and opportunities are limited to 10 a day together", "insert into public.opportunities (poster_id, created_by, type, title, description, apply_url) values ($1, $1, 'job', 'One more', 'A job for someone', 'https://example.org/apply')", [lister], /limit for new listings/);
+
+  const sender = await user("rl_sender");
+  const friend = await user("rl_friend");
+  await as(friend);
+  await q("insert into public.follows (follower_id, followee_id) values ($1, $2)", [friend, sender]);
+  await as(sender);
+  const chat = (await one("select public.start_direct_conversation($1) as id", [friend])).id;
+  for (let i = 1; i <= 30; i++) await q("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, $3)", [chat, sender, `Message ${i}`]);
+  await fails("messages are limited to 30 a minute", "insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Message 31')", [chat, sender], /sending messages very quickly/);
+
+  const targets = [];
+  for (let i = 1; i <= 31; i++) targets.push(await user(`rl_target${i}`));
+  const requester = await user("rl_requester");
+  await as(requester);
+  for (const target of targets.slice(0, 20)) await q("select public.start_direct_conversation($1)", [target]);
+  await fails("message requests are limited to 20 a day", "select public.start_direct_conversation($1)", [targets[20]], /message requests today/);
+
+  const follower = await user("rl_follower");
+  await as(follower);
+  for (const target of targets.slice(0, 30)) await q("insert into public.follows (follower_id, followee_id) values ($1, $2)", [follower, target]);
+  await fails("follows are limited to 30 a minute", "insert into public.follows (follower_id, followee_id) values ($1, $2)", [follower, targets[30]], /following people very quickly/);
+
+  await superuser();
+  const many = (await q("insert into public.posts (author_id, created_by, status, body, published_at) select $1, $1, 'published', 'Post ' || n, now() from generate_series(1, 61) n returning id", [poster])).map((r) => r.id);
+  const liker = await user("rl_liker");
+  await as(liker);
+  for (const id of many.slice(0, 60)) await q("insert into public.likes (user_id, post_id) values ($1, $2)", [liker, id]);
+  await fails("likes are limited to 60 a minute", "insert into public.likes (user_id, post_id) values ($1, $2)", [liker, many[60]], /liking posts very quickly/);
+  await q("delete from public.likes where user_id = $1 and post_id = $2", [liker, many[0]]);
+  await fails("unliking gives nothing back", "insert into public.likes (user_id, post_id) values ($1, $2)", [liker, many[60]], /liking posts very quickly/);
+  for (const id of many.slice(0, 60)) await q("insert into public.saves (user_id, post_id) values ($1, $2)", [liker, id]);
+  await fails("saves are limited to 60 a minute", "insert into public.saves (user_id, post_id) values ($1, $2)", [liker, many[60]], /saving posts very quickly/);
+  await fails("members can't read or reset the counters", "select * from public.rate_limits", [], /permission denied/);
+  await superuser();
+  await q("update public.rate_limits set window_start = now() - interval '2 minutes' where user_id = $1 and action = 'like'", [liker]);
+  await as(liker);
+  await q("insert into public.likes (user_id, post_id) values ($1, $2)", [liker, many[60]]);
+  await superuser();
+  check("the window resets after a minute", (await one("select hits from public.rate_limits where user_id = $1 and action = 'like'", [liker])).hits === 1);
+  check("reactions are limited to 60 a minute (checked above)", true);
+}
+
 console.log("\nDemo seed");
 const seeded = new PGlite({ extensions: { pg_trgm, pgcrypto } });
 await seeded.exec(stubs);
