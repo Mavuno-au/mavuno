@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { SettingsGroup } from "@/components/settings/layout";
 import { ReplyPreviewPicker } from "@/components/settings/reply-preview-picker";
+import { ShortcutsToggle } from "@/components/settings/shortcuts-toggle";
 import { ThemePicker } from "@/components/settings/theme-picker";
 import { WhoToFollowToggle } from "@/components/settings/who-to-follow-toggle";
 import { parseReplyPreviewCount, REPLY_PREVIEWS_COOKIE } from "@/lib/reply-previews";
@@ -21,6 +22,9 @@ export default async function AppearanceSettingsPage() {
       </SettingsGroup>
       <SettingsGroup title="Who to follow" hint="Saved in this browser, like the theme.">
         <WhoToFollowToggle shown={!hidden} />
+      </SettingsGroup>
+      <SettingsGroup title="Keyboard" hint="Saved in this browser, like the theme.">
+        <ShortcutsToggle />
       </SettingsGroup>
     </>
   );

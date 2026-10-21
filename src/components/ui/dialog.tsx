@@ -1,7 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
 // A modal on the native <dialog>, which brings Escape handling, focus
@@ -9,6 +9,7 @@ import { cn } from "@/lib/cn";
 export function Dialog({
   open,
   onClose,
+  onKeyDown,
   title,
   children,
   footer,
@@ -16,25 +17,43 @@ export function Dialog({
 }: {
   open: boolean;
   onClose: () => void;
+  onKeyDown?: (event: KeyboardEvent<HTMLDialogElement>) => void;
   title: string;
   children: ReactNode;
   footer?: ReactNode;
   className?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const opener = useRef<HTMLElement | null>(null);
+  const titleId = useId();
 
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal();
+    if (open && !dialog.open) {
+      opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      dialog.showModal();
+    }
     if (!open && dialog.open) dialog.close();
   }, [open]);
+
+  // The browser hands focus back on close only when it still knows the
+  // opener; a dialog opened from a menu item that has since unmounted would
+  // otherwise leave focus on the body.
+  function closed() {
+    const target = opener.current;
+    opener.current = null;
+    if (target?.isConnected && (document.activeElement === document.body || ref.current?.contains(document.activeElement))) target.focus();
+    onClose();
+  }
 
   return (
     <dialog
       ref={ref}
-      onClose={onClose}
-      onClick={(event) => event.target === ref.current && onClose()}
+      aria-labelledby={titleId}
+      onClose={closed}
+      onKeyDown={onKeyDown}
+      onClick={(event) => event.target === ref.current && ref.current.close()}
       className={cn(
         "m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl border border-hairline bg-popover p-0 text-ink shadow-xl backdrop:bg-black/40",
         // On phones the dialog sits in the part of the screen the keyboard leaves visible.
@@ -43,8 +62,10 @@ export function Dialog({
       )}
     >
       <div className="flex items-center justify-between gap-3 border-b border-hairline px-5 py-3.5">
-        <h2 className="font-semibold">{title}</h2>
-        <button type="button" onClick={onClose} aria-label="Close" className="-mr-2 rounded-md p-1.5 text-ink-muted hover:bg-wash hover:text-ink max-md:p-2.5">
+        <h2 id={titleId} className="font-semibold">
+          {title}
+        </h2>
+        <button type="button" onClick={() => ref.current?.close()} aria-label="Close" className="-mr-2 rounded-md p-1.5 text-ink-muted hover:bg-wash hover:text-ink max-md:p-2.5">
           <X className="size-5" />
         </button>
       </div>

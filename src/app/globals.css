@@ -17,6 +17,7 @@
   --primary-ink: #ffffff;
   --destructive: #c2341b;
   --destructive-soft: #fbe9e5;
+  --destructive-ink: #ffffff;
   --colour-0: #c2410c;
   --colour-1: #b7791f;
   --colour-2: #8e3fb5;
@@ -41,6 +42,7 @@
   --primary-ink: #0d1a14;
   --destructive: #ff6b57;
   --destructive-soft: #3a1c17;
+  --destructive-ink: #1a0b08;
   --colour-0: #fb8a50;
   --colour-1: #f2c24f;
   --colour-2: #c88bea;
@@ -65,6 +67,7 @@
   --color-primary-ink: var(--primary-ink);
   --color-destructive: var(--destructive);
   --color-destructive-soft: var(--destructive-soft);
+  --color-destructive-ink: var(--destructive-ink);
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
@@ -78,6 +81,11 @@ html {
   html {
     scrollbar-gutter: stable;
   }
+}
+
+/* The page behind a modal neither scrolls nor scrolls the modal away. */
+html:has(dialog[open]) {
+  overflow: hidden;
 }
 
 /* The bottom nav's height on phones, including the home bar, so everything
@@ -101,9 +109,42 @@ body {
 }
 
 @layer base {
+  /* Solid primary: a translucent ring fell under the 3:1 WCAG needs for focus. */
   :focus-visible {
-    outline: 2px solid color-mix(in srgb, var(--primary) 60%, transparent);
+    outline: 2px solid var(--primary);
     outline-offset: 2px;
+  }
+
+  /* Tailwind's preflight makes buttons use the default cursor. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  select:not(:disabled),
+  summary {
+    cursor: pointer;
+  }
+
+  /* People who ask for less motion get none: every transition and animation
+     ends at once, so skeletons sit still and menus just appear. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* A post reached with j/k: the tint alone was 1.07:1, so a 3px bar in primary
+     marks it, and it scrolls clear of the sticky header. */
+  [data-post] {
+    scroll-margin-block: 7rem;
+  }
+  [data-post]:focus-visible {
+    box-shadow: inset 3px 0 0 var(--primary);
   }
 }
 
@@ -135,8 +176,6 @@ select {
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .animate-fade-in {
-    animation: fade-in 160ms ease-out;
-  }
+.animate-fade-in {
+  animation: fade-in 160ms ease-out;
 }

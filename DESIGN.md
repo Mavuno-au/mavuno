@@ -17,8 +17,8 @@ Defined once in `src/app/globals.css` as CSS variables and exposed to Tailwind (
 | `hairline` | every divider |
 | `rail` | input borders, guide lines in threads, dashed placeholders |
 | `wash` | hover backgrounds, image placeholders |
-| `primary`, `primary-hover`, `primary-soft` | buttons, links, focus, current nav item and tab, selection |
-| `destructive`, `destructive-soft` | delete, block, report and their confirmations |
+| `primary`, `primary-hover`, `primary-soft` | buttons, links, the focus ring (solid, 2px), current nav item and tab, selection |
+| `destructive`, `destructive-soft`, `destructive-ink` | delete, block, report and their confirmations; `destructive-ink` is the text on a destructive button (white in light, near-black in dark, so it reads at 4.5:1 on both) |
 | `colour-0`…`colour-5` | a person's identity colour: avatar ring and the dot before a handle only |
 
 **One green.** Primary means "you can act here" or "you are here". It is never decoration and never an identity colour.
@@ -44,3 +44,11 @@ A centred shell up to 1264px: a 256px side nav (an 80px icon rail on tablets), t
 ## Stability
 
 Nothing jumps. Buttons whose label changes have a minimum width, skeletons match what they stand in for, polling never moves what someone is reading (new posts wait behind a pill), and confirmations replace the control they belong to.
+
+## Everyone can use it
+
+- **Contrast.** Text at 4.5:1 and controls, focus rings and the j/k post bar at 3:1 in both themes. Muted text is never faded further with opacity; placeholders use `ink-muted` in full.
+- **Focus.** The ring is solid primary. A post reached with j or k gets a 3px primary bar on its left edge and scrolls clear of the sticky header. Dialogs and menus return focus to what opened them.
+- **Keyboard.** Dialogs are native `<dialog>` with a name from their title; the page behind does not scroll. Menus take arrow keys, Home, End, Escape and Tab. Single-key shortcuts are matched by physical key, so they work on Arabic, Amharic and other layouts, and can be turned off in Settings › Appearance.
+- **Motion.** `prefers-reduced-motion: reduce` ends every transition and animation at once; nothing else needs gating.
+- **Right to left.** Post bodies, messages, bios, headlines and every text input carry `dir="auto"`, and links and mentions inside a body are bidi-isolated, so Arabic and Tigrinya lay out the way their writers expect.

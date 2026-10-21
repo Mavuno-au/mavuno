@@ -50,20 +50,29 @@ export function ImageGrid({ images }: { images: PostImage[] }) {
           </button>
         ))}
       </div>
-      <Dialog open={current !== undefined} onClose={() => setOpen(null)} title={images.length > 1 ? `Photo ${(open ?? 0) + 1} of ${images.length}` : "Photo"} className="max-w-4xl">
+      <Dialog
+        open={current !== undefined}
+        onClose={() => setOpen(null)}
+        // Keys are read on the dialog itself: focus starts on its Close button.
+        onKeyDown={(event) => {
+          if (event.key === "ArrowLeft") step(-1);
+          if (event.key === "ArrowRight") step(1);
+        }}
+        title={images.length > 1 ? `Photo ${(open ?? 0) + 1} of ${images.length}` : "Photo"}
+        className="max-w-4xl"
+      >
         {current ? (
-          <figure
-            className="grid gap-3"
-            onKeyDown={(event) => {
-              if (event.key === "ArrowLeft") step(-1);
-              if (event.key === "ArrowRight") step(1);
-            }}
-          >
+          <figure className="grid gap-3">
             <img src={current.url} alt={current.alt || label(open ?? 0)} className="max-h-[70dvh] w-full rounded-md object-contain" />
-            {current.alt ? <figcaption className="text-sm text-ink-muted">{current.alt}</figcaption> : null}
+            {current.alt ? (
+              <figcaption dir="auto" className="text-sm text-ink-muted">
+                {current.alt}
+              </figcaption>
+            ) : null}
             <div className="flex items-center justify-between gap-3 text-sm">
               {images.length > 1 ? (
-                <button type="button" className="text-primary disabled:opacity-40" disabled={open === 0} onClick={() => step(-1)}>
+                // Stays focusable at either end, so focus never falls off a disabled button.
+                <button type="button" className="text-primary aria-disabled:opacity-40" aria-disabled={open === 0} onClick={() => step(-1)}>
                   ← Previous
                 </button>
               ) : (
@@ -73,7 +82,7 @@ export function ImageGrid({ images }: { images: PostImage[] }) {
                 Download
               </a>
               {images.length > 1 ? (
-                <button type="button" className="text-primary disabled:opacity-40" disabled={open === images.length - 1} onClick={() => step(1)}>
+                <button type="button" className="text-primary aria-disabled:opacity-40" aria-disabled={open === images.length - 1} onClick={() => step(1)}>
                   Next →
                 </button>
               ) : (
@@ -212,7 +221,11 @@ export function QuotedBlock({ quoted }: { quoted: QuotedPost }) {
         <span className="truncate font-mono text-[13px] text-ink-muted">@{quoted.author.username}</span>
         <span className="font-mono text-[13px] text-ink-muted">· <LocalTime iso={quoted.createdAt} /></span>
       </span>
-      {quoted.body ? <p className="mt-1 line-clamp-6 text-[15px] whitespace-pre-wrap wrap-anywhere">{quoted.body}</p> : null}
+      {quoted.body ? (
+        <p dir="auto" className="mt-1 line-clamp-6 text-[15px] whitespace-pre-wrap wrap-anywhere">
+          {quoted.body}
+        </p>
+      ) : null}
       {quoted.image ? <img src={quoted.image.url} alt={quoted.image.alt} loading="lazy" className="mt-2 max-h-48 rounded-md object-cover" /> : null}
     </Link>
   );

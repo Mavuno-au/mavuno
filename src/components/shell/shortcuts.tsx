@@ -1,8 +1,9 @@
 "use client";
 
 import { Clock, Search } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useCompose } from "@/components/shell/compose";
 import { Avatar } from "@/components/ui/avatar";
 import { Dialog } from "@/components/ui/dialog";
@@ -10,6 +11,7 @@ import { useViewer } from "@/components/shell/viewer-context";
 import { cn } from "@/lib/cn";
 import { parsePeople, type PersonSummary } from "@/lib/domain";
 import { readRecentSearches, recentSearchesKey, rememberSearch, writeRecentSearches } from "@/lib/recent-searches";
+import { readShortcutsEnabled, shortcutKey, subscribeToShortcuts } from "@/lib/shortcuts";
 import { getBrowserClient } from "@/lib/supabase/browser";
 
 const SHORTCUTS = [
@@ -54,56 +56,68 @@ export function Shortcuts() {
   const [panel, setPanel] = useState<"none" | "search" | "help">("none");
   const pendingG = useRef(false);
 
+  const enabled = useSyncExternalStore(subscribeToShortcuts, readShortcutsEnabled, () => true);
+
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      if ((event.metaKey || event.ctrlKey) && shortcutKey(event).toLowerCase() === "k") {
         event.preventDefault();
         setPanel("search");
         return;
       }
-      if (isTyping(event.target) || event.metaKey || event.ctrlKey || event.altKey || document.querySelector("dialog[open]")) return;
+      if (!enabled || isTyping(event.target) || event.metaKey || event.ctrlKey || event.altKey || document.querySelector("dialog[open]")) return;
+      const key = shortcutKey(event);
       if (pendingG.current) {
         pendingG.current = false;
         const routes: Record<string, string> = { h: "/", d: "/discover", n: "/notifications", m: "/messages", p: viewer ? `/@${viewer.username}` : "/login" };
-        const route = routes[event.key];
+        const route = routes[key];
         if (route) router.push(route);
         return;
       }
-      if (event.key === "j" || event.key === "k") {
+      if (key === "j" || key === "k") {
         event.preventDefault();
-        stepPost(event.key === "j" ? 1 : -1);
+        stepPost(key === "j" ? 1 : -1);
         return;
       }
       const post = focusedPost();
-      if (post && ["r", "q", "o", "y"].includes(event.key)) {
+      if (post && ["r", "q", "o", "y"].includes(key)) {
         event.preventDefault();
-        post.querySelector<HTMLElement>(`[aria-keyshortcuts="${event.key}"][data-for="${post.dataset.post}"]`)?.click();
+        post.querySelector<HTMLElement>(`[aria-keyshortcuts="${key}"][data-for="${post.dataset.post}"]`)?.click();
         return;
       }
-      if (post && event.key === "Enter" && event.target === post && post.dataset.href) {
+      if (post && key === "Enter" && event.target === post && post.dataset.href) {
         router.push(post.dataset.href);
         return;
       }
-      if (event.key === "g") {
+      if (key === "g") {
         pendingG.current = true;
         setTimeout(() => (pendingG.current = false), 1000);
-      } else if (event.key === "/") {
+      } else if (key === "/") {
         event.preventDefault();
         setPanel("search");
-      } else if (event.key === "?") setPanel("help");
-      else if (event.key === "c" && viewer) {
+      } else if (key === "?") setPanel("help");
+      else if (key === "c" && viewer) {
         event.preventDefault();
         compose();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [router, viewer, compose]);
+  }, [router, viewer, compose, enabled]);
 
   return (
     <>
       <SearchPalette open={panel === "search"} onClose={() => setPanel("none")} />
       <Dialog open={panel === "help"} onClose={() => setPanel("none")} title="Keyboard shortcuts">
+        {!enabled ? (
+          <p className="mb-3 text-sm text-ink-muted">
+            Single-key shortcuts are off. Turn them on in{" "}
+            <Link href="/settings/appearance" className="text-primary hover:underline" onClick={() => setPanel("none")}>
+              Settings › Appearance
+            </Link>
+            .
+          </p>
+        ) : null}
         <dl className="grid gap-2">
           {SHORTCUTS.map(([keys, action]) => (
             <div key={keys} className="flex items-center justify-between gap-4 text-[15px]">
@@ -167,6 +181,7 @@ function SearchPaletteBody({ onClose }: { onClose: () => void }) {
       <div className="flex items-center gap-2 rounded-md border border-rail px-3 focus-within:border-primary">
         <Search className="size-4 text-ink-muted" />
         <input
+          dir="auto"
           autoFocus
           value={query}
           onChange={(event) => setQuery(event.target.value)}

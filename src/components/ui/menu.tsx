@@ -2,12 +2,16 @@
 
 import { MoreHorizontal } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import { menuKeyAction } from "@/lib/menu";
 
 export type MenuItem =
   | { kind: "action"; label: string; icon?: ReactNode; onSelect: () => void; danger?: boolean }
   | { kind: "link"; label: string; icon?: ReactNode; href: string };
+
+// Closed, or open with the item that should hold focus.
+type State = { kind: "closed" } | { kind: "open"; focus: "first" | "last" };
 
 export function Menu({
   items,
@@ -22,37 +26,81 @@ export function Menu({
   align?: "start" | "end";
   placement?: "below" | "above";
 }) {
-  const [open, setOpen] = useState(false);
+  const [state, setState] = useState<State>({ kind: "closed" });
   const root = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
   const id = useId();
+  const open = state.kind === "open";
 
   useEffect(() => {
-    if (!open) return;
-    const close = (event: Event) => {
-      const outside = event.target instanceof Node && !root.current?.contains(event.target);
-      if (event instanceof KeyboardEvent ? event.key === "Escape" : outside) setOpen(false);
+    if (state.kind !== "open") return;
+    const options = menuItems();
+    options[state.focus === "first" ? 0 : options.length - 1]?.focus();
+    const close = (event: PointerEvent) => {
+      if (event.target instanceof Node && !root.current?.contains(event.target)) setState({ kind: "closed" });
     };
     document.addEventListener("pointerdown", close);
-    document.addEventListener("keydown", close);
-    return () => {
-      document.removeEventListener("pointerdown", close);
-      document.removeEventListener("keydown", close);
-    };
-  }, [open]);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [state]);
+
+  function menuItems() {
+    return [...(root.current?.querySelectorAll<HTMLElement>("[role=menuitem]") ?? [])];
+  }
+
+  // Closing from the keyboard, or by choosing, puts focus back on the trigger
+  // so a dialog the choice opens knows where to return to.
+  function closeAndRefocus() {
+    setState({ kind: "closed" });
+    button.current?.focus();
+  }
+
+  function onTriggerKeyDown(event: KeyboardEvent) {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    event.preventDefault();
+    event.stopPropagation();
+    setState({ kind: "open", focus: event.key === "ArrowDown" ? "first" : "last" });
+  }
+
+  function onMenuKeyDown(event: KeyboardEvent) {
+    const options = menuItems();
+    const action = menuKeyAction(
+      event.key,
+      options.findIndex((option) => option === document.activeElement),
+      options.length,
+    );
+    switch (action.kind) {
+      case "focus":
+        event.preventDefault();
+        options[action.index]?.focus();
+        return;
+      case "close":
+        if (action.refocus) {
+          // Only the menu closes, not a dialog it sits in.
+          event.preventDefault();
+          event.stopPropagation();
+          closeAndRefocus();
+        } else setState({ kind: "closed" });
+        return;
+      case "none":
+        return;
+    }
+  }
 
   if (items.length === 0) return null;
 
   return (
     <div ref={root} className="relative">
       <button
+        ref={button}
         type="button"
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={id}
+        onKeyDown={onTriggerKeyDown}
         onClick={(event) => {
           event.stopPropagation();
-          setOpen((value) => !value);
+          setState(open ? { kind: "closed" } : { kind: "open", focus: "first" });
         }}
         className="rounded-md p-1.5 text-ink-muted hover:bg-wash hover:text-ink max-md:p-2.5"
       >
@@ -62,6 +110,8 @@ export function Menu({
         <div
           id={id}
           role="menu"
+          aria-label={label}
+          onKeyDown={onMenuKeyDown}
           className={cn(
             "animate-fade-in absolute z-30 min-w-48 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-hairline bg-popover py-1 shadow-lg",
             placement === "below" ? "top-full mt-1" : "bottom-full mb-1",
@@ -70,11 +120,11 @@ export function Menu({
         >
           {items.map((item) => {
             const className = cn(
-              "flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-wash max-md:min-h-11 [&_svg]:size-4",
+              "flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-wash focus-visible:bg-wash focus-visible:outline-none max-md:min-h-11 [&_svg]:size-4",
               item.kind === "action" && item.danger ? "text-destructive" : "text-ink",
             );
             return item.kind === "link" ? (
-              <Link key={item.label} role="menuitem" href={item.href} className={className} onClick={() => setOpen(false)}>
+              <Link key={item.label} role="menuitem" tabIndex={-1} href={item.href} className={className} onClick={() => setState({ kind: "closed" })}>
                 {item.icon}
                 {item.label}
               </Link>
@@ -82,11 +132,12 @@ export function Menu({
               <button
                 key={item.label}
                 role="menuitem"
+                tabIndex={-1}
                 type="button"
                 className={className}
                 onClick={(event) => {
                   event.stopPropagation();
-                  setOpen(false);
+                  closeAndRefocus();
                   item.onSelect();
                 }}
               >

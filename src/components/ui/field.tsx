@@ -2,14 +2,15 @@ import type { ComponentProps, ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
 const control =
-  "w-full rounded-md border border-rail bg-surface px-3 text-[15px] text-ink placeholder:text-ink-muted/70 focus:border-primary focus:outline-none disabled:opacity-60";
+  "w-full rounded-md border border-rail bg-surface px-3 text-[15px] text-ink placeholder:text-ink-muted focus:border-primary focus:outline-none disabled:opacity-60";
 
+// dir="auto" lets a line of Arabic or Tigrinya run right to left as it's typed.
 export function Input({ className, ...props }: ComponentProps<"input">) {
-  return <input className={cn(control, "h-10", className)} {...props} />;
+  return <input dir="auto" className={cn(control, "h-10", className)} {...props} />;
 }
 
 export function Textarea({ className, ...props }: ComponentProps<"textarea">) {
-  return <textarea className={cn(control, "min-h-24 resize-y overflow-x-hidden py-2 leading-relaxed", className)} {...props} />;
+  return <textarea dir="auto" className={cn(control, "min-h-24 resize-y overflow-x-hidden py-2 leading-relaxed", className)} {...props} />;
 }
 
 export function Select({ className, ...props }: ComponentProps<"select">) {

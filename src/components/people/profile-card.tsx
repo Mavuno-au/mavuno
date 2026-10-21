@@ -148,7 +148,7 @@ function CardContent({ profile }: { profile: ProfilePreview }) {
         {profile.followsYou ? <Chip className="ml-1 shrink-0 font-sans">Follows you</Chip> : null}
         {profile.muted ? <Chip tone="warning" className="ml-1 shrink-0 font-sans">Muted</Chip> : null}
       </span>
-      {profile.headline || profile.bio ? <span className="mt-2 line-clamp-3 block text-sm text-pretty">{profile.headline ?? profile.bio}</span> : null}
+      {profile.headline || profile.bio ? <span dir="auto" className="mt-2 line-clamp-3 block text-sm text-pretty">{profile.headline ?? profile.bio}</span> : null}
       <span className="mt-3 flex gap-4 text-sm">
         <span>
           <span className="font-mono font-medium tabular">{profile.posts}</span> <span className="text-ink-muted">{profile.posts === 1 ? "post" : "posts"}</span>
