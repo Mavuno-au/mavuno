@@ -3,7 +3,7 @@
 import { BadgeCheck, ExternalLink, Scale, Trash2, UserX } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { deactivateUnder16, dismissReports, moderate, suspend, verifyOrganisation } from "@/app/actions/moderation";
+import { ban, deactivateUnder16, dismissReports, moderate, suspend, verifyOrganisation } from "@/app/actions/moderation";
 import { Author } from "@/components/moderation/author";
 import { PostPreviewBlock } from "@/components/moderation/preview";
 import { ReasonField } from "@/components/moderation/reason-field";
@@ -17,7 +17,7 @@ import { Chip, EmptyState } from "@/components/ui/page";
 import { languageName, reportReasonLabel } from "@/lib/catalogue";
 import type { ReportGroup, ReportTarget } from "@/lib/data/moderation";
 import { calendarDate, count } from "@/lib/format";
-import { RULE_FOR_REASON, type BreakableRule } from "@/lib/rules";
+import { RULE_FOR_REASON, SUSPENSION_LENGTHS, type BreakableRule } from "@/lib/rules";
 
 const TARGET_LABELS: Record<ReportTarget, string> = {
   post: "Post",
@@ -27,8 +27,6 @@ const TARGET_LABELS: Record<ReportTarget, string> = {
   opportunity: "Opportunity",
   space: "Space",
 };
-
-const SUSPENSIONS = [1, 7, 30] as const;
 
 function ReportRow({ group, onDone }: { group: ReportGroup; onDone: () => void }) {
   const [reasonOpen, setReasonOpen] = useState(false);
@@ -50,6 +48,11 @@ function ReportRow({ group, onDone }: { group: ReportGroup; onDone: () => void }
           <Chip>{TARGET_LABELS[group.targetType]}</Chip>
           {preview ? <Chip>{languageName(preview.post.language)}</Chip> : null}
           <Chip tone="danger">{count(group.count, "report")}</Chip>
+          {group.standing < group.count ? (
+            <span title="Only reports from members who have been around a week, with something published and in good standing, hold posts or put someone under review.">
+              <Chip>{group.standing} with standing</Chip>
+            </span>
+          ) : null}
         </div>
       </div>
 
@@ -110,7 +113,7 @@ function ReportRow({ group, onDone }: { group: ReportGroup; onDone: () => void }
         ) : null}
         {profile ? (
           <Menu
-            label="Suspend the author"
+            label="Suspend or ban the author"
             align="start"
             trigger={
               <span className="inline-flex h-8 items-center gap-2 px-1 text-sm font-medium [&_svg]:size-4">
@@ -119,13 +122,20 @@ function ReportRow({ group, onDone }: { group: ReportGroup; onDone: () => void }
               </span>
             }
             items={[
-              ...SUSPENSIONS.map((days) => ({
+              ...SUSPENSION_LENGTHS.map((length) => ({
                 kind: "action" as const,
-                label: `Suspend @${profile.username} for ${count(days, "day")}`,
-                onSelect: () => save(() => suspend({ profileId: profile.id, days, reason, rule }), `@${profile.username} is suspended for ${count(days, "day")}`, group.targetType === "profile" ? onDone : undefined),
+                label: `Suspend @${profile.username} for ${length.label}`,
+                onSelect: () =>
+                  save(() => suspend({ profileId: profile.id, length: length.value, reason, rule }), `@${profile.username} is suspended for ${length.label}`, group.targetType === "profile" ? onDone : undefined),
               })),
               ...(profile.accountType === "person"
                 ? [
+                    {
+                      kind: "action" as const,
+                      label: `Ban @${profile.username}`,
+                      danger: true,
+                      onSelect: () => save(() => ban({ profileId: profile.id, reason, rule }), `@${profile.username} is banned`, onDone),
+                    },
                     {
                       kind: "action" as const,
                       label: `Deactivate @${profile.username} as under 16`,

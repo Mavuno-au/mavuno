@@ -165,6 +165,10 @@ export default function PrivacyPage() {
           </li>
           <li>Translations we've saved are deleted after 7 days.</li>
           <li>We keep a record of moderation decisions (what was decided and why) so decisions stay consistent and can be reviewed.</li>
+          <li>
+            One exception to erasing everything: if your account is banned, or you delete it while it's suspended, we keep a scrambled form (a keyed hash) of your email address and any
+            sign-in such as Google until the ban or suspension would have ended, so the same person can't simply sign up again. Nothing can be read back from it, and it's all that stays.
+          </li>
         </ul>
 
         <h2>Age</h2>

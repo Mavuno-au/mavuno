@@ -34,7 +34,7 @@ from (values
 ) as v (username, bio, city, heritage, languages, interests, headline)
 where p.username = v.username;
 
-update public.profile_settings set onboarded_at = now(), age_confirmed_at = now() where id in (select id from public.profiles where username in ('amara', 'kofi', 'hana', 'tendai'));
+update public.profile_settings set onboarded_at = now(), age_confirmed_at = now(), rules_accepted_at = now() where id in (select id from public.profiles where username in ('amara', 'kofi', 'hana', 'tendai'));
 update public.profile_settings set site_role = 'admin' where id = (select id from public.profiles where username = 'amara');
 
 insert into public.follows (follower_id, followee_id)

@@ -3,7 +3,7 @@
 import { refresh } from "next/cache";
 import { z } from "zod";
 import { done, fail, failFrom, ok, type Result } from "@/lib/result";
-import { breakableRuleSchema } from "@/lib/rules";
+import { breakableRuleSchema, suspensionLengthSchema } from "@/lib/rules";
 import { firstIssue, usernameSchema } from "@/lib/schemas";
 import { createClient } from "@/lib/supabase/server";
 
@@ -62,25 +62,66 @@ export async function dismissReports(input: z.input<typeof reportTarget>): Promi
   return rpc("moderate_dismiss_reports", { p_target_type: targetType, p_target_id: targetId });
 }
 
-const suspendSchema = z.object({ profileId: id, days: z.union([z.literal(1), z.literal(7), z.literal(30)]), reason, rule });
-
-export async function suspend(input: z.input<typeof suspendSchema>): Promise<Result> {
-  const parsed = suspendSchema.safeParse(input);
-  if (!parsed.success) return fail(firstIssue(parsed.error));
-  return rpc("moderate_suspend", { p_profile_id: parsed.data.profileId, p_days: parsed.data.days, p_reason: parsed.data.reason || null, p_rule: parsed.data.rule });
-}
-
-// Why a moderator believes someone is under 16, and how a review found they
-// are older (public.age_check_basis). Neither keeps any detail about them.
-const suspicionSchema = z.enum(["report", "posts", "profile", "other"], "Choose why you believe they're under 16.");
-const evidenceSchema = z.enum(["video_call", "document", "other"], "Choose how they showed their age.");
-
 const personByUsername = async (username: string): Promise<Result<string>> => {
   const supabase = await createClient();
   const { data } = await supabase.from("profiles").select("id, account_type").eq("username", username).maybeSingle();
   const person = z.object({ id, account_type: z.literal("person") }).safeParse(data);
   return person.success ? ok(person.data.id) : fail(`There's no person called @${username}.`);
 };
+
+// From a report, or from the People tab by username.
+const who = z.union([z.object({ profileId: id }), z.object({ username: usernameSchema })]);
+const resolve = (target: z.infer<typeof who>) => ("profileId" in target ? Promise.resolve(ok(target.profileId)) : personByUsername(target.username));
+
+const suspendSchema = z.intersection(who, z.object({ length: suspensionLengthSchema, reason, rule }));
+
+// A second suspension extends the first; the database says until when.
+export async function suspend(input: z.input<typeof suspendSchema>): Promise<Result> {
+  const parsed = suspendSchema.safeParse(input);
+  if (!parsed.success) return fail(firstIssue(parsed.error));
+  const person = await resolve(parsed.data);
+  if (!person.ok) return person;
+  return rpc("moderate_suspend", { p_profile_id: person.data, p_duration: parsed.data.length, p_reason: parsed.data.reason || null, p_rule: parsed.data.rule });
+}
+
+const banSchema = z.intersection(who, z.object({ reason, rule }));
+
+export async function ban(input: z.input<typeof banSchema>): Promise<Result> {
+  const parsed = banSchema.safeParse(input);
+  if (!parsed.success) return fail(firstIssue(parsed.error));
+  const person = await resolve(parsed.data);
+  if (!person.ok) return person;
+  return rpc("moderate_ban", { p_profile_id: person.data, p_reason: parsed.data.reason || null, p_rule: parsed.data.rule });
+}
+
+const liftSchema = z.object({ profileId: id, reason: reason.optional() });
+
+export async function liftSuspension(input: z.input<typeof liftSchema>): Promise<Result> {
+  const parsed = liftSchema.safeParse(input);
+  if (!parsed.success) return fail(firstIssue(parsed.error));
+  return rpc("moderate_lift_suspension", { p_profile_id: parsed.data.profileId, p_reason: parsed.data.reason || null });
+}
+
+const restoreSchema = z.object({ decision: z.number().int().positive(), reason: reason.optional() });
+
+// After a successful appeal: brings back what the decision removed, or ends
+// the suspension or ban it imposed.
+export async function restoreDecision(input: z.input<typeof restoreSchema>): Promise<Result> {
+  const parsed = restoreSchema.safeParse(input);
+  if (!parsed.success) return fail(firstIssue(parsed.error));
+  return rpc("moderate_restore", { p_action_id: parsed.data.decision, p_reason: parsed.data.reason || null });
+}
+
+// Members accept the community rules once before their first post; the
+// database refuses posts and listings until then.
+export async function acceptRules(): Promise<Result> {
+  return rpc("accept_rules", {});
+}
+
+// Why a moderator believes someone is under 16, and how a review found they
+// are older (public.age_check_basis). Neither keeps any detail about them.
+const suspicionSchema = z.enum(["report", "posts", "profile", "other"], "Choose why you believe they're under 16.");
+const evidenceSchema = z.enum(["video_call", "document", "other"], "Choose how they showed their age.");
 
 const deactivateSchema = z.union([z.object({ profileId: id, basis: suspicionSchema }), z.object({ username: usernameSchema, basis: suspicionSchema })]);
 

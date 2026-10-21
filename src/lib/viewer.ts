@@ -23,6 +23,8 @@ const viewerRow = identity.extend({
   profile_settings: z.object({
     site_role: z.enum(["member", "moderator", "admin"]),
     suspended_until: z.string().nullable(),
+    banned_at: z.string().nullable(),
+    rules_accepted_at: z.string().nullable(),
     translation_language: z.string().nullable(),
     onboarded_at: z.string().nullable(),
     age_confirmed_at: z.string().nullable(),
@@ -49,7 +51,11 @@ export type Viewer = Identity & {
   cityId: number | null;
   languages: string[];
   role: "member" | "moderator" | "admin";
+  // A ban is a suspension that never ends; suspendedUntil is null for one.
   suspended: boolean;
+  suspendedUntil: string | null;
+  banned: boolean;
+  rulesAccepted: boolean;
   translationLanguage: string | null;
   onboarded: boolean;
   age: AgeStatus;
@@ -73,7 +79,7 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
   const { data } = await supabase
     .from("profiles")
     .select(
-      `${IDENTITY}, city_id, languages, profile_settings(site_role, suspended_until, translation_language, onboarded_at, age_confirmed_at, age_deactivated_at), organisation_members!organisation_members_user_id_fkey(role, organisation:profiles!organisation_members_org_id_fkey(${IDENTITY}))`,
+      `${IDENTITY}, city_id, languages, profile_settings(site_role, suspended_until, banned_at, rules_accepted_at, translation_language, onboarded_at, age_confirmed_at, age_deactivated_at), organisation_members!organisation_members_user_id_fkey(role, organisation:profiles!organisation_members_org_id_fkey(${IDENTITY}))`,
     )
     .eq("id", userId)
     .maybeSingle();
@@ -81,12 +87,17 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
 
   const row = viewerRow.parse(data);
   const settings = row.profile_settings;
+  const banned = settings.banned_at !== null;
+  const suspendedUntil = !banned && settings.suspended_until !== null && new Date(settings.suspended_until) > new Date() ? settings.suspended_until : null;
   return {
     ...toIdentity(row),
     cityId: row.city_id,
     languages: row.languages,
     role: settings.site_role,
-    suspended: settings.suspended_until !== null && new Date(settings.suspended_until) > new Date(),
+    suspended: banned || suspendedUntil !== null,
+    suspendedUntil,
+    banned,
+    rulesAccepted: settings.rules_accepted_at !== null,
     translationLanguage: settings.translation_language,
     onboarded: settings.onboarded_at !== null,
     age:
