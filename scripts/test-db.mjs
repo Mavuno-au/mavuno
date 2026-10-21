@@ -1268,6 +1268,40 @@ console.log("\nRepeated posts");
   check("moderators see the held copy", (await q("select 1 from public.review_queue where target_id = $1", [third])).length === 1);
 }
 
+console.log("\nLink cards in messages");
+{
+  const service = () => db.exec("reset role; select set_config('request.jwt.claim.sub', '', false); set role service_role;");
+  const sender = await createUser("lc_sender@example.com", { username: "lc_sender" });
+  const reader = await createUser("lc_reader@example.com", { username: "lc_reader" });
+  const outsider = await createUser("lc_outsider@example.com", { username: "lc_outsider" });
+  await as(reader);
+  await q("insert into public.follows (follower_id, followee_id) values ($1, $2)", [reader, sender]);
+  await as(sender);
+  const chat = (await one("select public.start_direct_conversation($1) as id", [reader])).id;
+  await fails("members cannot hand in a message's link", "insert into public.messages (conversation_id, sender_id, body, link_url) values ($1, $2, 'x', 'https://example.org')", [chat, sender], /permission denied/);
+  const linked = await one("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Look at www.example.org/news). Then https://example.org/second') returning id, link_url, link_preview", [chat, sender]);
+  check("the first link is read from the message, www. filled in and punctuation dropped", linked.link_url === "https://www.example.org/news" && linked.link_preview === null, linked);
+  const plain = await one("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'No links here, mail me at hi@example.org') returning id, link_url", [chat, sender]);
+  check("a message without a link gets none", plain.link_url === null, plain);
+  await superuser();
+  check(
+    "a message with a link is queued for its card, one without is not",
+    (await q("select 1 from public.background_tasks where kind = 'link_preview' and target_type = 'message' and target_id = $1", [linked.id])).length === 1
+      && (await q("select 1 from public.background_tasks where target_id = $1", [plain.id])).length === 0,
+  );
+  await as(sender);
+  await fails("members cannot write a message's card", "select public.set_message_link_preview($1, 'https://www.example.org/news', '{\"url\": \"https://www.example.org/news\", \"title\": \"Fake\"}')", [linked.id], /permission denied/);
+  await service();
+  await fails("message cards are checked like post cards", "select public.set_message_link_preview($1, 'https://www.example.org/news', '{\"url\": \"https://www.example.org/news\", \"title\": \" \"}')", [linked.id], /Invalid link preview/);
+  await q("select public.set_message_link_preview($1, 'https://www.example.org/other', $2::jsonb)", [linked.id, JSON.stringify({ url: "https://www.example.org/other", title: "Other" })]);
+  await q("select public.set_message_link_preview($1, 'https://www.example.org/news', $2::jsonb)", [linked.id, JSON.stringify({ url: "https://www.example.org/news", title: "The news", image: "https://img.example/n.png", extra: 1 })]);
+  await as(reader);
+  row = await one("select link_url, link_preview from public.messages where id = $1", [linked.id]);
+  check("the server writes the card, only for the message's own link", row.link_preview?.title === "The news" && !("extra" in row.link_preview), row);
+  await as(outsider);
+  check("outsiders still read nothing", (await q("select link_preview from public.messages where id = $1", [linked.id])).length === 0);
+}
+
 console.log("\nConversation");
 {
   const user = (name) => createUser(`${name}@example.com`, { username: name });

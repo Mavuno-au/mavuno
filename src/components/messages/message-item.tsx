@@ -1,7 +1,7 @@
 "use client";
 
 import { Flag, Reply } from "lucide-react";
-import { ImageGrid } from "@/components/post/attachments";
+import { ImageGrid, LinkCard } from "@/components/post/attachments";
 import { RichText } from "@/components/post/rich-text";
 import { QuickReactions, ReactionsBar } from "@/components/messages/reactions-bar";
 import { Avatar } from "@/components/ui/avatar";
@@ -84,6 +84,11 @@ export function MessageItem({
                 </div>
               ) : null}
               {content.body ? <RichText body={content.body} className={cn("max-w-full rounded-2xl px-3 py-2 text-[15px] leading-snug", mine ? "bg-primary-soft" : "bg-wash")} /> : null}
+              {content.linkUrl && content.images.length === 0 ? (
+                <div className="w-80 max-w-full [&>a]:mt-1 [&>div]:mt-1">
+                  <LinkCard url={content.linkUrl} preview={content.linkPreview} />
+                </div>
+              ) : null}
             </div>
           )}
 

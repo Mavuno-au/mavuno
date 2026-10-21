@@ -15,7 +15,7 @@ Mavuno ("harvest" in Swahili) is a social network for that community. Members po
 - **Profiles:** people and organisations, with city, heritage, languages, interests and optional professional details. Resting the mouse on a name, or tabbing to it, opens a profile card with a Follow button.
 - **Spaces:** city spaces with the city's photo, and interest spaces.
 - **Events and opportunities:** jobs, internships, scholarships, grants, mentoring, business and volunteering.
-- **Messages:** one to one and groups, with requests, reactions, read receipts and photos.
+- **Messages:** one to one and groups, with requests, reactions, read receipts, photos and link cards.
 - **Notifications:** in-app, grouped.
 - **Languages:** posts carry their language; members can translate posts.
 - **Safety:** mute, block, reports, review after a report (and of new members' content when an admin turns it on), the community rules accepted before the first post, moderation tools: removals that name the rule, suspensions from an hour to 30 days, bans that outlive the account, appeals, and a record of every decision.

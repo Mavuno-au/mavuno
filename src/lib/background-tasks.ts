@@ -9,7 +9,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 // Rows the database hands out from claim_background_tasks. The database
 // queues them; this only runs them.
 const taskSchema = z.discriminatedUnion("kind", [
-  z.object({ id: z.number().int(), kind: z.literal("link_preview"), target_type: z.literal("post"), target_id: z.uuid() }),
+  z.object({ id: z.number().int(), kind: z.literal("link_preview"), target_type: z.enum(["post", "message"]), target_id: z.uuid() }),
   z.object({ id: z.number().int(), kind: z.literal("automatic_check"), target_type: z.enum(["post", "event", "opportunity"]), target_id: z.uuid() }),
 ]);
 type Task = z.infer<typeof taskSchema>;
@@ -23,8 +23,14 @@ const SITE_HOST = new URL(publicEnv.siteUrl).hostname.replace(/^www\./, "");
 // post, where it would outlive the post or account it came from.
 const isOwnPage = (href: string) => URL.parse(href)?.hostname.replace(/^www\./, "") === SITE_HOST;
 
-async function linkPreview(service: SupabaseClient, postId: string): Promise<Outcome> {
-  const { data, error } = await service.from("posts").select("link_url").eq("id", postId).maybeSingle();
+type LinkTarget = { type: "post" | "message"; id: string };
+
+async function linkPreview(service: SupabaseClient, target: LinkTarget): Promise<Outcome> {
+  const { data, error } = await service
+    .from(target.type === "post" ? "posts" : "messages")
+    .select("link_url")
+    .eq("id", target.id)
+    .maybeSingle();
   if (error) return { kind: "retry", reason: error.message };
   const url = z.object({ link_url: z.string().nullable() }).nullable().parse(data)?.link_url;
   if (!url || isOwnPage(url)) return done;
@@ -38,11 +44,11 @@ async function linkPreview(service: SupabaseClient, postId: string): Promise<Out
     case "found": {
       const { preview } = fetched;
       if (isOwnPage(preview.url)) return done;
-      const saved = await service.rpc("set_link_preview", {
-        p_post_id: postId,
-        p_url: url,
-        p_preview: { url: preview.url, title: preview.title, description: preview.description, image: preview.image, site_name: preview.siteName },
-      });
+      const card = { url: preview.url, title: preview.title, description: preview.description, image: preview.image, site_name: preview.siteName };
+      const saved =
+        target.type === "post"
+          ? await service.rpc("set_link_preview", { p_post_id: target.id, p_url: url, p_preview: card })
+          : await service.rpc("set_message_link_preview", { p_message_id: target.id, p_url: url, p_preview: card });
       return saved.error ? { kind: "retry", reason: saved.error.message } : done;
     }
   }
@@ -51,7 +57,7 @@ async function linkPreview(service: SupabaseClient, postId: string): Promise<Out
 async function perform(service: SupabaseClient, task: Task): Promise<Outcome> {
   switch (task.kind) {
     case "link_preview":
-      return linkPreview(service, task.target_id);
+      return linkPreview(service, { type: task.target_type, id: task.target_id });
     case "automatic_check":
       return checkContent(task.target_type, task.target_id);
   }

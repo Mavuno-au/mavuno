@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { colourSchema, profileCardSchema } from "@/lib/domain";
+import { colourSchema, linkPreviewSchema, profileCardSchema, type LinkPreview } from "@/lib/domain";
 import { createClient, type Supabase } from "@/lib/supabase/server";
 
 const id = z.uuid();
@@ -100,7 +100,7 @@ const conversationSchema = z
 export type Conversation = z.infer<typeof conversationSchema>;
 
 const PROFILE = "id, username, display_name, avatar_url, colour:effective_colour, account_type, org_verified";
-const MESSAGE_SELECT = `id, conversation_id, sender_id, body, image_paths, image_alts, reply_to_id, removed_at, created_at, sender:profiles!messages_sender_id_fkey(${PROFILE}), reactions:message_reactions(emoji, user_id)`;
+const MESSAGE_SELECT = `id, conversation_id, sender_id, body, image_paths, image_alts, link_url, link_preview, reply_to_id, removed_at, created_at, sender:profiles!messages_sender_id_fkey(${PROFILE}), reactions:message_reactions(emoji, user_id)`;
 
 const replyQuoteSchema = z
   .object({ id, sender_id: id.nullable(), body: z.string(), image_paths: z.array(z.string()), removed_at: timestamp.nullable() })
@@ -118,6 +118,8 @@ const messageRowSchema = z.object({
   body: z.string(),
   image_paths: z.array(z.string()),
   image_alts: z.array(z.string()),
+  link_url: z.string().nullable(),
+  link_preview: linkPreviewSchema.nullable().catch(null),
   removed_at: timestamp.nullable(),
   created_at: timestamp,
   reply_to_id: id.nullable(),
@@ -137,7 +139,7 @@ export type Message = {
   createdAt: string;
   replyTo: ReplyQuote | null;
   reactions: Reaction[];
-  content: { kind: "removed" } | { kind: "message"; body: string; images: MessageImage[] };
+  content: { kind: "removed" } | { kind: "message"; body: string; images: MessageImage[]; linkUrl: string | null; linkPreview: LinkPreview | null };
 };
 
 export type MessagePage = { messages: Message[]; next: string | null };
@@ -175,6 +177,8 @@ async function hydrate(supabase: Supabase, rows: MessageRow[]): Promise<Message[
             const url = urls.get(path);
             return url ? [{ path, url, alt: row.image_alts[index] ?? "" }] : [];
           }),
+          linkUrl: row.link_url,
+          linkPreview: row.link_preview,
         },
   }));
 }
