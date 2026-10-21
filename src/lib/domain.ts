@@ -88,7 +88,7 @@ const quotedSchema = z.union([
 ]);
 export type QuotedPost = z.infer<typeof quotedSchema>;
 
-const linkPreviewSchema = z
+export const linkPreviewSchema = z
   .object({
     url: z.string(),
     title: z.string().nullish(),

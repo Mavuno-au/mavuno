@@ -2,12 +2,11 @@
 
 import { after } from "next/server";
 import { z } from "zod";
-import { checkPost } from "@/lib/automod";
+import { runTasksFor, sweepDueTasks } from "@/lib/background-tasks";
 import { loadContinuation, loadFeed, loadLikers, loadReplies, countNewPosts, type FeedPage, type Likers } from "@/lib/data/posts";
-import { postRowSchema, type PostRow } from "@/lib/domain";
+import { linkPreviewSchema, postRowSchema, type LinkPreview, type PostRow } from "@/lib/domain";
 import { feedSourceSchema } from "@/lib/feeds";
 import { publicEnv } from "@/lib/env";
-import { fetchLinkPreview } from "@/lib/link-preview";
 import { done, fail, failFrom, ok, type Result } from "@/lib/result";
 import { createClient } from "@/lib/supabase/server";
 import { tokenize } from "@/lib/text";
@@ -46,15 +45,11 @@ const scheduledPostSchema = newPostSchema
 
 export type NewScheduledPost = z.input<typeof scheduledPostSchema>;
 
-// Only a link that is in the post can become its card.
-async function linkCard(body: string, linkUrl: string | null, withPreview: boolean) {
+// Only a link that is in the post can become its card. The server fetches the
+// card after the post is created.
+function cardLink(body: string, linkUrl: string | null) {
   const links = new Set(tokenize(body).flatMap((segment) => (segment.kind === "url" ? [segment.href] : [])));
-  const url = linkUrl && links.has(linkUrl) ? linkUrl : null;
-  const preview = url && withPreview ? await fetchLinkPreview(url) : null;
-  return {
-    p_link_url: url,
-    p_link_preview: preview && { url: preview.url, title: preview.title, description: preview.description, image: preview.image, site_name: preview.siteName },
-  };
+  return linkUrl && links.has(linkUrl) ? linkUrl : null;
 }
 
 const pollArgument = (poll: z.infer<typeof newPostSchema>["poll"]) => poll && { options: poll.options, duration_hours: poll.durationHours };
@@ -63,7 +58,6 @@ export async function createPost(input: NewPost): Promise<Result<PostRow>> {
   const parsed = newPostSchema.safeParse(input);
   if (!parsed.success) return fail("Check your post and try again.");
   const post = parsed.data;
-  // Before anything is fetched on the poster's behalf.
   if (!(await getViewer())) return fail("Sign in to post.");
 
   const supabase = await createClient();
@@ -74,7 +68,7 @@ export async function createPost(input: NewPost): Promise<Result<PostRow>> {
     p_parent_id: post.parentId,
     p_quote_id: post.quoteId,
     p_space_id: post.spaceId,
-    ...(await linkCard(post.body, post.linkUrl, !post.quoteId)),
+    p_link_url: cardLink(post.body, post.linkUrl),
     p_images: post.images,
     p_poll: pollArgument(post.poll),
     p_event_id: post.eventId,
@@ -82,7 +76,8 @@ export async function createPost(input: NewPost): Promise<Result<PostRow>> {
   });
   if (error) return failFrom(error);
   const created = id.parse(postId);
-  after(() => checkPost(created));
+  // The database queued its card and automatic check; run them now.
+  after(() => runTasksFor(created));
 
   const { data: row } = await supabase.from("post_details").select("*").eq("id", created).single();
   return ok(postRowSchema.parse(row));
@@ -101,11 +96,20 @@ export async function schedulePost(input: NewScheduledPost): Promise<Result> {
     p_language: post.language,
     p_author_id: post.authorId,
     p_space_id: post.spaceId,
-    ...(await linkCard(post.body, post.linkUrl, true)),
+    p_link_url: cardLink(post.body, post.linkUrl),
     p_images: post.images,
     p_poll: pollArgument(post.poll),
   });
   return error ? failFrom(error) : done;
+}
+
+// The composer waits for the card of a post it just made.
+export async function loadLinkPreview(postId: string): Promise<LinkPreview | null> {
+  const parsed = id.safeParse(postId);
+  if (!parsed.success) return null;
+  const supabase = await createClient();
+  const { data } = await supabase.from("posts").select("link_preview").eq("id", parsed.data).maybeSingle();
+  return z.object({ link_preview: linkPreviewSchema.nullable().catch(null) }).nullable().parse(data)?.link_preview ?? null;
 }
 
 export async function cancelScheduledPost(scheduledId: string): Promise<Result> {
@@ -192,5 +196,6 @@ export async function loadPostLikers(postId: string, before: string | null): Pro
 }
 
 export async function newPostCount(feed: "following" | "latest", since: string) {
+  after(sweepDueTasks);
   return countNewPosts(z.enum(["following", "latest"]).parse(feed), z.iso.datetime({ offset: true }).parse(since));
 }

@@ -3,6 +3,7 @@
   "regions": ["bom1"],
   "crons": [
     { "path": "/api/indexnow", "schedule": "0 20 * * *" },
-    { "path": "/api/maintenance", "schedule": "30 17 * * *" }
+    { "path": "/api/maintenance", "schedule": "30 17 * * *" },
+    { "path": "/api/tasks", "schedule": "0 21 * * *" }
   ]
 }

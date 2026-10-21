@@ -38,25 +38,35 @@ function decode(value: string) {
     .trim();
 }
 
+// A quoted value runs to its own closing quote, so "Here's" stays whole.
+const attribute = (tag: string, names: string) => {
+  const match = tag.match(new RegExp(`\\b(?:${names})\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, "i"));
+  return match?.[1] ?? match?.[2];
+};
+
+// Image addresses that don't parse, aren't https or are too long to store are
+// skipped for the next candidate.
+function imageUrl(candidates: (string | undefined)[], pageUrl: string) {
+  for (const candidate of candidates) {
+    const resolved = candidate ? URL.parse(candidate, pageUrl) : null;
+    if (resolved?.protocol === "https:" && resolved.href.length <= 2000) return resolved.href;
+  }
+  return null;
+}
+
 export function parseMetadata(html: string, pageUrl: string): LinkPreview {
   const meta = new Map<string, string>();
   for (const [tag] of html.matchAll(/<meta\b[^>]*>/gi)) {
-    const key = tag.match(/\b(?:property|name)\s*=\s*["']([^"']+)["']/i)?.[1]?.toLowerCase();
-    const content = tag.match(/\bcontent\s*=\s*["']([^"']*)["']/i)?.[1];
+    const key = attribute(tag, "property|name")?.toLowerCase();
+    const content = attribute(tag, "content");
     if (key && content && !meta.has(key)) meta.set(key, decode(content));
   }
   const title = meta.get("og:title") ?? meta.get("twitter:title") ?? decode(html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1] ?? "");
-  const rawImage = meta.get("og:image") ?? meta.get("twitter:image");
-  let image: string | null = null;
-  if (rawImage) {
-    const resolved = new URL(rawImage, pageUrl);
-    if (resolved.protocol === "https:") image = resolved.href;
-  }
   return {
     url: pageUrl,
     title: title ? title.slice(0, 200) : null,
     description: (meta.get("og:description") ?? meta.get("description") ?? meta.get("twitter:description"))?.slice(0, 300) ?? null,
-    image,
+    image: imageUrl([meta.get("og:image:secure_url"), meta.get("og:image"), meta.get("twitter:image")], pageUrl),
     siteName: meta.get("og:site_name")?.slice(0, 80) ?? new URL(pageUrl).hostname.replace(/^www\./, ""),
   };
 }
@@ -73,36 +83,53 @@ async function readCapped(body: AsyncIterable<Uint8Array>) {
   return html;
 }
 
-export async function fetchLinkPreview(href: string): Promise<LinkPreview | null> {
+// "retry" is for failures that may pass later: timeouts, dropped connections,
+// a busy or broken server. Anything that can't or mustn't be fetched is "none".
+export type LinkFetch = { kind: "found"; preview: LinkPreview } | { kind: "none"; reason: string } | { kind: "retry"; reason: string };
+
+export async function fetchLinkPreview(href: string): Promise<LinkFetch> {
   let url = new URL(href);
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
-    if (url.port && url.port !== "80" && url.port !== "443") return null;
-    if (url.username || url.password) return null;
+    if (url.protocol !== "https:" && url.protocol !== "http:") return { kind: "none", reason: "Not a web address" };
+    if (url.port && url.port !== "80" && url.port !== "443") return { kind: "none", reason: "Unusual port" };
+    if (url.username || url.password) return { kind: "none", reason: "Address has a username or password" };
     const host = url.hostname.replace(/^\[|\]$/g, "");
-    if (isIP(host) && !isPublicAddress(host)) return null;
+    if (isIP(host) && !isPublicAddress(host)) return { kind: "none", reason: "Blocked address" };
+    let response;
     try {
-      const response = await fetch(url, {
+      response = await fetch(url, {
         dispatcher: agent,
         redirect: "manual",
         signal: AbortSignal.timeout(5000),
-        headers: { "user-agent": "MavunoBot/1.0 (+link previews)", accept: "text/html" },
+        // The server is in Mumbai; without this, sites answer in Hindi or with a consent page.
+        headers: { "user-agent": "MavunoBot/1.0 (+link previews)", accept: "text/html", "accept-language": "en-AU,en;q=0.9" },
       });
-      const location = response.headers.get("location");
-      if (response.status >= 300 && response.status < 400 && location) {
-        await response.body?.cancel();
-        url = new URL(location, url);
-        continue;
-      }
-      if (!response.ok || !response.body || !response.headers.get("content-type")?.includes("text/html")) {
-        await response.body?.cancel();
-        return null;
-      }
+    } catch (error) {
+      const blocked = error instanceof Error && /Blocked address/.test(`${error.message} ${String(error.cause)}`);
+      return blocked ? { kind: "none", reason: "Blocked address" } : { kind: "retry", reason: "Could not connect" };
+    }
+    const location = response.headers.get("location");
+    if (response.status >= 300 && response.status < 400 && location) {
+      await response.body?.cancel();
+      const next = URL.parse(location, url);
+      if (!next) return { kind: "none", reason: "Bad redirect" };
+      url = next;
+      continue;
+    }
+    if (response.status === 429 || response.status >= 500) {
+      await response.body?.cancel();
+      return { kind: "retry", reason: `HTTP ${response.status}` };
+    }
+    if (!response.ok || !response.body || !response.headers.get("content-type")?.includes("text/html")) {
+      await response.body?.cancel();
+      return { kind: "none", reason: response.ok ? "Not a web page" : `HTTP ${response.status}` };
+    }
+    try {
       const preview = parseMetadata(await readCapped(response.body), url.href);
-      return preview.title ? preview : null;
+      return preview.title ? { kind: "found", preview } : { kind: "none", reason: "No title" };
     } catch {
-      return null;
+      return { kind: "retry", reason: "Connection dropped" };
     }
   }
-  return null;
+  return { kind: "none", reason: "Too many redirects" };
 }

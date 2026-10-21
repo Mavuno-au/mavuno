@@ -54,6 +54,8 @@ const post = async (body, ...args) => {
 };
 
 const MEDIA = "https://x.supabase.co/storage/v1/object/public/media/";
+// Event covers and avatars must come from the project's own Storage (storage_origins).
+const OWN_MEDIA = "https://hposvtbqckeyyxtjzyas.supabase.co/storage/v1/object/public/media/";
 
 const stubs = readFileSync(join(root, "supabase/tests/supabase-stubs.sql"), "utf8");
 
@@ -205,16 +207,16 @@ check("quotes embed the original", row.u === "amara", row);
 
 console.log("\nImages and polls");
 await as(amara);
-await fails("images must be in the uploader's folder", "select public.create_post('pic', 'en', null, null, null, null, null, null, $1::jsonb)",
+await fails("images must be in the uploader's folder", "select public.create_post('pic', 'en', null, null, null, null, null, $1::jsonb)",
   [JSON.stringify([{ path: `${kofi}/posts/a.webp`, url: `${MEDIA}${kofi}/posts/a.webp` }])], /Invalid image/);
-const imgPost = await post("Jollof night", "en", null, null, null, null, null, null,
+const imgPost = await post("Jollof night", "en", null, null, null, null, null,
   JSON.stringify([{ path: `${amara}/posts/a.webp`, url: `${MEDIA}${amara}/posts/a.webp`, width: 800, height: 600, alt: "A pot of jollof rice" }]));
 row = await one("select images from public.post_details where id = $1", [imgPost]);
 check("images are attached with descriptions", row.images[0]?.alt === "A pot of jollof rice", row);
-const poll = await post("Best jollof?", "en", null, null, null, null, null, null, "[]", JSON.stringify({ options: ["Nigerian", "Ghanaian", "Senegalese"], duration_hours: 24 }));
-await fails("polls need 2 to 4 different options", "select public.create_post('Poll', 'en', null, null, null, null, null, null, '[]'::jsonb, $1::jsonb)",
+const poll = await post("Best jollof?", "en", null, null, null, null, null, "[]", JSON.stringify({ options: ["Nigerian", "Ghanaian", "Senegalese"], duration_hours: 24 }));
+await fails("polls need 2 to 4 different options", "select public.create_post('Poll', 'en', null, null, null, null, null, '[]'::jsonb, $1::jsonb)",
   [JSON.stringify({ options: ["Same", "Same"] })], /different options/);
-await fails("polls run 1 hour, 1, 3 or 7 days", "select public.create_post('Poll', 'en', null, null, null, null, null, null, '[]'::jsonb, $1::jsonb)",
+await fails("polls run 1 hour, 1, 3 or 7 days", "select public.create_post('Poll', 'en', null, null, null, null, null, '[]'::jsonb, $1::jsonb)",
   [JSON.stringify({ options: ["A", "B"], duration_hours: 5 })]);
 const options = await q("select id from public.poll_options where post_id = $1 order by position", [poll]);
 await fails("authors cannot vote in their own poll", "select public.vote_poll($1, $2)", [poll, options[0].id], /own poll/);
@@ -474,7 +476,7 @@ await as(hana);
 await fails("full events turn people away", "insert into public.event_rsvps (event_id, user_id, status) values ($1, $2, 'going')", [event, hana], /full/);
 await as(amara);
 check("hosts hear about new attendees", (await one("select count(*)::int as n from public.notifications where recipient_id = $1 and type = 'event_rsvp'", [org])).n === 1);
-const eventPost = await post("Free entry!", "en", org, null, null, null, null, null, "[]", null, event);
+const eventPost = await post("Free entry!", "en", org, null, null, null, null, "[]", null, event);
 check("posts can share an event", (await one("select event->>'title' as t from public.post_details where id = $1", [eventPost])).t === "AfroFest Brisbane");
 
 const opp = (await one(
@@ -705,7 +707,7 @@ console.log("\nSecurity hardening");
   const pollster = await createUser("pollster@example.com", { username: "pollster" });
   const voter = await createUser("voter@example.com", { username: "poll_voter" });
   await as(pollster);
-  const vote = await post("Jollof or fufu?", "en", null, null, null, null, null, null, "[]", JSON.stringify({ options: ["Jollof", "Fufu"], duration_hours: 24 }));
+  const vote = await post("Jollof or fufu?", "en", null, null, null, null, null, "[]", JSON.stringify({ options: ["Jollof", "Fufu"], duration_hours: 24 }));
   await as(voter);
   await fails("option counts are not readable before voting", "select votes_count from public.poll_options where post_id = $1", [vote], /permission denied/);
   await anon();
@@ -724,9 +726,9 @@ console.log("\nSecurity hardening");
   await fails("link cards need the link in the post", "select public.create_post('No link here', 'en', null, null, null, null, 'https://evil.example')", [], /link in the post/);
   check("link cards take a link from the post", (await one("select link_url from public.posts where id = $1", [await post("Read https://example.org/a", "en", null, null, null, null, "https://example.org/a")])).link_url === "https://example.org/a");
   check("www links count as in the post", (await post("See www.example.org", "en", null, null, null, null, "https://www.example.org")) !== null);
-  await fails("images point at their upload", "select public.create_post('pic', 'en', null, null, null, null, null, null, $1::jsonb)",
+  await fails("images point at their upload", "select public.create_post('pic', 'en', null, null, null, null, null, $1::jsonb)",
     [JSON.stringify([{ path: `${pollster}/posts/a.webp`, url: "https://evil.example/a.webp" }])], /Invalid image/);
-  await fails("image paths stay in the uploader's folder", "select public.create_post('pic', 'en', null, null, null, null, null, null, $1::jsonb)",
+  await fails("image paths stay in the uploader's folder", "select public.create_post('pic', 'en', null, null, null, null, null, $1::jsonb)",
     [JSON.stringify([{ path: `${pollster}/../${voter}/posts/a.webp`, url: `${MEDIA}${pollster}/../${voter}/posts/a.webp` }])], /Invalid image/);
 
   await fails("profile links are web addresses", "update public.profiles set links = $2::jsonb where id = $1", [pollster, JSON.stringify([{ label: "x", url: "javascript:alert(1)" }])], /profiles_links_are_web/);
@@ -825,7 +827,8 @@ console.log("\nScheduled posts");
   const org = (await one("select public.create_organisation('scheduling_org', 'Scheduling Org') as id")).id;
   const asOrg = await schedule("From the organisation", { p_author_id: org, p_poll: JSON.stringify({ options: ["Yes", "No"], duration_hours: 24 }) });
   const pictured = await schedule("With a photo", { p_images: JSON.stringify([image(writer, "pictured")]) });
-  const linked = await schedule("Read https://example.org/scheduled", { p_link_url: "https://example.org/scheduled", p_link_preview: JSON.stringify({ url: "https://example.org/scheduled", title: "Scheduled" }) });
+  const linked = await schedule("Read https://example.org/scheduled", { p_link_url: "https://example.org/scheduled" });
+  await fails("members cannot hand in a card when scheduling", "select public.schedule_post(now() + interval '1 hour', 'https://example.org', p_link_url => 'https://example.org', p_link_preview => '{}'::jsonb)", [], /does not exist/);
   await as(other);
   await q("insert into public.blocks (blocker_id, blocked_id) values ($1, $2)", [other, writer]);
   await superuser();
@@ -845,7 +848,8 @@ console.log("\nScheduled posts");
   row = await outcome(pictured);
   check("scheduled images are posted", (await one("select storage_path from public.post_images where post_id = $1", [row.post_id])).storage_path === `${writer}/posts/pictured.webp`);
   row = await outcome(linked);
-  check("scheduled link cards are posted", row.post_link === "https://example.org/scheduled" && row.post_preview?.title === "Scheduled", row);
+  check("scheduled links are posted, and their card fetched when they go out", row.post_link === "https://example.org/scheduled" && row.post_preview === null
+    && (await q("select 1 from public.background_tasks where kind = 'link_preview' and target_id = $1", [row.post_id])).length === 1, row);
 
   await as(writer);
   await q("delete from public.scheduled_posts where id = $1", [queued]);
@@ -1025,7 +1029,7 @@ console.log("\nPhotos re-encoded on the server");
   await anon();
   await fails("guests cannot ask", "select public.can_upload('media', $1)", [amara], /permission denied/);
   await as(amara);
-  await fails("post images must be the server's WebP", "select public.create_post('pic', 'en', null, null, null, null, null, null, $1::jsonb)",
+  await fails("post images must be the server's WebP", "select public.create_post('pic', 'en', null, null, null, null, null, $1::jsonb)",
     [JSON.stringify([{ path: `${amara}/posts/a.jpg`, url: `${MEDIA}${amara}/posts/a.jpg` }])], /Invalid image/);
   await fails("message images must be the server's WebP", "insert into public.messages (conversation_id, sender_id, image_paths) values ($1, $2, $3)", [conv, amara, [`${conv}/a.png`]], /Invalid attachment/);
   await fails("and sit directly in the conversation's folder", "insert into public.messages (conversation_id, sender_id, image_paths) values ($1, $2, $3)", [conv, amara, [`${conv}/../a.webp`]], /Invalid attachment/);
@@ -1034,37 +1038,59 @@ console.log("\nPhotos re-encoded on the server");
 console.log("\nAutomatic check");
 {
   const service = () => db.exec("reset role; select set_config('request.jwt.claim.sub', '', false); set role service_role;");
+  const checkQueued = async (type, id) => {
+    await superuser();
+    return (await q("select 1 from public.background_tasks where kind = 'automatic_check' and target_type = $1 and target_id = $2", [type, id])).length === 1;
+  };
   const newcomer = await createUser("newcomer@example.com", { username: "newcomer" });
   await as(newcomer);
-  const first = await post("My first post, with a poll", "en", null, null, null, null, null, null, "[]", JSON.stringify({ options: ["Yes", "No"] }));
+  const first = await post("My first post, with a poll", "en", null, null, null, null, null, "[]", JSON.stringify({ options: ["Yes", "No"] }));
   check("a new member's post goes up straight away", (await one("select status from public.posts where id = $1", [first])).status === "published");
-  await fails("members cannot see what the check reads", "select public.automatic_check_subject($1)", [first], /permission denied/);
-  await fails("or hold posts", "select public.automatic_hold($1, '{hate}')", [first], /permission denied/);
+  check("and is queued for the check", await checkQueued("post", first));
+  await as(newcomer);
+  await fails("members cannot see what the check reads", "select public.automatic_check_subject('post', $1)", [first], /permission denied/);
+  await fails("or hold posts", "select public.automatic_hold('post', $1, '{hate}')", [first], /permission denied/);
+  await fails("or read the task queue", "select * from public.background_tasks", [], /permission denied/);
+  await fails("or claim tasks", "select * from public.claim_background_tasks()", [], /permission denied/);
   await service();
-  row = await one("select public.automatic_check_subject($1) as s", [first]);
+  row = await one("select public.automatic_check_subject('post', $1) as s", [first]);
   check("the check reads a new member's text and poll", row.s?.text === "My first post, with a poll\nYes\nNo" && row.s.images.length === 0, row);
+
   await as(mod);
   const modPost = await post("A note from the moderators");
+  check("moderators' posts are not checked", !(await checkQueued("post", modPost)));
   const regular = await createUser("regular@example.com", { username: "regular" });
   await superuser();
-  await q("update public.profiles set created_at = now() - interval '2 days' where id = $1", [regular]);
+  await q("update public.profiles set created_at = now() - interval '8 days' where id = $1", [regular]);
   await as(regular);
-  const earlier = await post("Hello again");
+  const earlier = [];
+  for (const body of ["Hello", "Hello again", "Still here"]) earlier.push(await post(body));
+  check("an hour and one post are no longer a track record", await checkQueued("post", earlier[1]));
   await superuser();
-  await q("update public.posts set created_at = now() - interval '1 day' where id = $1", [earlier]);
+  await q("update public.posts set created_at = now() - interval '1 day' where id = any($1)", [earlier]);
   await as(regular);
   const later = await post("Back with news");
+  check("a week and three published posts are", !(await checkQueued("post", later)));
+  await superuser();
+  await q("update public.profiles set created_at = now() - interval '6 days' where id = $1", [regular]);
+  await as(regular);
+  check("a week is needed too", await checkQueued("post", await post("Too soon")));
+  await superuser();
+  await q("update public.profiles set created_at = now() - interval '8 days' where id = $1", [regular]);
+  const reporter = await createUser("check_reporter@example.com", { username: "check_reporter" });
+  await as(reporter);
+  await q("select public.report_content('profile', $1, 'spam')", [regular]);
+  await as(regular);
+  check("and nothing reported in the last week", await checkQueued("post", await post("After a report")));
+
   await service();
-  check("but not a moderator's", (await one("select public.automatic_check_subject($1) as s", [modPost])).s === null);
-  check("nor an established member's", (await one("select public.automatic_check_subject($1) as s", [later])).s === null);
-  check("whose first post was checked", (await one("select public.automatic_check_subject($1) as s", [earlier])).s !== null);
-  await fails("categories are checked", "select public.automatic_hold($1, $2)", [first, ["Not a category"]], /Invalid categories/);
+  await fails("categories are checked", "select public.automatic_hold('post', $1, $2)", [first, ["Not a category"]], /Invalid categories/);
   const countBefore = (await one("select posts_count from public.profiles where id = $1", [newcomer])).posts_count;
-  await q("select public.automatic_hold($1, $2)", [first, ["harassment", "hate"]]);
+  await q("select public.automatic_hold('post', $1, $2)", [first, ["harassment", "hate"]]);
   row = await one("select status, moderation_note from public.posts where id = $1", [first]);
   check("a flagged post goes back to review, never rejected", row.status === "pending" && row.moderation_note === "Held for review after an automatic check", row);
   check("and stops counting on the profile", (await one("select posts_count from public.profiles where id = $1", [newcomer])).posts_count === countBefore - 1);
-  check("a post is checked once", (await one("select public.automatic_check_subject($1) as s", [first])).s === null);
+  check("a post is checked once", (await one("select public.automatic_check_subject('post', $1) as s", [first])).s === null);
   await as(kofi);
   check("members cannot read flags", (await q("select * from public.post_flags")).length === 0);
   await as(mod);
@@ -1075,14 +1101,121 @@ console.log("\nAutomatic check");
   await as(newcomer);
   const second = await post("Another post");
   await service();
-  await q("select public.automatic_hold($1, '{violence}')", [second]);
+  await q("select public.automatic_hold('post', $1, '{violence}')", [second]);
   await as(newcomer);
   await q("select public.delete_post($1)", [second]);
   await superuser();
   check("deleting a post forgets its flags", (await q("select 1 from public.post_flags where post_id = $1", [second])).length === 0);
   await service();
-  await q("select public.automatic_hold($1, '{violence}')", [second]);
+  await q("select public.automatic_hold('post', $1, '{violence}')", [second]);
   check("a deleted post isn't held", (await q("select 1 from public.post_flags where post_id = $1", [second])).length === 0);
+
+  await as(newcomer);
+  const job = (await one("insert into public.opportunities (poster_id, created_by, type, title, description, apply_url) values ($1, $1, 'job', 'Warehouse work', 'Pay a deposit for your uniform first', 'https://jobs.example') returning id, status", [newcomer]));
+  const gig = (await one("insert into public.events (host_id, created_by, title, starts_at, city_id, venue_name, cover_url) values ($1, $1, 'Rent a room', now() + interval '3 days', $2, 'Logan Hall', $3) returning id", [newcomer, logan, `${OWN_MEDIA}${newcomer}/events/cover.webp`])).id;
+  check("opportunities are queued for the check", await checkQueued("opportunity", job.id));
+  check("and so are events", await checkQueued("event", gig));
+  await service();
+  row = await one("select public.automatic_check_subject('event', $1) as s", [gig]);
+  check("the check reads an event's text and cover", /Rent a room/.test(row.s?.text) && row.s.images[0] === `${OWN_MEDIA}${newcomer}/events/cover.webp`, row);
+  row = await one("select public.automatic_check_subject('opportunity', $1) as s", [job.id]);
+  check("and an opportunity's text", /deposit/.test(row.s?.text), row);
+  await superuser();
+  await q("update public.opportunities set status = 'published' where id = $1", [job.id]);
+  await service();
+  await q("select public.automatic_hold('opportunity', $1, '{illicit}')", [job.id]);
+  check("a flagged opportunity goes back to review", (await one("select status from public.opportunities where id = $1", [job.id])).status === "pending");
+  check("an opportunity is checked once", (await one("select public.automatic_check_subject('opportunity', $1) as s", [job.id])).s === null);
+  await q("select public.automatic_hold('event', $1, '{harassment}')", [gig]);
+  await as(kofi);
+  check("members cannot read listing flags", (await q("select * from public.listing_flags")).length === 0);
+  await as(mod);
+  row = await one("select flags from public.review_queue where target_type = 'opportunity' and target_id = $1", [job.id]);
+  check("moderators see a listing's categories in the review queue", row?.flags?.join() === "illicit", row);
+  await q("select public.moderate_content('opportunity', $1, true)", [job.id]);
+  check("and can publish it again", (await one("select status from public.opportunities where id = $1", [job.id])).status === "published");
+  await superuser();
+  await q("delete from public.events where id = $1", [gig]);
+  check("a deleted listing's flags go with it", (await q("select 1 from public.listing_flags where event_id = $1", [gig])).length === 0);
+}
+
+console.log("\nBackground tasks and link cards");
+{
+  const service = () => db.exec("reset role; select set_config('request.jwt.claim.sub', '', false); set role service_role;");
+  const linker = await createUser("linker@example.com", { username: "linker" });
+  await as(linker);
+  await fails("members cannot hand in a card", "select public.create_post('https://example.org', 'en', p_link_url => 'https://example.org', p_link_preview => '{}'::jsonb)", [], /does not exist/);
+  const linked = await post("Read https://example.org/news", "en", null, null, null, null, "https://example.org/news");
+  check("a post with a link has no card until the server fetches one", (await one("select link_preview from public.posts where id = $1", [linked])).link_preview === null);
+  const quoting = await post("Also https://example.org/quote", "en", null, null, linked, null, "https://example.org/quote");
+  await fails("members cannot write cards", "select public.set_link_preview($1, 'https://example.org/news', '{\"url\": \"https://example.org/news\", \"title\": \"Fake\"}')", [linked], /permission denied/);
+
+  await superuser();
+  await q("update public.background_tasks set run_after = now() + interval '1 hour' where target_id <> all($1)", [[linked, quoting]]);
+  await service();
+  let tasks = await q("select * from public.claim_background_tasks(10)");
+  check("a quote post gets no card", !tasks.some((task) => task.target_id === quoting && task.kind === "link_preview"), tasks);
+  const card = tasks.find((task) => task.target_id === linked && task.kind === "link_preview");
+  check("a post with a link is queued for its card", card?.attempts === 1, tasks);
+  check("a claimed task is not handed out twice", (await q("select * from public.claim_background_tasks(10, $1)", [linked])).length === 0);
+  row = await one("select round(extract(epoch from run_after - now()))::int as wait from public.background_tasks where id = $1", [card.id]);
+  check("the second try waits a minute", row.wait === 60, row);
+
+  const preview = (fields) => JSON.stringify({ url: "https://example.org/news", title: "Here's the news", ...fields });
+  await fails("cards need a title", "select public.set_link_preview($1, 'https://example.org/news', $2::jsonb)", [linked, preview({ title: " " })], /Invalid link preview/);
+  await fails("card images are https", "select public.set_link_preview($1, 'https://example.org/news', $2::jsonb)", [linked, preview({ image: "http://img.example/a.png" })], /Invalid link preview/);
+  await q("select public.set_link_preview($1, 'https://example.org/other', $2::jsonb)", [linked, preview({})]);
+  check("a card only lands on the post whose link it is", (await one("select link_preview from public.posts where id = $1", [linked])).link_preview === null);
+  await q("select public.set_link_preview($1, 'https://example.org/news', $2::jsonb)", [linked, preview({ image: "https://img.example/a.png", extra: "dropped" })]);
+  row = await one("select link_preview from public.posts where id = $1", [linked]);
+  check("the server writes the card", row.link_preview?.title === "Here's the news" && row.link_preview.image === "https://img.example/a.png" && !("extra" in row.link_preview), row);
+  await q("select public.finish_background_task($1)", [card.id]);
+  check("a finished task is deleted", (await q("select 1 from public.background_tasks where id = $1", [card.id])).length === 0);
+
+  await as(linker);
+  const flaky = await post("Down https://flaky.example", "en", null, null, null, null, "https://flaky.example");
+  await service();
+  const retry = async () => {
+    await superuser();
+    await q("update public.background_tasks set run_after = now() - interval '1 second' where target_id = $1", [flaky]);
+    await service();
+    const [task] = await q("select * from public.claim_background_tasks(10, $1)", [flaky]);
+    return task;
+  };
+  let task = await retry();
+  await q("select public.finish_background_task($1, 'Timed out', true)", [task.id]);
+  task = await retry();
+  row = await one("select round(extract(epoch from run_after - now()))::int as wait, failed_at, last_error from public.background_tasks where id = $1", [task.id]);
+  check("a retryable failure is tried again ten minutes later", task.attempts === 2 && row.wait === 600 && row.failed_at === null && row.last_error === "Timed out", row);
+  await q("select public.finish_background_task($1, 'Timed out', true)", [task.id]);
+  task = await retry();
+  await q("select public.finish_background_task($1, 'Timed out', true)", [task.id]);
+  row = await one("select failed_at, attempts from public.background_tasks where id = $1", [task.id]);
+  check("three tries, then it is given up", row.failed_at !== null && row.attempts === 3, row);
+  check("a given-up task is not handed out", (await retry()) === undefined);
+
+  await as(linker);
+  const gone = await post("Gone https://gone.example", "en", null, null, null, null, "https://gone.example");
+  await superuser();
+  await q("update public.background_tasks set run_after = now() - interval '1 second' where target_id = $1", [gone]);
+  await service();
+  [task] = await q("select * from public.claim_background_tasks(10, $1)", [gone]);
+  await q("select public.finish_background_task($1, 'Not found', false)", [task.id]);
+  check("a failure that cannot succeed later is given up at once", (await one("select failed_at from public.background_tasks where id = $1", [task.id])).failed_at !== null);
+
+  await as(linker);
+  const stuck = await post("Stuck https://stuck.example", "en", null, null, null, null, "https://stuck.example");
+  await superuser();
+  await q("update public.background_tasks set attempts = 3, run_after = now() - interval '1 second' where target_id = $1", [stuck]);
+  await service();
+  await q("select * from public.claim_background_tasks(10)");
+  check("a task whose last try never finished is given up", (await one("select last_error from public.background_tasks where target_id = $1", [stuck])).last_error === "Did not finish");
+  await superuser();
+  await q("update public.background_tasks set failed_at = now() - interval '8 days' where target_id = $1", [stuck]);
+  await service();
+  await q("select * from public.claim_background_tasks(10)");
+  check("failures are forgotten after a week", (await q("select 1 from public.background_tasks where target_id = $1", [stuck])).length === 0);
+  await superuser();
 }
 
 console.log("\nRepeated posts");

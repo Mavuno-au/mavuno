@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, useTransition, type ClipboardEvent, type DragEvent, type KeyboardEvent } from "react";
 import { toast } from "sonner";
 import { createPost, schedulePost } from "@/app/actions/posts";
-import { QuotedBlock } from "@/components/post/attachments";
+import { awaitCard, QuotedBlock } from "@/components/post/attachments";
 import { MentionMenu, useMentions } from "@/components/post/mentions";
 import { ProgressAvatar } from "@/components/post/progress-avatar";
 import { RichText } from "@/components/post/rich-text";
@@ -214,6 +214,7 @@ export function Composer({ mode, autoFocus, onPosted, onCancel }: { mode: Compos
           return;
         }
 
+        if (result.data.kind === "post" && result.data.linkUrl && !result.data.linkPreview && !result.data.quoteId) awaitCard(result.data.linkUrl, result.data.id);
         clear();
         const pendingReview = result.data.kind === "post" && result.data.status === "pending";
         toast(pendingReview ? "Sent for review. A moderator will check it, usually within a day." : mode.kind === "reply" ? "Reply posted" : "Posted");

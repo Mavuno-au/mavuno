@@ -2,7 +2,8 @@
 
 import { Briefcase, CalendarDays, MapPin, Play } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { loadLinkPreview } from "@/app/actions/posts";
 import { Avatar } from "@/components/ui/avatar";
 import { Dialog } from "@/components/ui/dialog";
 import { LocalTime } from "@/components/ui/local-time";
@@ -86,10 +87,51 @@ export function ImageGrid({ images }: { images: PostImage[] }) {
   );
 }
 
+// The server fetches a card after the post is made. Posts made in this tab
+// are remembered by their link, so their card can wait for it a little while.
+const awaitedCards = new Map<string, string>();
+const CARD_DELAYS = [1000, 2000, 3000, 5000, 8000, 13000];
+
+export function awaitCard(url: string, postId: string) {
+  awaitedCards.set(url, postId);
+}
+
+function useLateCard(url: string, preview: LinkPreview | null) {
+  const [postId] = useState(() => (preview ? undefined : awaitedCards.get(url)));
+  const [late, setLate] = useState<{ kind: "waiting" } | { kind: "arrived"; preview: LinkPreview } | { kind: "none" }>(() =>
+    postId ? { kind: "waiting" } : { kind: "none" },
+  );
+
+  useEffect(() => {
+    if (!postId) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let stopped = false;
+    const poll = async (attempt: number) => {
+      const found = await loadLinkPreview(postId).catch(() => null);
+      if (stopped) return;
+      const last = attempt + 1 >= CARD_DELAYS.length;
+      if (found || last) {
+        awaitedCards.delete(url);
+        setLate(found ? { kind: "arrived", preview: found } : { kind: "none" });
+      } else {
+        timer = setTimeout(() => void poll(attempt + 1), CARD_DELAYS[attempt + 1]);
+      }
+    };
+    timer = setTimeout(() => void poll(0), CARD_DELAYS[0]);
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+  }, [postId, url]);
+
+  return { preview: late.kind === "arrived" ? late.preview : preview, waiting: late.kind === "waiting" };
+}
+
 // Third-party players load only after a click, so reading a feed never contacts them.
-export function LinkCard({ url, preview }: { url: string; preview: LinkPreview | null }) {
+export function LinkCard({ url, preview: stored }: { url: string; preview: LinkPreview | null }) {
   const embed = embedFor(url);
   const [playing, setPlaying] = useState(false);
+  const { preview, waiting } = useLateCard(url, stored);
 
   if (embed && playing) {
     const shape = { video: "aspect-video", portrait: "aspect-[9/16] max-h-[36rem] mx-auto", audio: "h-[152px]" }[embed.shape];
@@ -107,7 +149,17 @@ export function LinkCard({ url, preview }: { url: string; preview: LinkPreview |
     );
   }
 
-  if (!preview && !embed) return null;
+  if (!preview && !embed) {
+    if (!waiting) return null;
+    return (
+      <div className="mt-3 grid gap-1.5 rounded-lg border border-hairline px-3 py-2.5" aria-busy="true">
+        <span className="sr-only">Loading the link preview</span>
+        <span className="font-mono text-xs text-ink-muted">{displayUrl(url)}</span>
+        <span className="h-4 w-3/4 animate-pulse rounded bg-wash" />
+        <span className="h-3.5 w-full animate-pulse rounded bg-wash" />
+      </div>
+    );
+  }
 
   return (
     <a
