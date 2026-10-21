@@ -7,7 +7,7 @@ import { JsonLd } from "@/components/seo/json-ld";
 import { EmptyState, PageHeader, Tabs, EndOfList } from "@/components/ui/page";
 import { loadFeed } from "@/lib/data/posts";
 import { loadFollowersYouKnow, loadPinnedPost, loadProfile, loadTeam } from "@/lib/data/profiles";
-import { profileJsonLd } from "@/lib/structured-data";
+import { breadcrumbJsonLd, profileJsonLd } from "@/lib/structured-data";
 import { getViewer } from "@/lib/viewer";
 import { ProfileHeader } from "./profile-header";
 import { ProfileUnavailable } from "./profile-unavailable";
@@ -51,10 +51,12 @@ export async function ProfileView({ username, tab }: { username: string; tab: Pr
   ]);
   const canManage = team.some((member) => member.id === viewer?.id && member.role !== "editor");
   const base = `/@${profile.username}`;
+  const current = TABS.find((item) => item.key === tab) ?? TABS[0];
 
   return (
     <>
       <JsonLd data={profileJsonLd(profile)} />
+      <JsonLd data={breadcrumbJsonLd([{ name: "Home", path: "/" }, ...(current.key === "posts" ? [{ name: profile.display_name }] : [{ name: profile.display_name, path: base }, { name: current.label }])])} />
       <PageHeader title={profile.display_name} meta={`${profile.posts_count} ${profile.posts_count === 1 ? "post" : "posts"}`} back="/" />
       <ProfileHeader profile={profile} team={team} canManage={canManage} known={known} />
       <Tabs className="border-b border-hairline" tabs={TABS.map(({ key, label, path }) => ({ href: `${base}${path}`, label, active: key === tab }))} />

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { timingSafeEqual } from "node:crypto";
-import sitemap from "@/app/sitemap";
+import sitemap, { generateSitemaps } from "@/app/sitemap";
 import { publicEnv } from "@/lib/env";
 import { serverEnv } from "@/lib/server-env";
 
@@ -22,7 +22,9 @@ export async function GET(request: NextRequest) {
   if (!authorised(request.headers.get("authorization"), secret)) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
 
   const since = Date.now() - DAY;
-  const changed = (await sitemap()).flatMap((entry) => (entry.lastModified && new Date(entry.lastModified).getTime() > since ? [entry.url] : [])).slice(0, LIMIT);
+  const files = await generateSitemaps();
+  const entries = (await Promise.all(files.map(({ id }) => sitemap({ id: Promise.resolve(id) })))).flat();
+  const changed = entries.flatMap((entry) => (entry.lastModified && new Date(entry.lastModified).getTime() > since ? [entry.url] : [])).slice(0, LIMIT);
   if (changed.length === 0) return NextResponse.json({ submitted: 0 });
 
   const site = new URL(publicEnv.siteUrl);

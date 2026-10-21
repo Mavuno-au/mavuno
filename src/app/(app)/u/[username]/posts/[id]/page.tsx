@@ -8,7 +8,7 @@ import { JsonLd } from "@/components/seo/json-ld";
 import { PageHeader } from "@/components/ui/page";
 import { loadThread } from "@/lib/data/posts";
 import type { ThreadPlace } from "@/lib/domain";
-import { postJsonLd } from "@/lib/structured-data";
+import { breadcrumbJsonLd, postJsonLd } from "@/lib/structured-data";
 
 const postId = z.uuid();
 
@@ -44,6 +44,7 @@ export default async function PostPage({ params }: PageProps<"/u/[username]/post
   return (
     <>
       {post.status === "published" ? <JsonLd data={postJsonLd(post)} /> : null}
+      {post.status === "published" ? <JsonLd data={breadcrumbJsonLd([{ name: post.author.displayName, path: `/@${post.author.username}` }, { name: post.parentId ? "Reply" : "Post" }])} /> : null}
       <PageHeader title={post.parentId ? "Reply" : "Post"} back={`/@${post.author.username}`} />
       {ancestors.map((row, index) => (
         <PostItem key={row.id} row={row} variant="ancestor" place={placeAbove(ancestors.length - index)} />

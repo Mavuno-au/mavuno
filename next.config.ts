@@ -22,6 +22,9 @@ const nextConfig: NextConfig = {
     return [
       { source: "/@:username", destination: "/u/:username" },
       { source: "/@:username/:path*", destination: "/u/:username/:path*" },
+      // The sitemap is split into files under /sitemap/; the index lives at
+      // the address crawlers and Search Console already know.
+      { source: "/sitemap.xml", destination: "/sitemap/index.xml" },
     ];
   },
   async headers() {

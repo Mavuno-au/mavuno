@@ -7,10 +7,12 @@ import { ReportButton } from "@/components/community/report-button";
 import { EventRow } from "@/components/community/rows";
 import { SpaceComposer } from "@/components/community/space-composer";
 import { Feed } from "@/components/post/feed";
+import { JsonLd } from "@/components/seo/json-ld";
 import { EmptyState, PageHeader } from "@/components/ui/page";
 import { loadSpace, loadUpcomingEvents, type SpaceRole } from "@/lib/data/community";
 import { loadFeed } from "@/lib/data/posts";
 import { count } from "@/lib/format";
+import { breadcrumbJsonLd } from "@/lib/structured-data";
 import { getViewer } from "@/lib/viewer";
 
 const ROLES: Record<SpaceRole, string> = { owner: "You started this space", moderator: "You moderate this space", member: "You're a member" };
@@ -39,6 +41,7 @@ export default async function SpacePage({ params }: PageProps<"/spaces/[slug]">)
 
   return (
     <>
+      <JsonLd data={breadcrumbJsonLd([{ name: "Spaces", path: "/spaces" }, { name: space.name }])} />
       <PageHeader title={space.name} back="/spaces" meta={count(space.members, "member")} />
       {space.photo ? <PhotoBanner photo={space.photo} name={space.name} /> : null}
       <section className="border-b border-hairline px-4 py-5 sm:px-6">
