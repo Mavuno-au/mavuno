@@ -1,6 +1,8 @@
 "use server";
 
+import { after } from "next/server";
 import { z } from "zod";
+import { runTasksFor } from "@/lib/background-tasks";
 import { DEADLINE_ZONE, formField, fromZonedInput, type SavedListing } from "@/lib/data/community";
 import { contentStatusSchema, opportunityTypeSchema } from "@/lib/domain";
 import { done, fail, failFrom, ok, type Result } from "@/lib/result";
@@ -56,7 +58,11 @@ export async function createOpportunity(form: FormData): Promise<Result<SavedLis
     .insert({ ...parsed.data, poster_id: posterId.data, created_by: viewer.id })
     .select("id, status")
     .single();
-  return error ? failFrom(error) : ok(savedRow.parse(data));
+  if (error) return failFrom(error);
+  const saved = savedRow.parse(data);
+  // The database queued the automatic check for new members' listings.
+  after(() => runTasksFor(saved.id));
+  return ok(saved);
 }
 
 export async function updateOpportunity(opportunityId: string, form: FormData): Promise<Result<SavedListing>> {

@@ -5,7 +5,7 @@ const env: { OPENAI_API_KEY: string | undefined } = { OPENAI_API_KEY: "sk-test" 
 vi.mock("@/lib/server-env", () => ({ serverEnv: env }));
 const rpc = vi.fn();
 vi.mock("@/lib/supabase/server", () => ({ createServiceClient: () => ({ rpc }) }));
-const { checkPost, flaggedCategories, moderationInputs } = await import("./automod");
+const { checkContent, flaggedCategories, moderationInputs } = await import("./automod");
 
 const POST = "6f1d4c1e-5b1a-4f0e-9a51-2a4c6a1d9b10";
 const result = (scores: Record<string, number>, flagged: string[] = []) => ({
@@ -40,7 +40,7 @@ describe("moderationInputs", () => {
   });
 });
 
-describe("checkPost", () => {
+describe("checkContent", () => {
   const fetchMock = vi.fn<typeof fetch>();
   vi.stubGlobal("fetch", fetchMock);
 
@@ -53,33 +53,47 @@ describe("checkPost", () => {
 
   it("holds a flagged post with its categories", async () => {
     fetchMock.mockResolvedValue(Response.json({ results: [result({ harassment: 0.6, hate: 0.1 }, ["harassment"])] }));
-    await checkPost(POST);
-    expect(rpc).toHaveBeenLastCalledWith("automatic_hold", { p_post_id: POST, p_categories: ["harassment"] });
+    expect(await checkContent("post", POST)).toEqual({ kind: "done" });
+    expect(rpc).toHaveBeenLastCalledWith("automatic_hold", { p_target_type: "post", p_target_id: POST, p_categories: ["harassment"] });
+  });
+
+  it("checks listings the same way", async () => {
+    fetchMock.mockResolvedValue(Response.json({ results: [result({ illicit: 0.9 }, ["illicit"])] }));
+    await checkContent("opportunity", POST);
+    expect(rpc).toHaveBeenNthCalledWith(1, "automatic_check_subject", { p_target_type: "opportunity", p_target_id: POST });
+    expect(rpc).toHaveBeenLastCalledWith("automatic_hold", { p_target_type: "opportunity", p_target_id: POST, p_categories: ["illicit"] });
   });
 
   it("leaves a clean post alone", async () => {
     fetchMock.mockResolvedValue(Response.json({ results: [result({ harassment: 0.01 })] }));
-    await checkPost(POST);
+    expect(await checkContent("post", POST)).toEqual({ kind: "done" });
     expect(rpc).toHaveBeenCalledTimes(1);
   });
 
-  it("changes nothing when OpenAI fails", async () => {
+  it("asks to try again when OpenAI fails, and holds nothing", async () => {
     fetchMock.mockResolvedValue(new Response("Rate limited", { status: 429 }));
-    await checkPost(POST);
+    expect((await checkContent("post", POST)).kind).toBe("retry");
     fetchMock.mockRejectedValue(new Error("offline"));
-    await checkPost(POST);
+    expect((await checkContent("post", POST)).kind).toBe("retry");
     expect(rpc.mock.calls.filter(([name]) => name === "automatic_hold")).toEqual([]);
   });
 
-  it("skips posts the database says need no check", async () => {
+  it("holds what one image flagged even if another request failed", async () => {
+    rpc.mockResolvedValueOnce({ data: { text: "Words", images: ["https://a", "https://b"] }, error: null });
+    fetchMock.mockResolvedValueOnce(Response.json({ results: [result({ violence: 0.7 })] })).mockResolvedValueOnce(new Response("", { status: 500 }));
+    expect(await checkContent("post", POST)).toEqual({ kind: "done" });
+    expect(rpc).toHaveBeenLastCalledWith("automatic_hold", { p_target_type: "post", p_target_id: POST, p_categories: ["violence"] });
+  });
+
+  it("skips what the database says needs no check", async () => {
     rpc.mockResolvedValue({ data: null, error: null });
-    await checkPost(POST);
+    expect(await checkContent("post", POST)).toEqual({ kind: "done" });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("does nothing without an OpenAI key", async () => {
     env.OPENAI_API_KEY = undefined;
-    await checkPost(POST);
+    expect(await checkContent("post", POST)).toEqual({ kind: "done" });
     expect(rpc).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });

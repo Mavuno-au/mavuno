@@ -37,8 +37,8 @@ export function moderationInputs(text: string, images: string[]): Part[][] {
   return [[{ type: "text", text }, ...(first ? [first] : [])], ...rest.map((picture) => [picture])];
 }
 
-// A failed request flags nothing.
-async function moderate(key: string, input: Part[]): Promise<string[]> {
+// Null when the request failed, so the check can be tried again.
+async function moderate(key: string, input: Part[]): Promise<string[] | null> {
   const response = await fetch("https://api.openai.com/v1/moderations", {
     method: "POST",
     headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
@@ -46,23 +46,33 @@ async function moderate(key: string, input: Part[]): Promise<string[]> {
     signal: AbortSignal.timeout(15_000),
   }).catch(() => null);
   const parsed = moderationResponse.safeParse(await response?.json().catch(() => null));
-  return response?.ok && parsed.success ? flaggedCategories(parsed.data.results) : [];
+  return response?.ok && parsed.success ? flaggedCategories(parsed.data.results) : null;
 }
 
-// Runs after a post is created. Posts from members without a track record go
-// to OpenAI; a flag takes the post back to review with its categories. It
-// never rejects: the models are weaker in Swahili, Somali and Amharic, so a
-// person decides. Without both keys it does nothing.
-export async function checkPost(postId: string) {
+export type CheckTarget = "post" | "event" | "opportunity";
+export type CheckOutcome = { kind: "done" } | { kind: "retry"; reason: string };
+
+// Runs from the background task the database queues when a post, event or
+// opportunity from someone without a track record is created. A flag takes it
+// back to review with its categories. It never rejects: the models are weaker
+// in Swahili, Somali and Amharic, so a person decides. Without both keys it
+// does nothing.
+export async function checkContent(target: CheckTarget, targetId: string): Promise<CheckOutcome> {
   const key = serverEnv.OPENAI_API_KEY;
   const service = createServiceClient();
-  if (!key || !service) return;
+  if (!key || !service) return { kind: "done" };
 
-  const { data } = await service.rpc("automatic_check_subject", { p_post_id: postId });
+  const { data, error } = await service.rpc("automatic_check_subject", { p_target_type: target, p_target_id: targetId });
+  if (error) return { kind: "retry", reason: error.message };
   const subject = subjectSchema.safeParse(data);
-  if (!subject.success) return;
+  if (!subject.success) return { kind: "done" };
 
   const results = await Promise.all(moderationInputs(subject.data.text, subject.data.images).map((input) => moderate(key, input)));
-  const categories = [...new Set(results.flat())].sort();
-  if (categories.length > 0) await service.rpc("automatic_hold", { p_post_id: postId, p_categories: categories });
+  const categories = [...new Set(results.flatMap((result) => result ?? []))].sort();
+  // Whatever was flagged is held now; a person looks at it either way.
+  if (categories.length > 0) {
+    const held = await service.rpc("automatic_hold", { p_target_type: target, p_target_id: targetId, p_categories: categories });
+    return held.error ? { kind: "retry", reason: held.error.message } : { kind: "done" };
+  }
+  return results.includes(null) ? { kind: "retry", reason: "The moderation service did not answer" } : { kind: "done" };
 }

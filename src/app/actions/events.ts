@@ -1,6 +1,8 @@
 "use server";
 
+import { after } from "next/server";
 import { z } from "zod";
+import { runTasksFor } from "@/lib/background-tasks";
 import { eventCategorySchema, eventFormatSchema, formField, fromZonedInput, rsvpSchema, timezoneSchema, type RsvpStatus, type SavedListing } from "@/lib/data/community";
 import { contentStatusSchema } from "@/lib/domain";
 import { publicEnv } from "@/lib/env";
@@ -71,7 +73,11 @@ export async function createEvent(form: FormData): Promise<Result<SavedListing>>
     .insert({ ...parsed.data, host_id: hostId.data, created_by: viewer.id })
     .select("id, status")
     .single();
-  return error ? failFrom(error) : ok(savedRow.parse(data));
+  if (error) return failFrom(error);
+  const saved = savedRow.parse(data);
+  // The database queued the automatic check for new members' listings.
+  after(() => runTasksFor(saved.id));
+  return ok(saved);
 }
 
 export async function updateEvent(eventId: string, form: FormData): Promise<Result<SavedListing>> {

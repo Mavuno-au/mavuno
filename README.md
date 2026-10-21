@@ -83,9 +83,10 @@ Admins can then make other members moderators from Moderation → Admin.
 | `NEXT_PUBLIC_SITE_URL` | yes | Public URL, used in auth emails and metadata |
 | `NEXT_PUBLIC_AUTH_GOOGLE` | no | `true` shows "Continue with Google". Enable the provider in Supabase first |
 | `TRANSLATE_API_URL`, `TRANSLATE_API_KEY` | no | A [LibreTranslate](https://github.com/LibreTranslate/LibreTranslate)-compatible API. Without it, Translate opens Google Translate |
-| `SUPABASE_SERVICE_ROLE_KEY` | for photos | Server only. Stores uploaded photos after re-encoding them; without it photo uploads are off. Also caches translations and lets `/api/maintenance` remove erased files |
+| `SUPABASE_SERVICE_ROLE_KEY` | for photos | Server only. Stores uploaded photos after re-encoding them; without it photo uploads are off. Also fetches link cards, caches translations and lets `/api/maintenance` remove erased files |
 | `MAINTENANCE_SECRET` | no | Bearer token for `POST /api/maintenance` |
-| `OPENAI_API_KEY` | no | Turns on the automatic check: after a post is created, posts from members without a track record (new, or reported in the past week) go to OpenAI's `omni-moderation-latest`, and a flagged post goes back to the review queue with its categories. It never rejects. Needs `SUPABASE_SERVICE_ROLE_KEY`; without either key nothing is sent |
+| `OPENAI_API_KEY` | no | Turns on the automatic check: posts, events and opportunities from members without a track record (a member for under a week, fewer than three things published, or reported in the past week) go to OpenAI's `omni-moderation-latest` after they are created, whichever way they were created, and anything flagged goes back to the review queue with its categories. It never rejects. Needs `SUPABASE_SERVICE_ROLE_KEY`; without either key nothing is sent |
+| `CRON_SECRET` | no | Vercel sends it to the cron routes in `vercel.json`: `/api/tasks` (link cards and automatic checks that are due or being retried) and `/api/indexnow` |
 | `NEXT_PUBLIC_FATHOM_SITE_ID` | no | [Fathom](https://usefathom.com) site ID for cookieless visit counts. Nothing loads without it |
 | `NEXT_PUBLIC_GA_MEASUREMENT_ID` | no | Google Analytics 4 ID (G-…). Advertising features and Google Signals stay off |
 | `SUPABASE_DB_URL` | for `pnpm db:push` | Direct Postgres connection string. Never commit it |
@@ -117,6 +118,7 @@ Everything that has to be true lives in `supabase/migrations`:
 | `conversation_visibility` | the newest replies under each post in a page of a feed in one query, Trending drawn at random by hot score with a new seed each visit (likes on a thread's replies count towards it), who liked a post for its author only, mention suggestions from the conversation, and profile cards |
 | `automatic_check` | `post_flags`, and the service-role functions the automatic check uses to read a post and hold it for review (never reject it) |
 | `duplicate_post_hold` | `create_post` holds for review a third copy of the same text (20 characters or more, ignoring case and spacing) from one person within an hour |
+| `background_tasks` | the queue a trigger fills when a post, event or opportunity is created (its link card, its automatic check), three tries a minute and ten minutes apart; link cards written by the server only; the automatic check for events and opportunities and the week-and-three-posts track record |
 
 Every table has row level security, and `api_grants` declares every privilege explicitly: Supabase no longer exposes new tables and functions automatically, and internal functions (publishing, notifying, purging) get no grant at all, so only database code can call them. Writes that need more than a one-row check go through `SECURITY DEFINER` functions such as `create_post`, `report_content` and `start_direct_conversation`, which check permissions, limits and blocks themselves. Rate limits (posts, messages, reports, listings, message requests) are enforced in the database, so they hold for every client.
 
@@ -135,7 +137,7 @@ src/
   app/(auth)/       sign in, sign up, password reset
   app/onboarding/   first-time setup
   app/actions/      server actions; each returns Result<T>
-  app/api/          translate, export, maintenance
+  app/api/          translate, export, maintenance, tasks
   components/       ui, shell, people, post, messages, community, settings, moderation
   lib/domain.ts     zod schemas that turn database rows into domain types
   lib/data/         server-only loaders
@@ -158,6 +160,7 @@ This runs the type checker, ESLint, the unit tests (`pnpm test`) and the databas
 
 - Scheduled posts are published and deleted posts are purged every minute by `pg_cron`. Without it, call `POST /api/maintenance` with `Authorization: Bearer $MAINTENANCE_SECRET` on a schedule, for example a Vercel cron. That endpoint also removes erased images from Storage, which a database function cannot do.
 - Accounts deactivated for being under 16 are deleted after 30 days unless a moderator reinstates them, daily by `pg_cron` or by `/api/maintenance`. See `docs/AGE_ASSURANCE.md` and `docs/ONLINE_SAFETY.md` for what the online safety law asks of Mavuno and how it is reviewed.
+- Link cards and automatic checks run straight after the post that needs them. Retries, and work a scheduled post or a direct API call queued, are picked up by later requests and by `GET /api/tasks` (daily on Vercel's Hobby plan, with `Authorization: Bearer $CRON_SECRET`). Failed tasks are kept for a week.
 - Translations are cached for seven days.
 - Admins see product metrics, the day's activity and whether background jobs are keeping up (pg_cron runs included) at `/operations`.
 

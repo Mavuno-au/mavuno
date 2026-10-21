@@ -69,7 +69,7 @@ begin
   perform set_config('request.jwt.claim.sub', v_kofi::text, true);
   perform set_config('request.jwt.claims', json_build_object('sub', v_kofi, 'role', 'authenticated')::text, true);
   perform public.create_post('Kofi here, from Logan. We just started stocking shito and kenkey at the shop on Kingston Rd. Come say hi!', 'en', null, v_post);
-  perform public.create_post('Which jollof wins?', 'en', null, null, null, null, null, null, '[]'::jsonb, '{"options": ["Ghanaian", "Nigerian", "Senegalese"], "duration_hours": 72}'::jsonb);
+  perform public.create_post('Which jollof wins?', 'en', null, null, null, null, null, '[]'::jsonb, '{"options": ["Ghanaian", "Nigerian", "Senegalese"], "duration_hours": 72}'::jsonb);
 
   perform set_config('request.jwt.claim.sub', v_hana::text, true);
   perform set_config('request.jwt.claims', json_build_object('sub', v_hana, 'role', 'authenticated')::text, true);

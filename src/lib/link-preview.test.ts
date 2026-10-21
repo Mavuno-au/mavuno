@@ -10,14 +10,32 @@ describe("fetchLinkPreview", () => {
   // IP hosts skip the DNS lookup that guards hostnames, so they are refused before any request.
   it.each(["http://127.0.0.1/", "http://2130706433/", "http://[::1]/", "http://169.254.169.254/latest/meta-data", "http://10.0.0.5/"])("never requests %s", async (url) => {
     fetchMock.mockClear();
-    expect(await fetchLinkPreview(url)).toBeNull();
+    expect((await fetchLinkPreview(url)).kind).toBe("none");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("requests public hosts", async () => {
+  it("requests public hosts in Australian English", async () => {
     fetchMock.mockClear();
-    expect((await fetchLinkPreview("https://example.org/"))?.title).toBe("Inside");
+    const fetched = await fetchLinkPreview("https://example.org/");
+    expect(fetched.kind === "found" && fetched.preview.title).toBe("Inside");
     expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0]).toMatchObject([expect.anything(), { headers: { "accept-language": "en-AU,en;q=0.9" } }]);
+  });
+
+  it("tries busy servers and dropped connections again, but not missing pages", async () => {
+    fetchMock.mockResolvedValueOnce(new Response("", { status: 503 }));
+    expect((await fetchLinkPreview("https://example.org/")).kind).toBe("retry");
+    fetchMock.mockResolvedValueOnce(new Response("", { status: 429 }));
+    expect((await fetchLinkPreview("https://example.org/")).kind).toBe("retry");
+    fetchMock.mockRejectedValueOnce(new TypeError("fetch failed"));
+    expect((await fetchLinkPreview("https://example.org/")).kind).toBe("retry");
+    fetchMock.mockResolvedValueOnce(new Response("", { status: 404 }));
+    expect((await fetchLinkPreview("https://example.org/")).kind).toBe("none");
+  });
+
+  it("does not retry addresses the lookup refused", async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError("fetch failed", { cause: new Error("Blocked address") }));
+    expect(await fetchLinkPreview("https://internal.example/")).toEqual({ kind: "none", reason: "Blocked address" });
   });
 });
 
@@ -40,6 +58,16 @@ describe("parseMetadata", () => {
   it("falls back to the title tag and host name", () => {
     const preview = parseMetadata("<title> Hello\n world </title>", "https://www.example.org/a");
     expect(preview).toMatchObject({ title: "Hello world", siteName: "example.org", image: null });
+  });
+
+  it("keeps apostrophes inside quoted values", () => {
+    const html = `<meta property="og:title" content="Here's Australia's best jollof"><meta name='description' content='She said "come"'>`;
+    expect(parseMetadata(html, "https://example.org")).toMatchObject({ title: "Here's Australia's best jollof", description: 'She said "come"' });
+  });
+
+  it("prefers the secure image and skips ones that don't parse", () => {
+    const html = `<meta property="og:title" content="x"><meta property="og:image:secure_url" content="https://[bad"><meta property="og:image" content="https://cdn.example/a.jpg">`;
+    expect(parseMetadata(html, "https://example.org").image).toBe("https://cdn.example/a.jpg");
   });
 
   it("drops images that are not served over https", () => {
