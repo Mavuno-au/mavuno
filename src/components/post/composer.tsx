@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, CalendarClock, Eye, ImagePlus, Link2, Link2Off, PenLine, X } from "lucide-react";
+import { BarChart3, CalendarClock, Eye, FoldVertical, ImagePlus, Link2, Link2Off, PenLine, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, useTransition, type ClipboardEvent, type DragEvent, type KeyboardEvent } from "react";
@@ -21,7 +21,7 @@ import type { Post, PostRow } from "@/lib/domain";
 import { fullDate } from "@/lib/format";
 import { findPersonalInfo, personalInfoWarning, type PersonalInfo } from "@/lib/personal-info";
 import { initialSchedule, scheduledDate, scheduleProblem, type ScheduleDraft } from "@/lib/schedule";
-import { displayUrl, tokenize } from "@/lib/text";
+import { allUrls, displayUrl, FOLD_HINT, foldsInLists } from "@/lib/text";
 import { draftPrefix } from "@/lib/browser-data";
 import { useDraft } from "@/lib/use-draft";
 import { prepareImage, removeMedia, uploadMedia, type PreparedImage } from "@/lib/upload";
@@ -150,13 +150,23 @@ export function Composer({
   const identities = [me, ...me.organisations];
   const author = identities.find((identity) => identity.id === authorId) ?? viewer;
   const remaining = LIMITS.postBody - body.length;
-  const links = [...new Set(tokenize(body).flatMap((segment) => (segment.kind === "url" ? [segment.href] : [])))];
+  const links = allUrls(body);
   const card = mode.kind === "quote" || cardChoice === null ? null : cardChoice && links.includes(cardChoice) ? cardChoice : (links[0] ?? null);
   const hasAttachment = images.length > 0 || mode.kind === "quote" || (mode.kind === "post" && Boolean(mode.eventId ?? mode.opportunityId));
   const pollValid = !poll || poll.options.filter((option) => option.trim()).length >= 2;
   const schedulable = mode.kind === "post" && !mode.eventId && !mode.opportunityId;
   const scheduleError = schedule ? scheduleProblem(schedule, now) : null;
-  const canSubmit = !pending && remaining >= 0 && (body.trim().length > 0 || hasAttachment) && pollValid && !scheduleError;
+  // Why Post is greyed out, said on the button, since a disabled button can't be asked.
+  const blocker =
+    remaining < 0
+      ? `Too long by ${-remaining} ${remaining === -1 ? "character" : "characters"}.`
+      : body.trim().length === 0 && !hasAttachment
+        ? "Write something first."
+        : !pollValid
+          ? "Give the poll at least two options."
+          : scheduleError;
+  const canSubmit = !pending && blocker === null;
+  const folds = remaining >= 500 && foldsInLists(body);
 
   async function addFiles(files: FileList | File[]) {
     const room = LIMITS.images - images.length;
@@ -513,17 +523,32 @@ export function Composer({
                   </button>
                 </span>
               ) : null}
-              <span className={cn("w-10 text-right font-mono text-[13px] tabular", remaining < 0 ? "text-destructive" : remaining < 200 ? "text-ink" : "text-ink-muted")}>
-                {remaining < 500 ? remaining : ""}
+              <span
+                title={folds ? FOLD_HINT : undefined}
+                aria-label={folds ? FOLD_HINT : remaining < 500 ? `${remaining} characters left` : undefined}
+                className={cn("inline-flex w-10 shrink-0 justify-end font-mono text-[13px] tabular", remaining < 0 ? "text-destructive" : remaining < 200 ? "text-ink" : "text-ink-muted")}
+              >
+                {remaining < 500 ? remaining : folds ? <FoldVertical aria-hidden className="size-4" /> : null}
               </span>
               {onCancel ? (
                 <Button variant="ghost" size="sm" onClick={onCancel}>
                   Cancel
                 </Button>
               ) : null}
-              <Button type="submit" size="sm" disabled={!canSubmit} className={schedule ? "min-w-[7.5rem]" : "min-w-[5.75rem]"} title="⌘/Ctrl + Enter">
-                {schedule ? (pending ? "Scheduling…" : "Schedule post") : pending ? "Posting…" : mode.kind === "reply" ? "Reply" : mode.kind === "quote" ? "Quote" : "Post"}
-              </Button>
+              {/* A disabled button gets no pointer events, so the reason sits on the wrapper. */}
+              <span title={blocker ?? undefined} className="inline-flex">
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={!canSubmit}
+                  aria-describedby={blocker ? `${formId}-blocker` : undefined}
+                  className={schedule ? "min-w-[7.5rem]" : "min-w-[5.75rem]"}
+                  title={blocker ? undefined : "⌘/Ctrl + Enter"}
+                >
+                  {schedule ? (pending ? "Scheduling…" : "Schedule post") : pending ? "Posting…" : mode.kind === "reply" ? "Reply" : mode.kind === "quote" ? "Quote" : "Post"}
+                </Button>
+                {blocker ? <span id={`${formId}-blocker`} className="sr-only">{blocker}</span> : null}
+              </span>
             </span>
           </div>
         )}
