@@ -27,6 +27,7 @@ import { cn } from "@/lib/cn";
 import type { Post, PostRow, ThreadPlace } from "@/lib/domain";
 import { compact, count } from "@/lib/format";
 import type { Result } from "@/lib/result";
+import { clearOwnDeletion, markOwnDeletion } from "@/lib/post-presence";
 import { foldBody } from "@/lib/text";
 import { joinPath } from "@/lib/safe-redirect";
 
@@ -167,6 +168,8 @@ function LivePost({
         toast.error(result.error);
         return;
       }
+      // The post's own page holds off its "gone" cover while Undo is on offer.
+      markOwnDeletion(post.id);
       setState("removed");
       if (variant === "focus") return;
       toast("Post deleted", {
@@ -179,6 +182,7 @@ function LivePost({
               toast.error(restored.error);
               return;
             }
+            clearOwnDeletion(post.id);
             setState("shown");
           },
         },
@@ -448,6 +452,7 @@ function DeletedHere({ postId, onRestored }: { postId: string; onRestored: () =>
               toast.error(result.error);
               return;
             }
+            clearOwnDeletion(postId);
             onRestored();
           })
         }
