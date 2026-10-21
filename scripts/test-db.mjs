@@ -1836,11 +1836,12 @@ console.log("\nPeople and discovery");
   check("people search matches bios", names(await q("select username from public.search_profiles('long walks')")).includes("pd_writer"));
   check("people search leaves out people across a block", !names(await q("select username from public.search_profiles('pd_blocker')")).includes("pd_blocker"));
   rows = await q("select username from public.suggested_profiles(50)");
-  check("suggestions need a visible post", names(rows).includes("pd_writer") && !names(rows).includes("pd_quiet") && !names(rows).includes("pd_new_org"), names(rows));
+  check("people who have posted come first, and nobody is left out for not posting", names(rows).indexOf("pd_writer") !== -1 && names(rows).indexOf("pd_writer") < names(rows).indexOf("pd_quiet") && names(rows).includes("pd_new_org"), names(rows));
   check("a verified organisation is suggested before its first post", names(rows).includes("pd_verified_org"), names(rows));
   check("suggestions leave out suspended and deactivated accounts", !names(rows).includes("pd_banned") && !names(rows).includes("pd_young"), names(rows));
   rows = await q("select username from public.suggestion_pool()");
-  check("the Who to follow pool keeps the same rules", names(rows).includes("pd_writer") && !names(rows).some((u) => ["pd_quiet", "pd_banned", "pd_young", "pd_new_org"].includes(u)), names(rows));
+  // The pool is cut to 20 popular people, so who else fits depends on the rest of this file; only the rule is checked.
+  check("the Who to follow pool keeps the same rules", names(rows).includes("pd_writer") && !names(rows).some((u) => ["pd_banned", "pd_young"].includes(u)), names(rows));
   rows = await q("select username from public.nearby_profiles($1::smallint)", [brisbane]);
   check("nearby leaves out suspended accounts", names(rows).includes("pd_writer") && !names(rows).includes("pd_banned"), names(rows));
   check("profile cards are empty for suspended accounts", (await q("select * from public.profile_preview('pd_banned')")).length === 0);

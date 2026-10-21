@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { HomeFeedView } from "../home-feed";
+import { HomeFeedView } from "../(home)/home-feed";
 
 export const metadata: Metadata = { title: "Latest" };
 
