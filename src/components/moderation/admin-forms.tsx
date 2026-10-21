@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { setSiteRole, updateSiteSettings } from "@/app/actions/moderation";
+import { updateSwitches } from "@/app/actions/operations";
 import { SaveBar, SettingsGroup } from "@/components/settings/layout";
 import { useSave } from "@/components/settings/use-save";
 import { Button } from "@/components/ui/button";
 import { Checkbox, FormError, Input, Select } from "@/components/ui/field";
 import type { SiteSettings } from "@/lib/data/moderation";
+import type { Switches } from "@/lib/data/operations";
 
 const ROLES = [
   { value: "member", label: "Member" },
@@ -38,6 +40,43 @@ export function SiteSettingsForm({ settings }: { settings: SiteSettings }) {
           hint="Shows a Translate button on posts in other languages, when a translation provider is set up."
           checked={form.translations}
           onChange={(event) => setForm({ ...form, translations: event.target.checked })}
+        />
+      </SettingsGroup>
+      <SaveBar pending={pending} error={error} />
+    </form>
+  );
+}
+
+// Pauses for when a provider is down or something is being abused. Work queued
+// while a switch is off waits for it rather than being skipped.
+export function SwitchesForm({ switches }: { switches: Switches }) {
+  const [form, setForm] = useState(switches);
+  const { pending, error, save } = useSave();
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        save(() => updateSwitches(form), "Switches saved");
+      }}
+    >
+      <SettingsGroup title="Switches" hint="Turn something off while a provider is down or being abused. Everything stays on unless you say otherwise.">
+        <Checkbox
+          label="Automatic check"
+          hint="Sends new members' posts, events and opportunities to the moderation model after they're created. While off, their checks wait in the queue and run when it's back on."
+          checked={form.automaticCheck}
+          onChange={(event) => setForm({ ...form, automaticCheck: event.target.checked })}
+        />
+        <Checkbox
+          label="Link cards"
+          hint="Fetches a card for the link in a new post. While off, new posts show their link as plain text until it's back on."
+          checked={form.linkPreviews}
+          onChange={(event) => setForm({ ...form, linkPreviews: event.target.checked })}
+        />
+        <Checkbox
+          label="Photo uploads"
+          hint="Lets members add photos to posts, messages, profiles and events. While off, uploads are refused with a short note."
+          checked={form.uploads}
+          onChange={(event) => setForm({ ...form, uploads: event.target.checked })}
         />
       </SettingsGroup>
       <SaveBar pending={pending} error={error} />

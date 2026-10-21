@@ -4,7 +4,8 @@ import { type Range, rangeSchema } from "@/lib/metrics";
 import { createClient } from "@/lib/supabase/server";
 
 // Shapes of admin_metrics(), admin_activity() and admin_health(); see
-// supabase/migrations/*_operations_insights.sql and PRODUCT_METRICS.md.
+// supabase/migrations/*_operations_insights.sql, *_server_errors_and_switches.sql
+// and PRODUCT_METRICS.md.
 
 const count = z.number().int().nonnegative();
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -50,6 +51,26 @@ const cronJobSchema = z.object({
   lastError: z.string().nullable(),
 });
 
+const failedTaskSchema = z.object({
+  kind: z.enum(["link_preview", "automatic_check"]),
+  targetType: z.enum(["post", "event", "opportunity"]),
+  attempts: count,
+  error: z.string().nullable(),
+  failedAt: z.string(),
+});
+
+const serverErrorSchema = z.object({
+  digest: z.string(),
+  route: z.string(),
+  kind: z.enum(["render", "route", "action", "proxy"]),
+  message: z.string(),
+  count: count,
+  firstSeen: z.string(),
+  lastSeen: z.string(),
+});
+
+const switchesSchema = z.object({ automaticCheck: z.boolean(), linkPreviews: z.boolean(), uploads: z.boolean() });
+
 const healthSchema = z.object({
   checkedAt: z.string(),
   openReports: count,
@@ -66,6 +87,9 @@ const healthSchema = z.object({
   nextAgePurge: z.string().nullable(),
   // Null where pg_cron can't be read.
   cron: z.array(cronJobSchema).nullable(),
+  tasks: z.object({ failed: count, held: count, overdue: count, failures: z.array(failedTaskSchema) }),
+  errors: z.object({ lastDay: count, recent: z.array(serverErrorSchema) }),
+  switches: switchesSchema.extend({ premoderation: z.boolean(), translations: z.boolean() }),
   lastDay: z.object({ signups: count, posts: count, messages: count, reports: count }),
 });
 
@@ -74,6 +98,9 @@ export type Rates = z.infer<typeof ratesSchema>;
 export type Activity = z.infer<typeof activitySchema>;
 export type Health = z.infer<typeof healthSchema>;
 export type CronJob = z.infer<typeof cronJobSchema>;
+export type FailedTask = z.infer<typeof failedTaskSchema>;
+export type ServerError = z.infer<typeof serverErrorSchema>;
+export type Switches = z.infer<typeof switchesSchema>;
 
 export async function loadMetrics(range: Range): Promise<Metrics> {
   const supabase = await createClient();
@@ -94,4 +121,15 @@ export async function loadHealth(): Promise<Health> {
   const { data, error } = await supabase.rpc("admin_health");
   if (error) throw new Error(`Health check failed: ${error.message}`);
   return healthSchema.parse(data);
+}
+
+const switchesRow = z.object({ automatic_check: z.boolean(), link_previews: z.boolean(), uploads: z.boolean() });
+
+// The three things an admin can pause without a deploy (Moderation → Admin).
+export async function loadSwitches(): Promise<Switches> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("site_settings").select("automatic_check, link_previews, uploads").single();
+  if (error) throw new Error(`Switches failed: ${error.message}`);
+  const row = switchesRow.parse(data);
+  return { automaticCheck: row.automatic_check, linkPreviews: row.link_previews, uploads: row.uploads };
 }

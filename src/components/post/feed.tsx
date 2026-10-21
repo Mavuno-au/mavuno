@@ -13,11 +13,9 @@ import { lastVisitKey } from "@/lib/browser-data";
 import type { PostRow, ReplyPreviews } from "@/lib/domain";
 import { feedTime, type FeedSource } from "@/lib/feeds";
 import { dayLabel } from "@/lib/format";
+import { usePoll } from "@/lib/use-poll";
 
 const POLL_MS = 30_000;
-// Polling stops after this many failures in a row (for example after a deploy
-// replaced the server action it calls) instead of hiding the pill each time.
-const MAX_POLL_FAILURES = 3;
 
 type Loading = "idle" | "loading" | "failed";
 
@@ -156,22 +154,16 @@ export function Feed({
     [hidden, source, router],
   );
 
-  useEffect(() => {
-    if ((source.kind !== "latest" && source.kind !== "following") || !newest) return;
-    const feed = source.kind;
-    let failures = 0;
-    const timer = setInterval(async () => {
-      if (document.visibilityState !== "visible") return;
-      try {
-        setFresh(await newPostCount(feed, newest));
-        failures = 0;
-      } catch {
-        failures += 1;
-        if (failures >= MAX_POLL_FAILURES) clearInterval(timer);
-      }
-    }, POLL_MS);
-    return () => clearInterval(timer);
-  }, [source.kind, newest]);
+  // Only the home feeds get new posts while someone reads; the poll backs
+  // off on its own when the server stops answering.
+  const liveFeed = source.kind === "latest" || source.kind === "following" ? source.kind : null;
+  usePoll(
+    async () => {
+      if (liveFeed && newest) setFresh(await newPostCount(liveFeed, newest));
+    },
+    POLL_MS,
+    liveFeed !== null && newest !== undefined,
+  );
 
   const excluded = new Set(exclude);
   const shown = [...prepend.filter((post) => !rows.some((row) => row.id === post.id)), ...rows].filter((row) => !excluded.has(row.id) && !(row.kind === "post" && hidden.has(row.authorId)));

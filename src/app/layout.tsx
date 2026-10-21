@@ -1,9 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Suspense } from "react";
 import { Toaster } from "sonner";
 import { Analytics } from "@/components/shell/analytics";
 import { KeyboardWatcher } from "@/components/shell/keyboard-watcher";
+import { ProgressBar } from "@/components/shell/progress-bar";
 import { ThemeScript } from "@/components/shell/theme-script";
+import { UpdateNotice } from "@/components/shell/update-notice";
+import { buildId } from "@/lib/build";
 import { publicEnv } from "@/lib/env";
 import { serverEnv } from "@/lib/server-env";
 import "./globals.css";
@@ -42,7 +46,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <ThemeScript />
       </head>
       <body className="min-h-dvh">
+        <Suspense>
+          <ProgressBar />
+        </Suspense>
         {children}
+        <UpdateNotice build={buildId} />
         <KeyboardWatcher />
         <Analytics fathomSiteId={publicEnv.fathomSiteId} googleAnalyticsId={publicEnv.googleAnalyticsId} />
         <Toaster position="bottom-center" offset={{ bottom: 24 }} mobileOffset={{ bottom: "calc(var(--mobile-nav-height) + 1rem)" }} toastOptions={{ className: "!bg-popover !text-ink !border-hairline" }} />

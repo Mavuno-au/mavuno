@@ -2087,6 +2087,65 @@ console.log("\nRate limits");
   check("reactions are limited to 60 a minute (checked above)", true);
 }
 
+console.log("\nServer errors and switches");
+{
+  const service = () => db.exec("reset role; select set_config('request.jwt.claim.sub', '', false); set role service_role;");
+  const lead = (await one("select id from public.profiles where username = 'site_lead'")).id;
+  await superuser();
+  row = await one("select automatic_check, link_previews, uploads from public.site_settings");
+  check("the automatic check, link cards and uploads are on by default", row.automatic_check && row.link_previews && row.uploads, row);
+
+  await as(amara);
+  await fails("members cannot flip the switches", "select public.admin_update_switches(false, false, false)", [], /Admins only/);
+  await fails("members cannot record server errors", "select public.record_server_error('d', '/x', 'render', 'boom')", [], /permission denied/);
+  await fails("members cannot read server errors", "select * from public.server_errors", [], /permission denied/);
+
+  await as(lead);
+  await q("select public.admin_update_switches(false, false, null)");
+  await superuser();
+  row = await one("select automatic_check, link_previews, uploads from public.site_settings");
+  check("admins turn switches off; null leaves one as it was", !row.automatic_check && !row.link_previews && row.uploads, row);
+
+  // A new member's post with a link queues both kinds of task.
+  const pauser = await createUser("pauser@example.com", { username: "pauser" });
+  await as(pauser);
+  const held = await post("Paused https://paused.example", "en", null, null, null, null, "https://paused.example");
+  await superuser();
+  await q("update public.background_tasks set run_after = now() - interval '1 second' where target_id = $1", [held]);
+  check("tasks are still queued while their switch is off", (await one("select count(*)::int as n from public.background_tasks where target_id = $1", [held])).n === 2);
+  await service();
+  check("held tasks are not handed out", (await q("select * from public.claim_background_tasks(10, $1)", [held])).length === 0);
+  await as(lead);
+  const health = (await one("select public.admin_health() as h")).h;
+  check("health counts held tasks and shows the switches", health.tasks.held >= 2 && health.tasks.overdue === 0 && health.switches.automaticCheck === false && health.switches.uploads === true, health.tasks);
+  await q("select public.admin_update_switches(true, true, true)");
+  await service();
+  const released = await q("select * from public.claim_background_tasks(10, $1)", [held]);
+  check("turned back on, held tasks run with their tries intact", released.length === 2 && released.every((task) => task.attempts === 1), released);
+
+  await q("select public.record_server_error('abc123', '/u/[username]', 'render', $1)", [`Feed failed: ${"x".repeat(400)}`]);
+  await q("select public.record_server_error('abc123', '/u/[username]', 'render', 'Feed failed')");
+  await q("select public.record_server_error('def456', '/api/upload', 'route', 'Upload failed')");
+  await q("select public.record_server_error('', '/api/upload', 'nonsense', '')");
+  await superuser();
+  rows = await q("select digest, kind, count, char_length(message) as length from public.server_errors order by digest");
+  check(
+    "the same error on a route counts up; messages are cut to 300 characters; blanks and unknown kinds are kept sensible",
+    rows.length === 3 && rows[0].digest === "abc123" && rows[0].count === 2 && rows[0].length <= 300 && rows[2].digest === "unknown" && rows[2].kind === "render",
+    rows,
+  );
+  await q("update public.server_errors set last_seen = now() - interval '15 days' where digest = 'def456'");
+  await service();
+  await q("select public.record_server_error('abc123', '/u/[username]', 'render', 'Feed failed')");
+  check("errors are forgotten after 14 days", (await q("select 1 from public.server_errors where digest = 'def456'")).length === 0);
+  await as(lead);
+  const errors = (await one("select public.admin_health() as h")).h.errors;
+  check("health lists the last day's errors, newest first", errors.lastDay === 2 && errors.recent[0]?.digest === "abc123" && errors.recent[0].count === 3, errors);
+  const tasks = (await one("select public.admin_health() as h")).h.tasks;
+  check("health lists failed tasks with their last error", tasks.failed >= 1 && tasks.failures.length >= 1 && typeof tasks.failures[0].error === "string", tasks);
+  await superuser();
+}
+
 console.log("\nDemo seed");
 const seeded = new PGlite({ extensions: { pg_trgm, pgcrypto } });
 await seeded.exec(stubs);

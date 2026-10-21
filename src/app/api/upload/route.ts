@@ -30,6 +30,8 @@ function destination(target: z.infer<typeof targetSchema>) {
   }
 }
 
+const uploadsSwitch = z.object({ uploads: z.boolean() });
+
 const problem = (error: string, status: number) => NextResponse.json({ error }, { status });
 
 // Every photo is stored as the server re-encoded it, so no upload keeps its
@@ -50,7 +52,12 @@ export async function POST(request: Request) {
 
   const { folder, path, width } = destination(target.data);
   const supabase = await createClient();
-  const { data: allowed } = await supabase.rpc("can_upload", { p_bucket: target.data.bucket, p_folder: folder });
+  const [{ data: allowed }, { data: settings }] = await Promise.all([
+    supabase.rpc("can_upload", { p_bucket: target.data.bucket, p_folder: folder }),
+    supabase.from("site_settings").select("uploads").single(),
+  ]);
+  // Admins can pause uploads from Moderation → Admin (site_settings.uploads).
+  if (uploadsSwitch.safeParse(settings).data?.uploads === false) return problem("Photo uploads are paused for now. Try again later.", 503);
   if (allowed !== true) return problem("You can't add photos here.", 403);
 
   const image = await reencode(await file.arrayBuffer(), width);

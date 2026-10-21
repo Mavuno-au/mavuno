@@ -4,7 +4,7 @@ import { AutoRefresh } from "@/components/operations/auto-refresh";
 import { Stat, StatGrid } from "@/components/operations/figures";
 import { LocalTime } from "@/components/ui/local-time";
 import { Chip, Section } from "@/components/ui/page";
-import { type CronJob, loadHealth } from "@/lib/data/operations";
+import { type CronJob, type FailedTask, type Health, type ServerError, loadHealth } from "@/lib/data/operations";
 
 export const metadata = { title: "Health" };
 export const dynamic = "force-dynamic";
@@ -76,6 +76,68 @@ function CronJobs({ jobs }: { jobs: CronJob[] | null }) {
   );
 }
 
+const TASK_NAMES: Record<FailedTask["kind"], string> = { link_preview: "Link card", automatic_check: "Automatic check" };
+
+function tasksStatus(tasks: Health["tasks"]): Status {
+  if (tasks.overdue > 0) return { kind: "attention", reason: "Not running" };
+  if (tasks.failed > 0) return { kind: "attention", reason: "Failures" };
+  return { kind: "ok" };
+}
+
+function FailedTasks({ tasks }: { tasks: Health["tasks"] }) {
+  const parts = [
+    tasks.overdue > 0 ? `${tasks.overdue} due for over 15 minutes and not picked up: check the pg_cron wake job and TASKS_SECRET, or call /api/tasks` : null,
+    tasks.held > 0 ? `${tasks.held} waiting for a switch to be turned back on` : null,
+    tasks.failed > 0 ? `${tasks.failed} given up in the last week` : null,
+  ].filter((part) => part !== null);
+  return (
+    <>
+      {parts.length === 0 ? "Link cards and automatic checks are keeping up." : `${parts.join(". ")}.`}
+      {tasks.failures.length > 0 ? (
+        <ul className="mt-1 grid gap-1">
+          {tasks.failures.map((task, index) => (
+            <li key={index}>
+              <span className="text-ink">{TASK_NAMES[task.kind]}</span> for {task.targetType === "post" ? "a post" : `an ${task.targetType}`} · <LocalTime iso={task.failedAt} /> · {task.attempts}{" "}
+              {task.attempts === 1 ? "try" : "tries"}
+              {task.error ? <span className="block font-mono text-xs text-destructive">{task.error}</span> : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </>
+  );
+}
+
+const ERROR_KINDS: Record<ServerError["kind"], string> = { render: "page", route: "API", action: "action", proxy: "proxy" };
+
+function ServerErrors({ errors }: { errors: Health["errors"] }) {
+  if (errors.recent.length === 0) return <>No server errors in the last two weeks.</>;
+  return (
+    <>
+      {errors.lastDay === 0 ? "None in the last day." : `${errors.lastDay} different ${errors.lastDay === 1 ? "error" : "errors"} in the last day.`} The newest, by route:
+      <ul className="mt-1 grid gap-1">
+        {errors.recent.map((error) => (
+          <li key={`${error.digest}:${error.route}`}>
+            <span className="font-mono text-ink">{error.route}</span> <span className="font-mono text-xs">({ERROR_KINDS[error.kind]})</span> · ×{error.count} · last <LocalTime iso={error.lastSeen} />
+            <span className="block font-mono text-xs text-destructive">
+              {error.message} <span className="text-ink-muted">· ref {error.digest}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+function offSwitches(switches: Health["switches"]) {
+  return [
+    switches.automaticCheck ? null : "the automatic check",
+    switches.linkPreviews ? null : "link cards",
+    switches.uploads ? null : "photo uploads",
+    switches.translations ? null : "translations",
+  ].filter((name) => name !== null);
+}
+
 export default async function HealthPage() {
   const health = await loadHealth();
   const { lastDay } = health;
@@ -132,6 +194,17 @@ export default async function HealthPage() {
         </Check>
         <Check title="Scheduled jobs" status={cronStatus(health.cron)}>
           <CronJobs jobs={health.cron} />
+        </Check>
+        <Check title="Background tasks" status={tasksStatus(health.tasks)}>
+          <FailedTasks tasks={health.tasks} />
+        </Check>
+        <Check title="Server errors" status={health.errors.lastDay === 0 ? { kind: "ok" } : { kind: "attention", reason: "Errors today" }}>
+          <ServerErrors errors={health.errors} />
+        </Check>
+        <Check title="Switches" status={offSwitches(health.switches).length === 0 ? { kind: "ok" } : { kind: "attention", reason: "Something is off" }}>
+          {offSwitches(health.switches).length === 0 ? "Everything is on." : `Turned off: ${offSwitches(health.switches).join(", ")}.`}
+          {health.switches.premoderation ? " New members' posts are being held for review." : null}{" "}
+          <Link href="/moderation/admin" className="text-primary hover:underline">Change in Admin</Link>
         </Check>
         <Check title="Suspended accounts" status={{ kind: "ok" }}>
           {health.suspended === 0 ? "No one is suspended." : `${health.suspended} currently suspended.`}
