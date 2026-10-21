@@ -70,7 +70,11 @@ export async function updateOpportunity(opportunityId: string, form: FormData): 
   if (!parsed.success) return fail(firstIssue(parsed.error));
   const supabase = await createClient();
   const { data, error } = await supabase.from("opportunities").update(parsed.data).eq("id", id.parse(opportunityId)).select("id, status").single();
-  return error ? failFrom(error) : ok(savedRow.parse(data));
+  if (error) return failFrom(error);
+  const saved = savedRow.parse(data);
+  // The database queues a fresh automatic check for the edited text.
+  after(() => runTasksFor(saved.id));
+  return ok(saved);
 }
 
 export async function setOpportunitySaved(opportunityId: string, saved: boolean): Promise<Result> {

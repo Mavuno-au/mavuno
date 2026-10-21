@@ -61,6 +61,9 @@ export function allUrls(body: string) {
 }
 
 export function displayUrl(href: string) {
+  // A stored address the browser cannot parse is shown as written rather than
+  // aborting the page for whoever is reading it.
+  if (!URL.canParse(href)) return href.length > 40 ? `${href.slice(0, 39)}…` : href;
   const { host, pathname, search } = new URL(href);
   const rest = `${pathname === "/" ? "" : pathname}${search}`;
   const shown = host.replace(/^www\./, "") + rest;

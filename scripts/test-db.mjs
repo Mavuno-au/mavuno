@@ -2382,6 +2382,83 @@ console.log("\nWeighted reports");
   check("brand-new members do not", (await one("select public.reporter_has_standing($1) as standing", [throwaways[0]])).standing === false);
 }
 
+console.log("\nSecurity audit: sanctioned operators, listing edits, messaging, web addresses");
+{
+  const chief = await createUser("chief@example.com", { username: "chief_admin" });
+  const rogue = await createUser("rogue@example.com", { username: "rogue_mod" });
+  const victim = await createUser("victim@example.com", { username: "victim_one" });
+  const buddy = await createUser("buddy@example.com", { username: "buddy_two" });
+  await superuser();
+  await q("update public.profile_settings set site_role = 'admin' where id = $1", [chief]);
+  await q("update public.profile_settings set site_role = 'moderator' where id = $1", [rogue]);
+  await as(victim);
+  const fine = await post("Nothing wrong here");
+  await as(chief);
+  await q("select public.moderate_suspend($1, interval '1 day', 'Testing', 'respect')", [rogue]);
+  await as(rogue);
+  check("a suspended moderator is no longer a moderator", (await one("select public.is_moderator() as m")).m === false);
+  await fails("a suspended moderator cannot moderate", "select public.moderate_content('post', $1, false, 'x', 'respect')", [fine], /Moderators only/);
+  await fails("a suspended moderator cannot sanction", "select public.moderate_suspend($1, interval '1 day', 'x', 'respect')", [victim], /Moderators only/);
+  await as(chief);
+  await fails("admins cannot lift their own sanctions", "select public.moderate_lift_suspension($1)", [chief], /own sanctions/);
+  await q("select public.moderate_lift_suspension($1)", [rogue]);
+  await as(rogue);
+  check("a lifted moderator is a moderator again", (await one("select public.is_moderator() as m")).m === true);
+
+  await as(victim);
+  const listing = await one("insert into public.opportunities (poster_id, created_by, type, title, description, apply_url) values ($1, $1, 'job', 'Community helper', 'Help at the weekend market', 'https://jobs.example/apply') returning id, status", [victim]);
+  check("a newcomer's listing is published at insert", listing.status === "published", listing);
+  await superuser();
+  await q("delete from public.background_tasks where target_id = $1", [listing.id]);
+  await q("insert into public.listing_flags (opportunity_id, categories) values ($1, '{spam}')", [listing.id]);
+  await as(victim);
+  row = await one("update public.opportunities set title = 'Warehouse work', description = 'Pay a deposit for your uniform first' where id = $1 returning status", [listing.id]);
+  check("an edit by a member in good standing stays published", row.status === "published", row);
+  await superuser();
+  check("the edit queues a fresh automatic check", (await one("select count(*)::int as n from public.background_tasks where target_id = $1 and kind = 'automatic_check'", [listing.id])).n === 1);
+  check("an earlier flag no longer hides the new text from the check", (await one("select count(*)::int as n from public.listing_flags where opportunity_id = $1", [listing.id])).n === 0);
+  check("the check reads the edited text", (await one("select public.automatic_check_subject('opportunity', $1) as s", [listing.id])).s?.text?.includes("deposit") === true);
+  await as(chief);
+  await q("select public.admin_update_site_settings(true, true)");
+  await as(victim);
+  row = await one("update public.opportunities set title = 'Changed under review' where id = $1 returning status", [listing.id]);
+  check("under premoderation an edit waits for a moderator", row.status === "pending", row);
+  await as(chief);
+  await q("select public.admin_update_site_settings(false, true)");
+  await q("select public.moderate_content('opportunity', $1, true)", [listing.id]);
+
+  await as(buddy);
+  await q("insert into public.follows (follower_id, followee_id) values ($1, $2)", [buddy, victim]);
+  await as(victim);
+  const team = (await one("select public.create_group_conversation('Team', $1::uuid[]) as id", [`{${buddy}}`])).id;
+  await as(buddy);
+  const note = (await one("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'hello') returning id", [team, buddy])).id;
+  await superuser();
+  await q("update public.profile_settings set suspended_until = now() + interval '1 day' where id = $1", [victim]);
+  await as(victim);
+  await fails("a suspended group owner cannot add people", "select public.add_group_members($1, $2::uuid[])", [team, `{${rogue}}`], /can't do this/);
+  await fails("or rename the group", "select public.rename_group($1, 'Renamed')", [team], /can't do this/);
+  await fails("or change roles", "select public.set_group_role($1, $2, 'admin')", [team, buddy], /can't do this/);
+  await fails("or remove others", "select public.remove_group_member($1, $2)", [team, buddy], /Only group admins/);
+  await fails("or react", "insert into public.message_reactions (message_id, user_id, emoji) values ($1, $2, '👍')", [note, victim], /row-level security/);
+  await q("select set_config('realtime.topic', $1, false)", [`conversation:${team}`]);
+  await fails("or broadcast on the channel", "insert into realtime.messages (topic, extension) values ($1, 'broadcast')", [`conversation:${team}`], /row-level security/);
+  await q("select set_config('realtime.topic', '', false)");
+  await q("select public.remove_group_member($1, $2)", [team, victim]);
+  check("a suspended member can still leave a group", (await q("select 1 from public.conversation_participants where conversation_id = $1 and user_id = $2", [team, victim])).length === 0);
+  await superuser();
+  await q("update public.profile_settings set suspended_until = null where id = $1", [victim]);
+
+  await as(victim);
+  await fails("an event link must be one a browser can parse", "insert into public.events (host_id, created_by, title, starts_at, city_id, venue_name, ticket_url) values ($1, $1, 'Unparsable link', now() + interval '3 days', $2, 'Hall', 'https://a:99999')", [victim, brisbane], /events_ticket_url_web/);
+  await fails("an apply link must be one a browser can parse", "update public.opportunities set apply_url = 'https:// ' where id = $1", [listing.id], /opportunities_apply_url_web/);
+  await fails("a website must be one a browser can parse", "update public.profiles set website = 'https://%' where id = $1", [victim], /profiles_website_web/);
+  await q("update public.profiles set website = 'https://example.org/me?x=1#top' where id = $1", [victim]);
+  check("ordinary web addresses still pass", (await one("select website from public.profiles where id = $1", [victim])).website === "https://example.org/me?x=1#top");
+  check("an IPv6 literal with a port passes", (await one("select public.is_web_url('https://[2001:db8::1]:8443/x') as ok")).ok === true);
+  check("a port above 65535 fails", (await one("select public.is_web_url('https://a:65536') as ok")).ok === false);
+}
+
 console.log("\nDemo seed");
 const seeded = new PGlite({ extensions: { pg_trgm, pgcrypto } });
 await seeded.exec(stubs);

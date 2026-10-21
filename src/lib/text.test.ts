@@ -99,3 +99,13 @@ describe("foldsInLists", () => {
     expect(foldsInLists(Array.from({ length: 9 }, (_, i) => `line ${i}`).join("\n"))).toBe(true);
   });
 });
+
+describe("displayUrl", () => {
+  it("shortens a parseable link", () => {
+    expect(displayUrl("https://www.example.org/jobs?x=1")).toBe("example.org/jobs?x=1");
+  });
+  it("shows an unparseable stored link as written instead of throwing", () => {
+    expect(displayUrl("https://a:99999")).toBe("https://a:99999");
+    expect(displayUrl("https://%")).toBe("https://%");
+  });
+});
