@@ -63,7 +63,20 @@ function draftKey(viewerId: string, mode: ComposerMode) {
   return `${draftPrefix(viewerId)}${draftScope(mode)}`;
 }
 
-export function Composer({ mode, autoFocus, onPosted, onCancel }: { mode: ComposerMode; autoFocus?: boolean; onPosted?: (row: PostRow) => void; onCancel?: () => void }) {
+export function Composer({
+  mode,
+  autoFocus,
+  roomy = false,
+  onPosted,
+  onCancel,
+}: {
+  mode: ComposerMode;
+  autoFocus?: boolean;
+  // A bigger writing area, for the new-post window.
+  roomy?: boolean;
+  onPosted?: (row: PostRow) => void;
+  onCancel?: () => void;
+}) {
   const viewer = useViewer();
   const formId = useId();
   const textarea = useRef<HTMLTextAreaElement>(null);
@@ -95,8 +108,16 @@ export function Composer({ mode, autoFocus, onPosted, onCancel }: { mode: Compos
   useEffect(() => {
     const element = textarea.current;
     if (!element) return;
-    element.style.height = "auto";
-    element.style.height = `${element.scrollHeight}px`;
+    const fit = () => {
+      element.style.height = "auto";
+      element.style.height = `${element.scrollHeight}px`;
+    };
+    fit();
+    // In a dialog the first measurement happens while it's still hidden and
+    // reads 0; measure again once it's on screen.
+    const observer = new ResizeObserver(fit);
+    observer.observe(element);
+    return () => observer.disconnect();
   }, [body]);
 
   if (!viewer) {
@@ -308,6 +329,8 @@ export function Composer({ mode, autoFocus, onPosted, onCancel }: { mode: Compos
           hidden={previewing}
           className={cn(
             "block w-full resize-none overflow-hidden bg-transparent text-[17px] leading-snug placeholder:text-ink-muted/80 focus:outline-none",
+            // Never collapses, whatever the measurement says.
+            roomy ? "min-h-[5rem] max-md:min-h-[9rem]" : "min-h-[2.5lh]",
             mode.kind !== "post" && "rounded-md border border-rail px-3 py-2 focus:border-primary",
           )}
         />

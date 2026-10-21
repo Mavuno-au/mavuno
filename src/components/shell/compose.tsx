@@ -26,6 +26,7 @@ export function ComposeProvider({ children }: { children: ReactNode }) {
           <Composer
             mode={{ kind: "post" }}
             autoFocus
+            roomy
             onPosted={(row) => {
               setOpen(false);
               if (row.kind === "post") router.push(postPath(row));
