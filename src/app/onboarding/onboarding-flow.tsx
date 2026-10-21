@@ -143,7 +143,7 @@ function AboutYou({ profile, cities, onSaved }: { profile: EditableProfile; citi
           <Input id="displayName" value={form.displayName} maxLength={60} required autoComplete="name" onChange={(event) => setForm({ ...form, displayName: event.target.value })} />
         </Field>
         <Field label="Username" htmlFor="username">
-          <Input id="username" value={form.username} maxLength={30} required autoCapitalize="none" className="font-mono" onChange={(event) => setForm({ ...form, username: toUsername(event.target.value) })} />
+          <Input id="username" value={form.username} maxLength={30} required autoComplete="off" autoCapitalize="none" className="font-mono" onChange={(event) => setForm({ ...form, username: toUsername(event.target.value) })} />
         </Field>
       </div>
       <Field label="Bio" htmlFor="bio" hint={<span className="font-mono text-xs tabular">{LIMITS.bio - form.bio.length} left</span>}>

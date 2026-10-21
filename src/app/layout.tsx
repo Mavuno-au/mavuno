@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import { Analytics } from "@/components/shell/analytics";
+import { KeyboardWatcher } from "@/components/shell/keyboard-watcher";
 import { publicEnv } from "@/lib/env";
 import { serverEnv } from "@/lib/server-env";
 import { THEME_SCRIPT } from "@/lib/theme";
@@ -15,6 +16,7 @@ export const metadata: Metadata = {
   title: { default: "Mavuno", template: "%s · Mavuno" },
   description: "The social network for African Australians. Follow people and organisations, join your city's space, find events and opportunities.",
   applicationName: "Mavuno",
+  appleWebApp: { capable: true, title: "Mavuno", statusBarStyle: "default" },
   openGraph: { siteName: "Mavuno", type: "website", locale: "en_AU" },
   twitter: { card: "summary_large_image" },
   robots: { "max-image-preview": "large" },
@@ -25,6 +27,8 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  // Lets env(safe-area-inset-*) report the notch and home bar on iPhones.
+  viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f6f4ef" },
     { media: "(prefers-color-scheme: dark)", color: "#121110" },
@@ -40,8 +44,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body className="min-h-dvh">
         {children}
+        <KeyboardWatcher />
         <Analytics fathomSiteId={publicEnv.fathomSiteId} googleAnalyticsId={publicEnv.googleAnalyticsId} />
-        <Toaster position="bottom-center" offset={{ bottom: 88 }} mobileOffset={{ bottom: 88 }} toastOptions={{ className: "!bg-popover !text-ink !border-hairline" }} />
+        <Toaster position="bottom-center" offset={{ bottom: 24 }} mobileOffset={{ bottom: "calc(var(--mobile-nav-height) + 1rem)" }} toastOptions={{ className: "!bg-popover !text-ink !border-hairline" }} />
       </body>
     </html>
   );

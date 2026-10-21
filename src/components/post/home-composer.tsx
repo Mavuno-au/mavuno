@@ -37,10 +37,9 @@ export function HomeComposer() {
         type="button"
         onClick={() => open()}
         aria-label="New post"
-        aria-hidden={inView}
-        tabIndex={inView ? -1 : undefined}
+        inert={inView}
         className={cn(
-          "fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-20 flex size-14 items-center justify-center rounded-full bg-primary text-primary-ink shadow-lg transition-[opacity,scale] duration-200 hover:bg-primary-hover md:hidden motion-reduce:transition-none",
+          "fixed right-4 bottom-[calc(var(--mobile-nav-height)+0.75rem)] z-20 [:root[data-keyboard-open]_&]:hidden flex size-14 items-center justify-center rounded-full bg-primary text-primary-ink shadow-lg transition-[opacity,scale] duration-200 hover:bg-primary-hover md:hidden motion-reduce:transition-none",
           inView ? "pointer-events-none scale-75 opacity-0" : "scale-100 opacity-100",
         )}
       >

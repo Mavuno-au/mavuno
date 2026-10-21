@@ -107,6 +107,15 @@ export function Composer({ mode, autoFocus, onPosted, onCancel }: { mode: Compos
     );
   }
 
+  if (viewer.suspended) {
+    return (
+      <div className="px-4 py-4 text-[15px] text-ink-muted sm:px-6">
+        Your account is suspended, so you can't post right now. The reason and how to ask for another look are in your{" "}
+        <Link href="/notifications" className="font-medium text-primary hover:underline">notifications</Link>.
+      </div>
+    );
+  }
+
   const me = viewer;
   const identities = [me, ...me.organisations];
   const author = identities.find((identity) => identity.id === authorId) ?? viewer;

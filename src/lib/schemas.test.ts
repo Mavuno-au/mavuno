@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toUsername, usernameSchema } from "./schemas";
+import { revealsEmail, toUsername, usernameSchema } from "./schemas";
 
 describe("toUsername", () => {
   it.each([
@@ -20,5 +20,17 @@ describe("toUsername", () => {
     for (const typed of ["Jean Paul", "Jean-Paul N'Diaye", "Amélie Kaboré", "Ọlá Adébáyọ̀"]) {
       expect(usernameSchema.safeParse(toUsername(typed)).success).toBe(true);
     }
+  });
+});
+
+describe("revealsEmail", () => {
+  it.each([
+    ["jeanjabogmail_com", "jeanjabo@gmail.com", true],
+    ["ama_outlook", "ama@example.org", true],
+    ["ama_mentorsoutreach", "ama@mentorsoutreach.org", true],
+    ["jean_jabo", "jeanjabo@gmail.com", false],
+    ["kwame", "kwame@live.com", false],
+  ])("%s with %s → %s", (username, email, reveals) => {
+    expect(revealsEmail(username, email)).toBe(reveals);
   });
 });

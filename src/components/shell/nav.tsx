@@ -207,7 +207,7 @@ export function MobileNav() {
     <>
       <nav
         aria-label="Main"
-        className="fixed inset-x-0 bottom-0 z-30 grid border-t border-hairline bg-surface pb-[env(safe-area-inset-bottom)] md:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 grid border-t border-hairline bg-surface pb-[env(safe-area-inset-bottom)] md:hidden [:root[data-keyboard-open]_&]:hidden"
         style={{ gridTemplateColumns: `repeat(${primary.length + 1}, 1fr)` }}
       >
         {primary.map((item) => {
@@ -263,7 +263,7 @@ export function MobileHeader() {
   const viewer = useViewer();
   const { open } = useCompose();
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-hairline bg-surface px-4 md:hidden">
+    <header className="flex h-14 items-center justify-between border-b border-hairline bg-surface px-4 md:hidden">
       <Wordmark />
       <div className="flex items-center gap-1">
         <ThemeToggle />

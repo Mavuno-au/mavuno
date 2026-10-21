@@ -28,13 +28,13 @@ export async function HomeFeedView({ feed }: { feed: HomeFeed }) {
   // Wide screens show suggestions in the side column; narrower ones get them after the fifth post.
   const inline =
     whoToFollow?.kind === "page"
-      ? { after: 5, node: <WhoToFollow initial={whoToFollow.page} className="border-b border-hairline px-4 py-3 sm:px-6 xl:hidden" /> }
+      ? { after: 5, node: <WhoToFollow key="who-to-follow" initial={whoToFollow.page} className="border-b border-hairline px-4 py-3 sm:px-6 xl:hidden" /> }
       : undefined;
 
   return (
     <>
       <JsonLd data={siteJsonLd()} />
-      <PageHeader title="Home">
+      <PageHeader title="Home" titleHidden>
         <Tabs tabs={feeds.map((item) => ({ href: FEEDS[item].href, label: FEEDS[item].label, active: item === feed }))} />
       </PageHeader>
       {viewer ? (

@@ -1345,6 +1345,20 @@ console.log("\nOperations");
   for (const sql of ["select public.cron_health()", "select public.metric_rates(current_date, current_date)"]) await fails(`members cannot call ${sql.slice(14, sql.indexOf("("))}`, sql, [], /permission denied/);
 }
 
+console.log("\nUsernames never carry email addresses");
+{
+  const leaked = await createUser("jeanjabo@gmail.com", { username: "jeanjabogmail_com", display_name: "Jean" });
+  check("a sign-up username that names an email provider gets a neutral one", (await one("select username from public.profiles where id = $1", [leaked])).username.startsWith("member_"));
+  const own = await createUser("ama@mentorsoutreach.org", { username: "ama_mentorsoutreach", display_name: "Ama" });
+  check("so does one that contains the person's own email domain", (await one("select username from public.profiles where id = $1", [own])).username.startsWith("member_"));
+  const fine = await createUser("kwame.boateng@gmail.com", { username: "kwame_boateng", display_name: "Kwame" });
+  check("a name-based username is kept", (await one("select username from public.profiles where id = $1", [fine])).username === "kwame_boateng");
+  await as(fine);
+  await fails("members can't change their username to include an email", "update public.profiles set username = 'kwame_gmail_com' where id = $1", [fine], /can't include your email address/);
+  await q("update public.profiles set username = 'kwame_b' where id = $1", [fine]);
+  check("other username changes still work", (await one("select username from public.profiles where id = $1", [fine])).username === "kwame_b");
+}
+
 console.log("\nDemo seed");
 const seeded = new PGlite({ extensions: { pg_trgm, pgcrypto } });
 await seeded.exec(stubs);

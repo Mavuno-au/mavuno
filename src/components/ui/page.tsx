@@ -3,9 +3,34 @@ import { BackLink } from "@/components/ui/back-link";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
-export function PageHeader({ title, back, meta, actions, children }: { title: ReactNode; back?: string; meta?: ReactNode; actions?: ReactNode; children?: ReactNode }) {
+// The mobile logo bar scrolls away, so page headers stick to the very top.
+// titleHidden keeps the heading for screen readers and search but shows only
+// the tabs, as on the home feed.
+export function PageHeader({
+  title,
+  back,
+  meta,
+  actions,
+  children,
+  titleHidden = false,
+}: {
+  title: ReactNode;
+  back?: string;
+  meta?: ReactNode;
+  actions?: ReactNode;
+  children?: ReactNode;
+  titleHidden?: boolean;
+}) {
+  if (titleHidden) {
+    return (
+      <header className="sticky top-0 z-20 border-b border-hairline bg-surface/95 backdrop-blur">
+        <h1 className="sr-only">{title}</h1>
+        {children}
+      </header>
+    );
+  }
   return (
-    <header className="sticky top-14 z-20 border-b border-hairline bg-surface/95 backdrop-blur md:top-0">
+    <header className="sticky top-0 z-20 border-b border-hairline bg-surface/95 backdrop-blur">
       <div className="flex h-14 items-center gap-3 px-4 sm:px-6">
         {back ? <BackLink fallback={back} /> : null}
         <div className="min-w-0 flex-1">

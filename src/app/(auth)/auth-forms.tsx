@@ -50,9 +50,12 @@ export function SignUpForm({ next }: { next: string }) {
   const [form, setForm] = useState({ displayName: "", username: "", email: "", password: "" });
   // Until someone edits the username, it follows their name.
   const [usernameEdited, setUsernameEdited] = useState(false);
+  // Set when someone types an email address into the username, which would be public.
+  const [typedEmail, setTypedEmail] = useState(false);
   const username = usernameEdited ? form.username : toUsername(form.displayName.trim());
-  const usernameHint =
-    username.length === 0
+  const usernameHint = typedEmail
+    ? "That looks like an email address. Usernames are public, so pick something else, like your name."
+    : username.length === 0
       ? "Letters, numbers and underscores. Your profile will be at mavuno.au/@username."
       : username.length < 3
         ? "Use at least 3 letters or numbers."
@@ -74,10 +77,13 @@ export function SignUpForm({ next }: { next: string }) {
         />
       </Field>
       <Field label="Username" htmlFor="username" hint={usernameHint}>
+        {/* Not autoComplete="username": browsers would fill in the email address. */}
         <Input
           id="username"
           name="username"
-          autoComplete="username"
+          autoComplete="off"
+          data-1p-ignore
+          data-lpignore="true"
           autoCapitalize="none"
           spellCheck={false}
           maxLength={30}
@@ -86,7 +92,9 @@ export function SignUpForm({ next }: { next: string }) {
           value={username}
           onChange={(event) => {
             setUsernameEdited(true);
-            setForm({ ...form, username: toUsername(event.target.value) });
+            const typed = event.target.value;
+            setTypedEmail(typed.includes("@"));
+            setForm({ ...form, username: typed.includes("@") ? username : toUsername(typed) });
           }}
         />
       </Field>

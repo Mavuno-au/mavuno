@@ -80,11 +80,20 @@ html {
   }
 }
 
+/* The bottom nav's height on phones, including the home bar, so everything
+   that sits above it lines up. --visual-viewport-* are set while typing
+   (src/components/shell/keyboard-watcher.tsx). */
+:root {
+  --mobile-nav-height: calc(4.25rem + env(safe-area-inset-bottom));
+}
+
 body {
   background: var(--shell);
   color: var(--ink);
   font-family: var(--font-sans);
   font-feature-settings: "ss01", "cv11";
+  /* Clear of a landscape notch (the viewport covers the whole screen). */
+  padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
 }
 
 ::selection {

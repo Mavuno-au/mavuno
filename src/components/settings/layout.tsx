@@ -17,7 +17,7 @@ export function SettingsGroup({ title, hint, children }: { title: string; hint?:
 // Stays in view on long forms; above the mobile tab bar on small screens.
 export function SaveBar({ pending, error, label = "Save changes" }: { pending: boolean; error: string | null; label?: string }) {
   return (
-    <div className="sticky bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-10 flex items-center justify-end gap-3 border-t border-hairline bg-surface/95 px-4 py-3 backdrop-blur sm:px-6 md:bottom-0">
+    <div className="sticky bottom-(--mobile-nav-height) z-10 flex items-center justify-end gap-3 border-t border-hairline bg-surface/95 px-4 py-3 backdrop-blur sm:px-6 md:bottom-0">
       <div className="min-w-0 flex-1">
         <FormError message={error} />
       </div>

@@ -10,6 +10,17 @@ export const usernameSchema = z
   .toLowerCase()
   .regex(/^[a-z0-9_]{3,30}$/, "Usernames use 3 to 30 letters, numbers or underscores, like jean_paul.");
 
+const EMAIL_PROVIDERS = /(gmail|googlemail|yahoo|hotmail|outlook|icloud|bigpond|optusnet|protonmail)/;
+
+// Usernames are public, so one that names an email provider or the person's
+// own email domain would give their address away. Mirrors
+// public.username_reveals_email in the database.
+export function revealsEmail(username: string, email: string) {
+  const name = username.toLowerCase().replace(/_/g, "");
+  const domain = (email.split("@")[1] ?? "").split(".")[0]?.toLowerCase() ?? "";
+  return EMAIL_PROVIDERS.test(name) || (domain.length >= 4 && name.includes(domain));
+}
+
 // What someone types for a username, as close as it can be to a valid one:
 // accents dropped, spaces, dots and dashes turned into underscores, anything
 // else removed. "Jean-Paul N'Diaye" becomes "jean_paul_ndiaye".

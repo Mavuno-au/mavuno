@@ -265,7 +265,8 @@ function LivePost({
             {place ? <ThreadBadge place={place} /> : null}
             {post.status === "pending" ? <Chip tone="warning">{post.moderationNote ?? "Waiting for review"}</Chip> : null}
             {post.status === "rejected" ? <Chip tone="danger">Not approved</Chip> : null}
-            <span className="ml-auto opacity-100 md:opacity-0 md:group-hover/post:opacity-100 md:group-focus/post:opacity-100 md:focus-within:opacity-100">
+            {/* Shown until hover is possible: touch screens, including large tablets, always see it. */}
+            <span className="ml-auto [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/post:opacity-100 [@media(hover:hover)]:group-focus/post:opacity-100 [@media(hover:hover)]:focus-within:opacity-100">
               <Menu items={menu} label="Post options" />
             </span>
           </header>
@@ -348,7 +349,7 @@ function LivePost({
           ) : null}
 
           {variant !== "ancestor" ? (
-            <footer className="-ml-2 mt-1.5 flex items-center gap-1 text-ink-muted" onClick={(event) => event.stopPropagation()}>
+            <footer className="-ml-2 mt-1.5 flex flex-wrap items-center gap-1 text-ink-muted" onClick={(event) => event.stopPropagation()}>
               <Action owner={post.id} label="Reply" shortcut="r" onClick={() => (viewer ? setReplying((value) => !value) : signIn())} count={variant === "reply" ? post.replies : 0}>
                 <MessageCircle />
               </Action>

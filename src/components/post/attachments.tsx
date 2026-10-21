@@ -175,10 +175,12 @@ export function EventAttachment({ event }: { event: EventSummary }) {
       <span className="grid min-w-0 gap-0.5">
         <span className="truncate font-medium">{event.title}</span>
         <span className="text-sm text-ink-muted">{event.cancelled ? "Cancelled" : eventDate(event.startsAt, event.timezone)}</span>
-        <span className="flex items-center gap-1 truncate text-sm text-ink-muted">
+        <span className="flex min-w-0 items-center gap-1 text-sm text-ink-muted">
           <MapPin className="size-3.5 shrink-0" />
-          {event.format === "online" ? "Online" : [event.venue, event.city].filter(Boolean).join(", ")}
-          {event.going > 0 ? ` · ${event.going} going` : ""}
+          <span className="truncate">
+            {event.format === "online" ? "Online" : [event.venue, event.city].filter(Boolean).join(", ")}
+            {event.going > 0 ? ` · ${event.going} going` : ""}
+          </span>
         </span>
       </span>
     </Link>

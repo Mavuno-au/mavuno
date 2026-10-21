@@ -66,7 +66,7 @@ export function UsernameForm() {
           <div className="flex gap-2">
             <div className="relative flex-1">
               <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 font-mono text-ink-muted">@</span>
-              <Input id="username" value={username} onChange={(event) => setUsername(toUsername(event.target.value))} maxLength={30} autoComplete="username" autoCapitalize="none" spellCheck={false} className="pl-7 font-mono" aria-describedby="username-hint" />
+              <Input id="username" value={username} onChange={(event) => setUsername(toUsername(event.target.value))} maxLength={30} autoComplete="off" autoCapitalize="none" spellCheck={false} className="pl-7 font-mono" aria-describedby="username-hint" />
             </div>
             <Button type="submit" disabled={pending || availability.kind !== "available"} className="min-w-24">
               {pending ? "Saving…" : "Change"}

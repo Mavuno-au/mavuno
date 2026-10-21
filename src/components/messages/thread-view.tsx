@@ -283,7 +283,7 @@ export function ThreadView({ conversation, viewerId, initial, next: initialNext 
   const { other } = conversation;
 
   return (
-    <div className="flex flex-col bg-surface max-md:fixed max-md:inset-x-0 max-md:top-14 max-md:bottom-[calc(4.25rem+env(safe-area-inset-bottom))] max-md:z-10 max-md:mx-auto max-md:max-w-[620px] md:h-dvh">
+    <div className="flex flex-col bg-surface max-md:fixed max-md:inset-x-0 max-md:top-14 max-md:bottom-[max(var(--mobile-nav-height),var(--visual-viewport-bottom,0px))] max-md:z-10 max-md:mx-auto max-md:max-w-[620px] md:h-dvh">
       <PageHeader
         back={conversation.archived ? "/messages/archived" : access.kind === "request" ? "/messages/requests" : "/messages"}
         title={other ? <Link href={`/@${other.username}`} className="hover:underline">{conversation.name}</Link> : conversation.name}

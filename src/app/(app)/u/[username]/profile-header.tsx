@@ -30,8 +30,8 @@ export function ProfileHeader({ profile, team, canManage, known }: { profile: Pr
         </div>
 
         <div className="mt-3">
-          <h1 className="flex items-center gap-1.5 text-2xl font-semibold tracking-tight">
-            {profile.display_name}
+          <h1 className="flex min-w-0 items-center gap-1.5 text-2xl font-semibold tracking-tight">
+            <span className="min-w-0 wrap-anywhere">{profile.display_name}</span>
             {profile.org_verified ? <BadgeCheck className="size-5 text-primary" aria-label="Verified organisation" /> : null}
           </h1>
           <p className="flex flex-wrap items-center gap-2 font-mono text-[13px] text-ink-muted">
@@ -69,9 +69,9 @@ export function ProfileHeader({ profile, team, canManage, known }: { profile: Pr
             </li>
           ) : null}
           {links.map((link) => (
-            <li key={link.url} className="flex items-center gap-1.5">
+            <li key={link.url} className="flex min-w-0 max-w-full items-center gap-1.5">
               {link.url === profile.website ? <Globe /> : <Link2 />}
-              <a href={link.url} target="_blank" rel="noopener noreferrer nofollow ugc me" className="text-primary hover:underline">
+              <a href={link.url} target="_blank" rel="noopener noreferrer nofollow ugc me" className="truncate text-primary hover:underline">
                 {link.label}
               </a>
             </li>

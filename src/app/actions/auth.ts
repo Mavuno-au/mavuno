@@ -7,7 +7,7 @@ import { emailLink } from "@/lib/email-link";
 import { publicEnv } from "@/lib/env";
 import { done, fail, type Result } from "@/lib/result";
 import { onboardingPath, safeNext } from "@/lib/safe-redirect";
-import { emailSchema, firstIssue, passwordSchema, usernameSchema } from "@/lib/schemas";
+import { emailSchema, firstIssue, passwordSchema, revealsEmail, usernameSchema } from "@/lib/schemas";
 import { createClient } from "@/lib/supabase/server";
 
 // Google sign-in returns here with a one-time code.
@@ -19,6 +19,7 @@ export async function signUp(_: Result | null, form: FormData): Promise<Result> 
     .safeParse(Object.fromEntries(form));
   if (!parsed.success) return fail(firstIssue(parsed.error));
   const { data: input } = parsed;
+  if (revealsEmail(input.username, input.email)) return fail("Usernames are public, so yours can't include your email address. Try your name instead.");
   const setup = onboardingPath(safeNext(input.next));
 
   const supabase = await createClient();

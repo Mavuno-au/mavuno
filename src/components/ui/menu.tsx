@@ -54,7 +54,7 @@ export function Menu({
           event.stopPropagation();
           setOpen((value) => !value);
         }}
-        className="rounded-md p-1.5 text-ink-muted hover:bg-wash hover:text-ink"
+        className="rounded-md p-1.5 text-ink-muted hover:bg-wash hover:text-ink max-md:p-2.5"
       >
         {trigger ?? <MoreHorizontal className="size-4" />}
       </button>
@@ -63,14 +63,14 @@ export function Menu({
           id={id}
           role="menu"
           className={cn(
-            "animate-fade-in absolute z-30 min-w-48 overflow-hidden rounded-lg border border-hairline bg-popover py-1 shadow-lg",
+            "animate-fade-in absolute z-30 min-w-48 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-hairline bg-popover py-1 shadow-lg",
             placement === "below" ? "top-full mt-1" : "bottom-full mb-1",
             align === "end" ? "right-0" : "left-0",
           )}
         >
           {items.map((item) => {
             const className = cn(
-              "flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-wash [&_svg]:size-4",
+              "flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-wash max-md:min-h-11 [&_svg]:size-4",
               item.kind === "action" && item.danger ? "text-destructive" : "text-ink",
             );
             return item.kind === "link" ? (
