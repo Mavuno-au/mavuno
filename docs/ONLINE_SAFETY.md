@@ -7,7 +7,7 @@ Mavuno is a social media service under the *Online Safety Act 2021*. Two sets of
 
 The codes ask each provider to assess its own risk and take the compliance measures for its tier. This is our assessment. Check it against the registered code text before relying on it; the summary here is ours, not eSafety's.
 
-Last reviewed: 20 October 2026. Next review: October 2027, or sooner (see Review).
+Last reviewed: 21 October 2026. Next review: October 2027, or sooner (see Review).
 
 ## The service
 
@@ -25,31 +25,31 @@ Last reviewed: 20 October 2026. Next review: October 2027, or sooner (see Review
 | Age of users | 16 and older, with layered age checks | Lowers |
 | Private messaging with strangers | Yes, but limited: message requests, a daily cap on requests, "who can message you" settings, block | Raises |
 | Images | Yes, in posts and messages; location data stripped | Raises |
-| Review | Posts after a recent report are reviewed before going public; admins can also hold new members' posts during a wave of spam | Lowers |
+| Review | Posts go public straight away. Posts, events and opportunities from members without a track record are checked by a moderation model and held if it flags them; a report from a member with standing puts the author's new content in front of a moderator for a week; three such reports hide a post; admins can hold all new members' posts during a wave of spam | Lowers |
 | Discoverability | City-level only, never precise location | Lowers |
 
-**Our assessment: Tier 2.** Messaging and images mean we can't claim the lowest tier, and the size, adult audience and pre-moderation keep us out of the highest. We apply the Tier 2 minimum compliance measures, and several Tier 1 ones where they cost little (pre-moderation, rate limits on contact with strangers).
+**Our assessment: Tier 2.** Messaging and images mean we can't claim the lowest tier, and the size, the adult audience, the automatic check on members without a track record, holds after reports, and the ability to switch pre-moderation on keep us out of the highest. We apply the Tier 2 minimum compliance measures, and several Tier 1 ones where they cost little (the automatic check, rate limits on contact with strangers, the option of pre-moderation).
 
 ### What we do
 
-**Terms that prohibit the material.** The [terms](/terms) (section 4 and the community rules) and the [community rules](/rules) (rule 1: violence and terrorism; rule 2: sexual content, anything sexual involving under-18s, intimate images, self-harm, gore, weapons and drugs) prohibit Class 1A and 1B material, and say what happens when they're broken.
+**Terms that prohibit the material.** The [terms](/terms) (section 4 and the community rules) and the [community rules](/rules) (rule 1: violence and terrorism; rule 2: sexual content, anything sexual involving under-18s, intimate images, self-harm, gore, weapons and drugs) prohibit Class 1A and 1B material, and say what happens when they're broken. Every member reads and accepts the five rules before their first post, event or opportunity; the database refuses those until they have (`profile_settings.rules_accepted_at`).
 
 **Ways to report.** Every post, reply, profile, message, event, opportunity and space has Report in its menu. Reasons include sexual content, violence or threats, intimate images shared without consent, someone under 16, and legal complaints. After a report, people are told they can go to eSafety if serious abuse isn't dealt with within 48 hours, and to go to eSafety straight away for intimate images.
 
-**Acting on reports.** Moderators see reports grouped and oldest first (Moderation → Reports), with a copy of reported messages. Three reports from different people hide a post until a moderator looks. Moderators remove content, suspend accounts and deactivate accounts of under-16s. Every removal and suspension names the rule it was under and links to an appeal, which a different moderator reviews within 7 days. Legal complaints (for example defamation) carry the complainant's contact details and a 7-day target.
+**Acting on reports.** Moderators see reports grouped and oldest first (Moderation → Reports), with a copy of reported messages and how many reports come from members with standing (a member for a week, something published, not suspended, no report of theirs dismissed recently). Three such reports hide a post until a moderator looks, and one puts the author's new content in front of a moderator for a week; reports from throwaway accounts are shown but hold nothing, so reporting can't be used to silence people. Moderators remove content, suspend accounts (from an hour to 30 days; a second suspension adds to the first), ban accounts and deactivate accounts of under-16s, from a report or from Moderation → People by username. Every removal, suspension and ban names the rule it was under and links to an appeal, which a different moderator reviews within 7 days; the People tab looks a decision up by its number, shows each person's past decisions and who made them, lifts suspensions, and restores what a wrong decision removed. A ban hides everything the person published, cancels their scheduled posts and outlives the account: a peppered hash of the email address and sign-in stays, and Supabase Auth refuses a sign-up that matches it.
 
-**The most serious material.** Child sexual exploitation material and pro-terror material are removed straight away, the account is closed, and we report it to the AFP-led Australian Centre to Counter Child Exploitation (ACCCE) or to police. We comply with eSafety removal notices within 24 hours. Moderators are told not to download or forward such material.
+**The most serious material.** Child sexual exploitation material and pro-terror material are removed straight away, the account is banned, and we report it to the AFP-led Australian Centre to Counter Child Exploitation (ACCCE) or to police. We comply with eSafety removal notices within 24 hours. Moderators are told not to download or forward such material.
 
-**Safety by design.** Message requests from people you don't follow, limits on new requests per day, the option to accept messages from nobody or only people you follow, mute and block that apply everywhere, photos re-encoded to remove location data, city-level location only. When `OPENAI_API_KEY` is set, posts from members without a track record (and their photos) are checked by OpenAI's moderation model, and anything it flags goes back to the review queue with the categories it found. It never removes anything: a moderator decides, because the model is weaker in Swahili, Somali and Amharic.
+**Safety by design.** Message requests from people you don't follow, limits on new requests per day, the option to accept messages from nobody or only people you follow, mute and block that apply everywhere, photos re-encoded to remove location data, city-level location only. When `OPENAI_API_KEY` is set, posts, events and opportunities from members without a track record (a member for under a week, fewer than three things published, or reported in the past week), and their photos, are checked by OpenAI's moderation model whichever way they were created, and anything it flags goes back to the review queue with the categories it found. It never removes anything: a moderator decides, because the model is weaker in Swahili, Somali and Amharic.
 
-**Accountability.** Moderation decisions are logged (`moderation_actions`), admins see how many reports are open at `/operations`, and we will answer eSafety's requests for information about how the codes are being met.
+**Accountability.** Every moderation decision is recorded with who made it, whom it was about, the rule and the reason (`moderation_actions`, read by moderators as `moderation_log`), admins see how many reports are open and who is suspended at `/operations` and Moderation → People, and we will answer eSafety's requests for information about how the codes are being met.
 
 ## Phase 2 risk assessment (age-restricted material)
 
 - **What is restricted:** online pornography, high-impact sexual and violent material, and self-harm, suicide and disordered eating material.
 - **Our position:** Mavuno doesn't allow any of it. Community rule 2 prohibits sexual content, self-harm and suicide content, eating disorder content and graphic violence. There is no "adult" setting or opt-in.
 - **Who could see it:** members are 16 or older, but public posts can be read without an account, including by children. So the risk we manage is restricted material being posted and staying up, not deliberate access.
-- **Measures:** prohibition in the rules, pre-moderation for new members, reports with sexual content, violence and self-harm reasons, removal when found, and accounts suspended or closed for repeat or serious breaches. We don't offer search for or recommend such material, and Trending only counts published posts.
+- **Measures:** prohibition in the rules, accepted before the first post; the automatic check on members without a track record; reports with sexual content, violence and self-harm reasons; removal when found; and accounts suspended or banned for repeat or serious breaches. We don't offer search for or recommend such material, and Trending only counts published posts.
 
 **Our assessment: low risk.** Because the material is prohibited and removed rather than restricted, we don't need age-gated access to content beyond the account age checks.
 

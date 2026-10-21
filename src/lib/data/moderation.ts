@@ -3,6 +3,7 @@ import { z } from "zod";
 import { isReportReason, type ReportReason } from "@/lib/catalogue";
 import { eventCategorySchema, eventFormatSchema } from "@/lib/data/community";
 import { opportunityTypeSchema, parsePosts, profileCardSchema, type Post, type ProfileCard } from "@/lib/domain";
+import { ruleSchema } from "@/lib/rules";
 import { createClient, type Supabase } from "@/lib/supabase/server";
 
 const id = z.uuid();
@@ -229,6 +230,7 @@ const reportRows = z.array(
     snapshot: z.string().nullable(),
     reports: z.array(z.object({ reason, details: z.string().nullable(), contact: z.string().nullable(), created_at: z.string() })),
     respond_by: z.string().nullable(),
+    standing_count: z.number(),
   }),
 );
 
@@ -244,6 +246,9 @@ export type ReportGroup = {
   reports: { reason: ReportReason; details: string | null; contact: string | null; createdAt: string }[];
   // Legal complaints: terms, section 7 promises action within 7 days.
   respondBy: string | null;
+  // Reports from members with standing (a member for a week, something
+  // published, in good standing) are the ones that hold posts.
+  standing: number;
   href: string | null;
 };
 
@@ -308,6 +313,7 @@ export async function loadReportQueue(): Promise<ReportGroup[]> {
     preview: group.target_type === "post" ? (previews.get(group.target_id) ?? null) : null,
     reports: group.reports.map((report) => ({ reason: report.reason, details: report.details, contact: report.contact, createdAt: report.created_at })),
     respondBy: group.respond_by,
+    standing: group.standing_count,
     href: linkFor(group),
   }));
 }
@@ -319,4 +325,124 @@ export async function loadSiteSettings(): Promise<SiteSettings> {
   const supabase = await createClient();
   const { data } = await supabase.from("site_settings").select("premoderation, translations").single();
   return siteSettingsRow.parse(data);
+}
+
+// ---------------------------------------------------------------------------
+// People: sanctions, histories and decisions
+// ---------------------------------------------------------------------------
+
+const decisionRow = z
+  .object({
+    id: z.number(),
+    action: z.string(),
+    target_type: reportTarget,
+    target_id: id,
+    reason: z.string().nullable(),
+    rule: ruleSchema.nullable(),
+    created_at: z.string(),
+    moderator: profileCardSchema.nullable(),
+    subject: profileCardSchema.nullable(),
+  })
+  .transform((row) => ({
+    id: row.id,
+    action: row.action,
+    targetType: row.target_type,
+    targetId: row.target_id,
+    reason: row.reason,
+    rule: row.rule,
+    createdAt: row.created_at,
+    moderator: row.moderator,
+    subject: row.subject,
+    // What moderate_restore can undo: removed posts and listings, suspensions and bans.
+    restorable: row.action === "suspend" || row.action === "ban" || (row.action === "reject" && ["post", "event", "opportunity"].includes(row.target_type)),
+  }));
+export type Decision = z.infer<typeof decisionRow>;
+
+const DECISION = "id, action, target_type, target_id, reason, rule, created_at, moderator, subject";
+
+export type SanctionStatus = { kind: "none" } | { kind: "suspended"; until: string } | { kind: "banned"; since: string };
+
+const settingsRow = z.object({ suspended_until: z.string().nullable(), banned_at: z.string().nullable() });
+
+function statusOf(row: z.infer<typeof settingsRow>, now: number): SanctionStatus {
+  if (row.banned_at !== null) return { kind: "banned", since: row.banned_at };
+  if (row.suspended_until !== null && new Date(row.suspended_until).getTime() > now) return { kind: "suspended", until: row.suspended_until };
+  return { kind: "none" };
+}
+
+export type Sanction = { profile: ProfileCard; status: SanctionStatus; latest: Decision | null; suspensions: number };
+
+// Everyone suspended or banned right now, with the decision that did it.
+export async function loadSanctions(): Promise<Sanction[]> {
+  const supabase = await createClient();
+  const now = Date.now();
+  const { data, error } = await supabase
+    .from("profile_settings")
+    .select(`suspended_until, banned_at, profile:profiles(${CARD})`)
+    .or(`banned_at.not.is.null,suspended_until.gt.${new Date(now).toISOString()}`)
+    .limit(200);
+  if (error) throw new Error(`Sanctions failed: ${error.message}`);
+  const rows = z.array(settingsRow.extend({ profile: profileCardSchema })).parse(data ?? []);
+  if (rows.length === 0) return [];
+
+  const { data: log } = await supabase
+    .from("moderation_log")
+    .select(DECISION)
+    .in("profile_id", rows.map((row) => row.profile.id))
+    .in("action", ["suspend", "ban"])
+    .order("created_at", { ascending: false });
+  const decisions = z.array(decisionRow).parse(log ?? []);
+
+  return rows
+    .map((row) => {
+      const theirs = decisions.filter((decision) => decision.subject?.id === row.profile.id);
+      return { profile: row.profile, status: statusOf(row, now), latest: theirs[0] ?? null, suspensions: theirs.filter((decision) => decision.action === "suspend").length };
+    })
+    .sort((a, b) => (b.latest?.createdAt ?? "").localeCompare(a.latest?.createdAt ?? ""));
+}
+
+export type PersonHistory = { profile: ProfileCard; status: SanctionStatus; decisions: Decision[] };
+
+// One person's past decisions, as a moderator looks them up by username.
+export async function loadPersonHistory(username: string): Promise<PersonHistory | null> {
+  const supabase = await createClient();
+  const { data: profile } = await supabase.from("profiles").select(CARD).eq("username", username).maybeSingle();
+  const card = profileCardSchema.nullable().parse(profile);
+  if (!card) return null;
+  const [settings, log] = await Promise.all([
+    supabase.from("profile_settings").select("suspended_until, banned_at").eq("id", card.id).maybeSingle(),
+    supabase.from("moderation_log").select(DECISION).eq("profile_id", card.id).order("created_at", { ascending: false }).limit(100),
+  ]);
+  if (log.error) throw new Error(`Moderation log failed: ${log.error.message}`);
+  // Organisations have no settings row of their own.
+  const status = settings.data ? statusOf(settingsRow.parse(settings.data), Date.now()) : { kind: "none" as const };
+  return { profile: card, status, decisions: z.array(decisionRow).parse(log.data ?? []) };
+}
+
+// The decision an appeal names by number.
+export async function loadDecision(decision: number): Promise<Decision | null> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("moderation_log").select(DECISION).eq("id", decision).maybeSingle();
+  return decisionRow.nullable().parse(data);
+}
+
+export async function loadBannedIdentityCount(): Promise<number> {
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("banned_identity_count");
+  return z.number().catch(0).parse(data);
+}
+
+// The notice written when the account was banned.
+export async function loadBanNotice(viewerId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("notification_details")
+    .select("id, message, rule, created_at")
+    .eq("recipient_id", viewerId)
+    .eq("type", "moderation")
+    .like("message", "Your account is banned%")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return z.object({ id: z.number(), message: z.string(), rule: ruleSchema.nullable(), created_at: z.string() }).nullable().parse(data);
 }

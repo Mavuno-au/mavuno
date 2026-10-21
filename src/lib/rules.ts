@@ -42,6 +42,19 @@ export const RULE_FOR_REASON: Record<ReportReason, BreakableRule | null> = {
   other: null,
 };
 
+// How long a suspension lasts, as public.moderate_suspend takes it. A second
+// suspension adds to the first.
+export const SUSPENSION_LENGTHS = [
+  { value: "1 hour", label: "1 hour" },
+  { value: "1 day", label: "1 day" },
+  { value: "3 days", label: "3 days" },
+  { value: "7 days", label: "7 days" },
+  { value: "30 days", label: "30 days" },
+] as const;
+
+export const suspensionLengthSchema = z.enum(SUSPENSION_LENGTHS.map((length) => length.value));
+export type SuspensionLength = z.infer<typeof suspensionLengthSchema>;
+
 // Terms section 6 and the community rules: appeals by email within 30 days.
 export const APPEAL_DAYS = 30;
 export const appealDeadline = (createdAt: string) => new Date(new Date(createdAt).getTime() + APPEAL_DAYS * 86_400_000).toISOString();

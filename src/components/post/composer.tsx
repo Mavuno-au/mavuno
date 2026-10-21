@@ -12,7 +12,8 @@ import { ProgressAvatar } from "@/components/post/progress-avatar";
 import { RichText } from "@/components/post/rich-text";
 import { SchedulePicker } from "@/components/post/schedule-picker";
 import { Button } from "@/components/ui/button";
-import { useNow } from "@/components/ui/local-time";
+import { LocalTime, useNow } from "@/components/ui/local-time";
+import { useRules } from "@/components/shell/compose";
 import { useViewer } from "@/components/shell/viewer-context";
 import { LANGUAGES, LIMITS, POLL_DURATIONS } from "@/lib/catalogue";
 import { cn } from "@/lib/cn";
@@ -78,6 +79,7 @@ export function Composer({
   onCancel?: () => void;
 }) {
   const viewer = useViewer();
+  const rules = useRules();
   const formId = useId();
   const textarea = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -131,7 +133,14 @@ export function Composer({
   if (viewer.suspended) {
     return (
       <div className="px-4 py-4 text-[15px] text-ink-muted sm:px-6">
-        Your account is suspended, so you can't post right now. The reason and how to ask for another look are in your{" "}
+        {viewer.suspendedUntil ? (
+          <>
+            Your account is suspended until <LocalTime iso={viewer.suspendedUntil} format="full" />, so you can't post, like, follow or message until then.
+          </>
+        ) : (
+          "Your account is banned, so you can't post."
+        )}{" "}
+        The reason and how to ask for another look are in your{" "}
         <Link href="/notifications" className="font-medium text-primary hover:underline">notifications</Link>.
       </div>
     );
@@ -188,6 +197,12 @@ export function Composer({
     const found = checked ? [] : findPersonalInfo(body);
     setPersonal(found);
     if (found.length > 0) return;
+    void rules.ensure().then((accepted) => {
+      if (accepted) send();
+    });
+  }
+
+  function send() {
     startTransition(async () => {
       const uploaded: { path: string }[] = [];
       try {

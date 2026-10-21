@@ -8,6 +8,7 @@ export function ModerationTabs({ admin }: { admin: boolean }) {
   const tabs = [
     { href: "/moderation", label: "Review" },
     { href: "/moderation/reports", label: "Reports" },
+    { href: "/moderation/people", label: "People" },
     { href: "/moderation/age", label: "Age checks" },
     ...(admin ? [{ href: "/moderation/admin", label: "Admin" }] : []),
   ];

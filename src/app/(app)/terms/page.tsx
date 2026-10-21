@@ -81,7 +81,10 @@ export default function TermsPage() {
         <h2>8. Ending your account</h2>
         <ul>
           <li>You can delete your account at any time from <Link href="/settings/account">Settings → Account</Link>. Download your data first if you want to keep it.</li>
-          <li>We may suspend or close your account for serious or repeated breaches of these terms, after telling you why, or straight away where we need to protect people.</li>
+          <li>
+            We may suspend or ban your account for serious or repeated breaches of these terms, after telling you why, or straight away where we need to protect people. A ban outlives the
+            account: we keep a scrambled form of your email address and sign-in so a new account can't be made with them (see the <Link href="/privacy">privacy policy</Link>).
+          </li>
           <li>If we ever decide to close Mavuno, we'll give you at least 30 days' notice so you can download your data.</li>
         </ul>
 

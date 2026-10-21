@@ -5,6 +5,8 @@
 create role anon nologin;
 create role authenticated nologin;
 create role service_role nologin bypassrls;
+-- Auth runs its hooks as this role.
+create role supabase_auth_admin nologin;
 
 create schema extensions;
 create extension pgcrypto with schema extensions;
@@ -74,6 +76,15 @@ create function storage.foldername(name text) returns text[] language sql immuta
 $$;
 
 grant all on storage.objects to anon, authenticated, service_role;
+
+-- Vault: the real one is a view over encrypted rows; a table is enough here.
+create schema vault;
+create table vault.decrypted_secrets (
+  id uuid primary key default gen_random_uuid(),
+  name text unique,
+  decrypted_secret text,
+  created_at timestamptz default now()
+);
 
 create publication supabase_realtime;
 

@@ -41,10 +41,14 @@ async function fails(name, sql, params, pattern) {
   }
 }
 
-// Members confirm their age when they sign up; pass age_confirmed: false for someone who hasn't.
+// Members confirm their age when they sign up (pass age_confirmed: false for someone who hasn't) and
+// accept the rules before their first post (pass rules_accepted: false for someone who hasn't).
 async function createUser(email, meta) {
   await superuser();
-  return (await one("insert into auth.users (email, raw_user_meta_data) values ($1, $2) returning id", [email, JSON.stringify({ age_confirmed: true, ...meta })])).id;
+  const { rules_accepted = true, ...userMeta } = meta ?? {};
+  const id = (await one("insert into auth.users (email, raw_user_meta_data) values ($1, $2) returning id", [email, JSON.stringify({ age_confirmed: true, ...userMeta })])).id;
+  if (rules_accepted) await q("update public.profile_settings set rules_accepted_at = now() where id = $1", [id]);
+  return id;
 }
 
 const post = async (body, ...args) => {
@@ -500,6 +504,9 @@ console.log("\nReports and moderation");
 const spam = await createUser("spam@example.com", { username: "spammer" });
 await as(spam);
 const spamPost = await post("Buy followers now!!!");
+// Reports only count from members who have been around a week (see "Weighted reports").
+await superuser();
+await q("update public.profiles set created_at = now() - interval '8 days' where id = any($1)", [[amara, kofi, hana]]);
 for (const reporter of [amara, kofi, hana]) {
   await as(reporter);
   await q("select public.report_content('post', $1, 'spam')", [spamPost]);
@@ -511,6 +518,9 @@ await as(spam);
 check("authors still see their held post", (await one("select status from public.posts where id = $1", [spamPost])).status === "pending");
 const spamNext = await post("More spam");
 check("reported members' new posts wait for review", (await one("select status from public.posts where id = $1", [spamNext])).status === "pending");
+await superuser();
+await q("update public.profiles set created_at = now() where id = any($1)", [[kofi, hana]]);
+await q("update public.profiles set created_at = now() - interval '2 hours' where id = $1", [amara]);
 await as(kofi);
 check("only moderators see the queues", (await q("select * from public.report_queue")).length === 0 && (await q("select id from public.reports")).length === 0);
 await fails("members cannot moderate", "select public.moderate_content('post', $1, false)", [spamPost], /Moderators only/);
@@ -518,7 +528,7 @@ await as(mod);
 rows = await q("select report_count, snapshot, reports from public.report_queue where target_id = $1", [spamPost]);
 check("moderators see grouped reports with a copy, not who reported", rows[0]?.report_count === 3 && rows[0].snapshot.includes("Buy followers") && !JSON.stringify(rows[0].reports).includes(amara), rows);
 await q("select public.moderate_content('post', $1, false, 'Spam', 'honesty')", [spamPost]);
-await q("select public.moderate_suspend($1, 7, 'Spam account', 'honesty')", [spam]);
+await q("select public.moderate_suspend($1, interval '7 days', 'Spam account', 'honesty')", [spam]);
 check("actioned reports leave the queue", (await q("select * from public.report_queue where target_id = $1", [spamPost])).length === 0);
 await as(spam);
 await fails("suspended people cannot post", "select public.create_post('again')", [], /cannot post/);
@@ -866,7 +876,7 @@ console.log("\nScheduled posts");
   await q("delete from public.organisation_members where org_id = $1 and user_id = $2", [org, editor]);
   const suspended = await schedule("Before the suspension", { p_images: JSON.stringify([image(writer, "suspended")]) });
   await as(mod);
-  await q("select public.moderate_suspend($1, 7, 'Testing', 'respect')", [writer]);
+  await q("select public.moderate_suspend($1, interval '7 days', 'Testing', 'respect')", [writer]);
   check("nothing is posted for a suspended member or a former editor", (await publishDue()) === 0);
   row = await outcome(suspended);
   check("suspension is checked when the post goes out", row.post_id === null && /cannot post/.test(row.error) && row.error_code === "42501", row);
@@ -977,9 +987,9 @@ console.log("\nModeration notices");
   const removed = await post("Pay $200 to apply for this job");
   await as(mod);
   await fails("removing something needs the rule it breaks", "select public.moderate_content('post', $1, false, 'Scam')", [removed], /rule/);
-  await fails("suspending needs the rule too", "select public.moderate_suspend($1, 7, 'Scam')", [author], /rule/);
+  await fails("suspending needs the rule too", "select public.moderate_suspend($1, interval '7 days', 'Scam')", [author], /rule/);
   await q("select public.moderate_content('post', $1, false, 'Asks for money to apply', 'honesty')", [removed]);
-  await q("select public.moderate_suspend($1, 1, null, 'honesty')", [author]);
+  await q("select public.moderate_suspend($1, interval '1 day', null, 'honesty')", [author]);
   await as(author);
   rows = await q("select message, rule, moderation_action_id from public.notification_details where recipient_id = $1 and type = 'moderation' order by id", [author]);
   check(
@@ -987,7 +997,11 @@ console.log("\nModeration notices");
     rows.length === 2 && rows[0].message === "Your post was removed under rule 3 of the community rules (Be honest). Reason: Asks for money to apply" && rows[0].rule === "honesty",
     rows,
   );
-  check("suspension notices say for how long and under which rule", rows[1].message === "Your account is suspended for 1 day under rule 3 of the community rules (Be honest).", rows[1]);
+  check(
+    "suspension notices say for how long, until when and under which rule",
+    /^Your account is suspended for 1 day, until \w{3} \d{1,2} \w{3} \d{4}, \d{1,2}:\d{2} [ap]m \(Sydney time\), under rule 3 of the community rules \(Be honest\)\.$/.test(rows[1].message),
+    rows[1],
+  );
   check("each notice points at the decision for an appeal", rows.every((r) => r.moderation_action_id !== null));
   await as(mod);
   row = await one("select rule, reason from public.moderation_actions where id = $1", [rows[0].moderation_action_id]);
@@ -1079,8 +1093,11 @@ console.log("\nAutomatic check");
   check("a week is needed too", await checkQueued("post", await post("Too soon")));
   await superuser();
   await q("update public.profiles set created_at = now() - interval '8 days' where id = $1", [regular]);
+  // A report counts when its reporter has standing: a member for a week with something published.
   const reporter = await createUser("check_reporter@example.com", { username: "check_reporter" });
+  await q("update public.profiles set created_at = now() - interval '8 days' where id = $1", [reporter]);
   await as(reporter);
+  await post("Settling in");
   await q("select public.report_content('profile', $1, 'spam')", [regular]);
   await as(regular);
   check("and nothing reported in the last week", await checkQueued("post", await post("After a report")));
@@ -2144,6 +2161,181 @@ console.log("\nServer errors and switches");
   const tasks = (await one("select public.admin_health() as h")).h.tasks;
   check("health lists failed tasks with their last error", tasks.failed >= 1 && tasks.failures.length >= 1 && typeof tasks.failures[0].error === "string", tasks);
   await superuser();
+}
+
+console.log("\nBans, suspensions and the rules");
+{
+  const banned = await createUser("banned.person+tag@Gmail.com", { username: "banned_person" });
+  const other = await createUser("bystander@example.com", { username: "bystander" });
+  const admin = await createUser("ban_admin@example.com", { username: "ban_admin" });
+  await superuser();
+  await q("update public.profile_settings set site_role = 'admin' where id = $1", [admin]);
+  await q("insert into auth.identities (id, user_id, provider, provider_id, identity_data) values (gen_random_uuid(), $1, 'google', 'google-sub-123', '{\"sub\": \"google-sub-123\"}')", [banned]);
+  await as(banned);
+  const kept = await post("A post that will be hidden");
+  const schedule = await one("select public.schedule_post(now() + interval '1 day', 'Later') as id");
+
+  await as(mod);
+  await fails("bans need the pepper in Vault", "select public.moderate_ban($1, 'Scams', 'honesty')", [banned], /identity_pepper/);
+  await superuser();
+  await q("insert into vault.decrypted_secrets (name, decrypted_secret) values ('identity_pepper', 'test-pepper')");
+  await as(other);
+  await fails("members cannot ban", "select public.moderate_ban($1, 'Scams', 'honesty')", [banned], /Moderators only/);
+  await as(mod);
+  await fails("banning names the rule", "select public.moderate_ban($1, 'Scams')", [banned], /rule/);
+  await q("select public.moderate_ban($1, 'Took money for fake visas', 'honesty')", [banned]);
+  await fails("a banned account cannot be suspended on top", "select public.moderate_suspend($1, interval '1 day', null, 'respect')", [banned], /already banned/);
+  await superuser();
+  row = await one("select banned_at, suspended_until = 'infinity' as forever from public.profile_settings where id = $1", [banned]);
+  check("a ban is recorded and never ends", row.banned_at !== null && row.forever === true, row);
+  check("a ban hides what the person published", (await one("select status, moderation_note from public.posts where id = $1", [kept])).moderation_note === "Account banned");
+  check("a ban cancels scheduled posts", (await q("select id from public.scheduled_posts where id = $1", [schedule.id])).length === 0);
+  rows = await q("select rule, until from public.banned_identities");
+  check("the email address and the Google sign-in are remembered as hashes, for good", rows.length === 2 && rows.every((r) => r.rule === "honesty" && r.until === null), rows);
+  check("hashes are not the identities", (await one("select count(*)::int as n from public.banned_identities where encode(hash, 'escape') like '%gmail%'")).n === 0);
+  await as(banned);
+  await fails("banned people cannot post", "select public.create_post('still here')", [], /cannot post/);
+  rows = await q("select message from public.notifications where recipient_id = $1 and type = 'moderation' order by id desc limit 1", [banned]);
+  check("the notice says the account is banned and why", /^Your account is banned from Mavuno under rule 3 .* Reason: Took money for fake visas/.test(rows[0]?.message), rows);
+  await as(other);
+  check("nobody else reads the hashes", (await q("select * from public.banned_identities").catch(() => null)) === null);
+
+  const hook = (email, identities = []) => one("select public.before_user_created($1::jsonb) as reply", [JSON.stringify({ metadata: { name: "before-user-created" }, user: { email, identities } })]);
+  await superuser();
+  check("sign-up with the banned address is refused, however it is spelled", (await hook("Banned.Person@googlemail.com")).reply.error?.http_code === 403);
+  check("sign-up with the banned Google account is refused", (await hook("fresh@example.com", [{ provider: "google", identity_data: { sub: "google-sub-123" } }])).reply.error?.http_code === 403);
+  check("other sign-ups go ahead", JSON.stringify((await hook("fresh@example.com")).reply) === "{}");
+  check("sign-ups without an email go ahead", JSON.stringify((await hook(null, [])).reply) === "{}");
+  await as(other);
+  await fails("members cannot call the sign-up hook", "select public.before_user_created('{}'::jsonb)", [], /permission denied/);
+
+  await as(mod);
+  await fails("only admins lift a ban", "select public.moderate_lift_suspension($1)", [banned], /admins/);
+  await as(admin);
+  await q("select public.moderate_lift_suspension($1, 'Appeal upheld')", [banned]);
+  await superuser();
+  row = await one("select banned_at, suspended_until from public.profile_settings where id = $1", [banned]);
+  check("lifting a ban clears it", row.banned_at === null && row.suspended_until === null, row);
+  check("and forgets the hashes", (await one("select count(*)::int as n from public.banned_identities")).n === 0);
+  check("and brings back what was hidden", (await one("select status from public.posts where id = $1", [kept])).status === "published");
+  rows = await q("select action, profile_id, (select username from public.profiles where id = moderator_id) as moderator from public.moderation_actions where profile_id = $1 order by id", [banned]);
+  check("the record names the person and the moderators", rows.map((r) => r.action).join(",") === "ban,unban" && rows[1].moderator === "ban_admin", rows);
+
+  // Deleting while suspended keeps the suspension's hashes until it would have ended.
+  await as(mod);
+  await q("select public.moderate_suspend($1, interval '3 days', 'Cooling off', 'respect')", [banned]);
+  await q("select public.moderate_suspend($1, interval '1 hour', null, 'respect')", [banned]);
+  await superuser();
+  row = await one("select suspended_until from public.profile_settings where id = $1", [banned]);
+  check("a second suspension extends the first", Math.round((new Date(row.suspended_until) - Date.now()) / 3_600_000) === 73, row);
+  rows = await q("select message from public.notifications where recipient_id = $1 and type = 'moderation' order by id desc limit 2", [banned]);
+  check("the notices say for how long and until when", /^Your account is suspended for 3 days, until .* \(Sydney time\), under rule 1/.test(rows[1].message) && /^Your suspension was extended by 1 hour, until /.test(rows[0].message), rows);
+  await as(banned);
+  await q("select public.delete_my_account()");
+  await superuser();
+  rows = await q("select rule, until from public.banned_identities");
+  check("deleting a suspended account keeps its hashes until the suspension ends", rows.length === 2 && rows.every((r) => r.rule === "respect" && Math.round((new Date(r.until) - Date.now()) / 3_600_000) === 73), rows);
+  check("those sign-ups are refused meanwhile", (await hook("banned.person@gmail.com")).reply.error !== undefined);
+  await q("update public.banned_identities set until = now() - interval '1 minute'");
+  check("and allowed once it has", JSON.stringify((await hook("banned.person@gmail.com")).reply) === "{}");
+  check("ended suspensions are pruned", (await one("select public.prune_banned_identities() as n")).n === 2);
+
+  // Lifting a suspension, and restoring after an appeal.
+  const appellant = await createUser("appellant@example.com", { username: "appellant" });
+  await as(appellant);
+  const removed = await post("Removed by mistake");
+  await as(mod);
+  await q("select public.moderate_content('post', $1, false, 'Looked like spam', 'honesty')", [removed]);
+  await q("select public.moderate_suspend($1, interval '7 days', null, 'honesty')", [appellant]);
+  rows = await q("select id, action, subject, moderator from public.moderation_log where profile_id = $1 order by id", [appellant]);
+  check("moderators look up decisions by number, with who decided about whom", rows.length === 2 && rows[0].subject.username === "appellant" && rows[0].moderator.username === "jo_moderates", rows);
+  await fails("there is nothing to restore in a dismissal", "select public.moderate_restore(-1)", [], /no decision/);
+  await q("select public.moderate_restore($1, 'Appeal upheld')", [rows[0].id]);
+  await q("select public.moderate_restore($1)", [rows[1].id]);
+  await superuser();
+  check("restoring republishes the post", (await one("select status from public.posts where id = $1", [removed])).status === "published");
+  check("and lifts the suspension", (await one("select suspended_until from public.profile_settings where id = $1", [appellant])).suspended_until === null);
+  await as(appellant);
+  rows = await q("select message from public.notifications where recipient_id = $1 and type = 'moderation' order by id desc limit 2", [appellant]);
+  check("the person is told", rows[0].message.startsWith("Your suspension was lifted") && rows[1].message === "After another look, your post is back. Appeal upheld", rows);
+  await as(mod);
+  await fails("a lifted suspension cannot be lifted again", "select public.moderate_lift_suspension($1)", [appellant], /not suspended/);
+  await as(other);
+  check("members do not see the moderation log", (await q("select * from public.moderation_log")).length === 0);
+
+  // The rules before the first post.
+  const newcomer = await createUser("rules_newcomer@example.com", { username: "rules_newcomer", rules_accepted: false });
+  await as(newcomer);
+  await fails("posting needs the rules accepted", "select public.create_post('hello')", [], /community rules/);
+  await fails("so does scheduling", "select public.schedule_post(now() + interval '1 hour', 'hello')", [], /community rules/);
+  await fails(
+    "and listing an event",
+    "insert into public.events (host_id, created_by, title, starts_at, city_id) values ($1, $1, 'Meetup', now() + interval '7 days', $2)",
+    [newcomer, brisbane],
+    /community rules/,
+  );
+  await q("select public.accept_rules()");
+  row = await one("select rules_accepted_at from public.profile_settings where id = $1", [newcomer]);
+  check("accepting is recorded once", row.rules_accepted_at !== null);
+  await q("select public.accept_rules()");
+  check("and never moved", (await one("select rules_accepted_at from public.profile_settings where id = $1", [newcomer])).rules_accepted_at.getTime() === row.rules_accepted_at.getTime());
+  await post("hello");
+  check("then posting works", (await one("select count(*)::int as n from public.posts where created_by = $1", [newcomer])).n === 1);
+  check("the acceptance is in the export", "rules_accepted_at" in (await one("select public.export_my_data() as data")).data.settings);
+  await anon();
+  await fails("guests cannot accept the rules", "select public.accept_rules()", [], /Sign in|permission denied/);
+}
+
+console.log("\nWeighted reports");
+{
+  const target = await createUser("weighed@example.com", { username: "weighed" });
+  await as(target);
+  const claim = await post("Vote for my cousin in the association election");
+  const throwaways = [];
+  for (const n of [1, 2, 3]) {
+    const id = await createUser(`throwaway${n}@example.com`, { username: `throwaway${n}` });
+    throwaways.push(id);
+    await as(id);
+    await q("select public.report_content('post', $1, 'spam')", [claim]);
+  }
+  await superuser();
+  check("three brand-new accounts cannot hide a post", (await one("select status from public.posts where id = $1", [claim])).status === "published");
+  check("their reports are marked as without standing", (await one("select count(*)::int as n from public.reports where target_id = $1 and not reporter_standing", [claim])).n === 3);
+  await as(target);
+  check("and do not put the person under review", (await one("select status from public.posts where id = $1", [await post("Another day")])).status === "published");
+  await as(mod);
+  row = await one("select report_count, standing_count from public.report_queue where target_id = $1", [claim]);
+  check("moderators see how many reports carry weight", row.report_count === 3 && row.standing_count === 0, row);
+
+  const regulars = [];
+  for (const n of [1, 2, 3]) {
+    const id = await createUser(`regular${n}@example.com`, { username: `regular${n}` });
+    regulars.push(id);
+    await superuser();
+    await q("update public.profiles set created_at = now() - interval '10 days' where id = $1", [id]);
+    await as(id);
+    await post(`Regular ${n} says hi`);
+  }
+  const second = (await one("select id from public.posts where created_by = $1 and body = 'Another day'", [target])).id;
+  for (const id of regulars) {
+    await as(id);
+    await q("select public.report_content('post', $1, 'harassment')", [second]);
+  }
+  await superuser();
+  check("three members with standing hide a post", (await one("select status from public.posts where id = $1", [second])).status === "pending");
+  await as(target);
+  check("and put the person under review for a week", (await one("select status from public.posts where id = $1", [await post("Now reviewed")])).status === "pending");
+
+  // A dismissed report costs the reporter their standing for a month.
+  await as(mod);
+  await q("select public.moderate_dismiss_reports('post', $1)", [second]);
+  await superuser();
+  check("a dismissed report no longer gives standing", (await one("select public.reporter_has_standing($1) as standing", [regulars[0]])).standing === false);
+  await superuser();
+  await q("update public.profile_settings set suspended_until = now() + interval '1 day' where id = $1", [regulars[1]]);
+  check("nor does a suspended member have it", (await one("select public.reporter_has_standing($1) as standing", [regulars[1]])).standing === false);
+  check("moderators always do", (await one("select public.reporter_has_standing($1) as standing", [mod])).standing === true);
+  check("brand-new members do not", (await one("select public.reporter_has_standing($1) as standing", [throwaways[0]])).standing === false);
 }
 
 console.log("\nDemo seed");

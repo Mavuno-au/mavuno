@@ -18,16 +18,16 @@ Mavuno ("harvest" in Swahili) is a social network for that community. Members po
 - **Messages:** one to one and groups, with requests, reactions, read receipts and photos.
 - **Notifications:** in-app, grouped.
 - **Languages:** posts carry their language; members can translate posts.
-- **Safety:** mute, block, reports, review after a report (and of new members' content when an admin turns it on), moderation tools.
+- **Safety:** mute, block, reports, review after a report (and of new members' content when an admin turns it on), the community rules accepted before the first post, moderation tools: removals that name the rule, suspensions from an hour to 30 days, bans that outlive the account, appeals, and a record of every decision.
 - **Data:** JSON export and account deletion.
 
 ## Rules every feature keeps
 
-- **Posts go up straight away; moderation starts with reports.** Content from someone with a recent report waits for a moderator, and admins can hold new members' content during a wave of spam. Authors always see their own pending content.
+- **Posts go up straight away; moderation starts with reports.** Members read and accept the community rules once before their first post. Reports carry weight when they come from members who have been around a while and are in good standing: three of those hide a post, and one puts its author's new content in front of a moderator for a week. Admins can hold new members' content during a wave of spam. Authors always see their own pending content.
 - **Posts are immutable.** Create and delete with a 30-second undo; never edit. A deleted post leaves an authorless tombstone so replies survive.
 - **Mutes and blocks apply everywhere**: feeds, threads, search, suggestions, notifications and messages.
 - **Location is a city, never a point.** Nothing more precise than a city is stored about anyone, and photos are re-encoded on the server, without location data, before they are stored.
-- **Store as little as possible.** Settings are private to their owner. Everything about a person is in their export and is erased with their account.
+- **Store as little as possible.** Settings are private to their owner. Everything about a person is in their export and is erased with their account, with one exception: when an account is banned, or deleted while suspended, a peppered hash of its email address and sign-in stays until the ban or suspension would have ended, so the same person can't simply sign up again. The hash is all that stays, and nothing can be read back from it.
 - **The database enforces the rules.** Row level security, explicit grants and database functions decide what each person can read and do, so every client gets the same rules.
 
 ## Vocabulary
