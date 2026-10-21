@@ -4,7 +4,7 @@ import { z } from "zod";
 import { parsePeople } from "@/lib/domain";
 import { createClient } from "@/lib/supabase/server";
 import type { Viewer } from "@/lib/viewer";
-import { HIDDEN_COOKIE, isHidden, parseRound, ROUND_COOKIE, SUGGESTIONS_PER_PAGE, suggestionDay, suggestionPages } from "@/lib/who-to-follow";
+import { HIDDEN_COOKIE, isHidden, parseRound, ROUND_COOKIE, spareSuggestions, SUGGESTIONS_PER_PAGE, suggestionDay, suggestionPages } from "@/lib/who-to-follow";
 
 const topicRows = z.array(z.object({ topic: z.string(), post_count: z.number(), people_count: z.number() }));
 
@@ -41,7 +41,8 @@ export async function loadSuggestions(limit = 4) {
 const poolSources = z.array(z.object({ source: z.enum(["network", "popular"]) }));
 
 // One page of the day's Who to follow. `pages` is how many there are, so the
-// refresh button only shows when there is somewhere to go.
+// refresh button only shows when there is somewhere to go. `spares` step in
+// when someone on the page is dismissed, without another request.
 export async function loadWhoToFollow(viewer: Viewer, round: number, limit = SUGGESTIONS_PER_PAGE) {
   const supabase = await createClient();
   const { data } = await supabase.rpc("suggestion_pool", { p_network_limit: limit * 10 });
@@ -54,7 +55,7 @@ export async function loadWhoToFollow(viewer: Viewer, round: number, limit = SUG
     limit,
     `${viewer.id}:${day}`,
   );
-  return { people: pages[round % pages.length] ?? [], pages: pages.length, round, day };
+  return { people: pages[round % pages.length] ?? [], spares: spareSuggestions(pages, round, limit), pages: pages.length, round, day };
 }
 
 export type WhoToFollowBlock = { kind: "none" } | { kind: "hidden" } | { kind: "empty" } | { kind: "page"; page: Awaited<ReturnType<typeof loadWhoToFollow>> };

@@ -15,7 +15,7 @@ export function ConnectionList({ profileId, direction, initial }: { profileId: s
   function showMore() {
     if (!next) return;
     startTransition(async () => {
-      const result = await moreConnections({ profileId, direction, before: next }).catch(() => null);
+      const result = await moreConnections({ profileId, direction, cursor: next }).catch(() => null);
       if (!result?.ok) {
         toast.error(result?.error ?? "Couldn't load more. Try again.");
         return;
