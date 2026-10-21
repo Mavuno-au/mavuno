@@ -16,12 +16,15 @@ function authorised(header: string | null, secret: string) {
   return given.length === expected.length && timingSafeEqual(given, expected);
 }
 
-// Run by Vercel's cron (vercel.json): fetches link cards and runs automatic
-// checks the request that created them didn't finish, and retries failures.
+// Run by Vercel's daily cron (CRON_SECRET) and by the database whenever tasks
+// are due (TASKS_SECRET, see wake_background_tasks): fetches link cards and
+// runs automatic checks the request that created them didn't finish, and
+// retries failures.
 export async function GET(request: NextRequest) {
-  const secret = serverEnv.CRON_SECRET;
-  if (!secret || !createServiceClient()) return NextResponse.json({ error: "Background tasks are not configured" }, { status: 503 });
-  if (!authorised(request.headers.get("authorization"), secret)) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
+  const secrets = [serverEnv.CRON_SECRET, serverEnv.TASKS_SECRET].filter((secret) => secret !== undefined);
+  if (secrets.length === 0 || !createServiceClient()) return NextResponse.json({ error: "Background tasks are not configured" }, { status: 503 });
+  const header = request.headers.get("authorization");
+  if (!secrets.some((secret) => authorised(header, secret))) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
 
   const until = Date.now() + BUDGET_MS;
   let ran = 0;

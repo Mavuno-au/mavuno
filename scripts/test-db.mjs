@@ -1723,6 +1723,15 @@ console.log("\nFeed cursors");
   check("guests can search posts", (await q("select post->>'id' as id from public.search_posts('ugali')")).length === 4);
 }
 
+console.log("\nWaking background tasks");
+{
+  await as(amara);
+  await fails("members can't wake the task runner", "select public.wake_background_tasks()", [], /permission denied/);
+  await superuser();
+  await q("update public.background_tasks set run_after = now() + interval '1 day' where failed_at is null");
+  check("with nothing due it makes no request", (await one("select public.wake_background_tasks() as woke")).woke === false);
+}
+
 console.log("\nDemo seed");
 const seeded = new PGlite({ extensions: { pg_trgm, pgcrypto } });
 await seeded.exec(stubs);
