@@ -48,13 +48,14 @@ export function WhoToFollow({ initial, className }: { initial: WhoToFollowPage; 
 
   function dismiss(person: PersonSummary) {
     const [spare, ...rest] = spares;
-    const index = people.indexOf(person);
+    const before = { people, spares };
     setPeople((current) => current.flatMap((shown) => (shown.id === person.id ? (spare ? [spare] : []) : [shown])));
     setSpares(rest);
     dismissSuggestion(person.id, true).then((result) => {
       if (!result.ok) {
         toast.error(result.error);
-        setPeople((current) => current.toSpliced(Math.max(0, index), 0, person));
+        setPeople(before.people);
+        setSpares(before.spares);
         return;
       }
       toast("We won't suggest them again", {
