@@ -3,11 +3,13 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { publicEnv } from "@/lib/env";
+import { authCookieOptions } from "@/lib/supabase/cookie-options";
 import { serverEnv } from "@/lib/server-env";
 
 export async function createClient() {
   const cookieStore = await cookies();
   return createServerClient(publicEnv.supabaseUrl, publicEnv.supabaseKey, {
+    cookieOptions: authCookieOptions(publicEnv.siteUrl),
     cookies: {
       getAll: () => cookieStore.getAll(),
       setAll(cookiesToSet) {

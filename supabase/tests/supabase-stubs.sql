@@ -77,6 +77,28 @@ grant all on storage.objects to anon, authenticated, service_role;
 
 create publication supabase_realtime;
 
+-- Realtime authorisation: policies on realtime.messages decide who joins and
+-- sends on private channels, with the channel name in realtime.topic().
+create schema realtime;
+grant usage on schema realtime to anon, authenticated, service_role;
+
+create table realtime.messages (
+  id bigserial primary key,
+  topic text not null,
+  extension text not null,
+  event text,
+  payload jsonb,
+  private boolean default true
+);
+
+alter table realtime.messages enable row level security;
+grant select, insert on realtime.messages to anon, authenticated;
+grant usage on sequence realtime.messages_id_seq to anon, authenticated;
+
+create function realtime.topic() returns text language sql stable as $$
+  select nullif(current_setting('realtime.topic', true), '')
+$$;
+
 alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
 alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
 alter default privileges in schema public grant all on functions to anon, authenticated, service_role;

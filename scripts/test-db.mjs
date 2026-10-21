@@ -560,7 +560,7 @@ await q("select public.delete_post($1)", [imgPost]);
 await superuser();
 await q("update public.deleted_post_contents set deleted_at = now() - interval '1 minute'");
 await q("select public.purge_deleted_posts()");
-check("erased images are queued for storage removal", (await one("select count(*)::int as n from public.storage_cleanup")).n === 1);
+check("erased images are queued for storage removal", (await one("select count(*)::int as n from public.storage_cleanup where bucket = 'media'")).n === 1);
 
 console.log("\nExport and account deletion");
 await as(kofi);
@@ -1357,6 +1357,154 @@ console.log("\nUsernames never carry email addresses");
   await fails("members can't change their username to include an email", "update public.profiles set username = 'kwame_gmail_com' where id = $1", [fine], /can't include your email address/);
   await q("update public.profiles set username = 'kwame_b' where id = $1", [fine]);
   check("other username changes still work", (await one("select username from public.profiles where id = $1", [fine])).username === "kwame_b");
+}
+
+console.log("\nRealtime, reactions, message photos and image hosts");
+{
+  const zuri = await createUser("zuri@example.com", { username: "zuri", display_name: "Zuri Bello" });
+  const tendai = await createUser("tendai@example.com", { username: "tendai", display_name: "Tendai Moyo" });
+  const ayo = await createUser("ayo@example.com", { username: "ayo", display_name: "Ayo Adeyemi" });
+  const stranger = await createUser("stranger@example.com", { username: "stranger", display_name: "Stranger" });
+  await as(tendai);
+  await q("insert into public.follows (follower_id, followee_id) values ($1, $2)", [tendai, zuri]);
+  await as(zuri);
+  const chat = (await one("select public.create_group_conversation('Privacy', $1::uuid[]) as id", [`{${tendai},${ayo}}`])).id;
+
+  // Realtime inserts a probe row, reads it back as the member and rolls back.
+  const probe = async (user, topic, extension = "broadcast") => {
+    await superuser();
+    await q("insert into realtime.messages (topic, extension) values ($1, $2)", [topic, extension]);
+    if (user) await as(user);
+    else await anon();
+    await q("select set_config('realtime.topic', $1, false)", [topic]);
+    const joins = (await one("select count(*)::int as n from realtime.messages where topic = $1 and extension = $2", [topic, extension])).n > 0;
+    let sends = true;
+    try {
+      await q("insert into realtime.messages (topic, extension) values ($1, $2)", [topic, extension]);
+    } catch {
+      sends = false;
+    }
+    await superuser();
+    await q("select set_config('realtime.topic', '', false)");
+    return { joins, sends };
+  };
+  const topic = `conversation:${chat}`;
+  let access = await probe(tendai, topic);
+  check("participants join and send on their conversation's channel", access.joins && access.sends, access);
+  access = await probe(ayo, topic);
+  check("people still invited hear the channel but can't send on it", access.joins && !access.sends, access);
+  access = await probe(stranger, topic);
+  check("outsiders can't join or send on a conversation's channel", !access.joins && !access.sends, access);
+  access = await probe(null, topic);
+  check("guests can't join a conversation's channel", !access.joins && !access.sends, access);
+  access = await probe(tendai, topic, "presence");
+  check("conversation channels carry broadcasts only", !access.joins && !access.sends, access);
+  access = await probe(tendai, "conversation:not-a-uuid");
+  check("a malformed channel name is refused, not an error", !access.joins && !access.sends, access);
+  access = await probe(tendai, `inbox:${tendai}`);
+  check("members join their own inbox channel, read only", access.joins && !access.sends, access);
+  access = await probe(stranger, `counts:${tendai}`);
+  check("nobody joins someone else's counts channel", !access.joins && !access.sends, access);
+  access = await probe(tendai, "lobby");
+  check("any other channel is closed", !access.joins && !access.sends, access);
+  check(
+    "reactions are not streamed over Realtime",
+    (await q("select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'message_reactions'")).length === 0,
+  );
+
+  await as(zuri);
+  const hello = (await one("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Hello all') returning id", [chat, zuri])).id;
+  await as(tendai);
+  const react = (emoji) => q("insert into public.message_reactions (message_id, user_id, emoji) values ($1, $2, $3)", [hello, tendai, emoji]);
+  for (const emoji of ["👍", "👍🏾", "❤️", "❤", "🙏🏿"]) await react(emoji);
+  check("reactions take listed emoji, with skin tones on gestures", (await one("select count(*)::int as n from public.message_reactions where message_id = $1", [hello])).n === 5);
+  for (const emoji of ["idiot", "👍👍", "😂 lol", "🏾", "🔥🏾"]) await fails(`a reaction can't be ${JSON.stringify(emoji)}`, "insert into public.message_reactions (message_id, user_id, emoji) values ($1, $2, $3)", [hello, tendai, emoji], /isn't available/);
+  await superuser();
+  await q("update public.reaction_rate set reactions = 60, window_start = now() where user_id = $1", [tendai]);
+  await as(tendai);
+  await fails("reactions are limited to 60 a minute", "insert into public.message_reactions (message_id, user_id, emoji) values ($1, $2, '🔥')", [hello, tendai], /reacting very quickly/);
+  await q("delete from public.message_reactions where message_id = $1 and user_id = $2 and emoji = '👍'", [hello, tendai]);
+  await fails("removing a reaction doesn't give one back", "insert into public.message_reactions (message_id, user_id, emoji) values ($1, $2, '👍')", [hello, tendai], /reacting very quickly/);
+  await superuser();
+  await q("update public.reaction_rate set window_start = now() - interval '2 minutes' where user_id = $1", [tendai]);
+  await as(tendai);
+  await react("🔥");
+  await fails("members can't read or reset the reaction limit", "select * from public.reaction_rate", [], /permission denied/);
+  await superuser();
+  check("the limit resets after a minute", (await one("select reactions from public.reaction_rate where user_id = $1", [tendai])).reactions === 1);
+
+  const queued = async (path) => (await q("select 1 from public.storage_cleanup where bucket = 'message-media' and path = $1", [path])).length === 1;
+  const photo = (user, name) => one("insert into public.messages (conversation_id, sender_id, image_paths) values ($1, $2, $3) returning id", [chat, user, [`${chat}/${name}.webp`]]);
+  await as(zuri);
+  const removed = (await photo(zuri, "removed")).id;
+  await superuser();
+  await q("update public.messages set removed_at = now(), body = '', image_paths = '{}' where id = $1", [removed]);
+  check("a removed message's photo is queued for erasure", await queued(`${chat}/removed.webp`));
+  await as(tendai);
+  await photo(tendai, "sender-left");
+  await superuser();
+  await q("delete from auth.users where id = $1", [tendai]);
+  check("a deleted account's message photos are queued for erasure", await queued(`${chat}/sender-left.webp`));
+  await as(zuri);
+  await photo(zuri, "group-gone");
+  await superuser();
+  check("photos still in use are not queued", !(await queued(`${chat}/group-gone.webp`)));
+  await q("delete from public.conversations where id = $1", [chat]);
+  check("a deleted conversation's photos are queued for erasure", await queued(`${chat}/group-gone.webp`));
+
+  const OWN = "https://hposvtbqckeyyxtjzyas.supabase.co/storage/v1/object/public/media/";
+  const setAvatar = (url) => q("update public.profiles set avatar_url = $1 where id = $2", [url, zuri]);
+  await as(zuri);
+  await setAvatar(`${OWN}${zuri}/avatars/new.webp`);
+  check("avatars can be this project's Storage files", (await one("select avatar_url from public.profiles where id = $1", [zuri])).avatar_url.endsWith("/new.webp"));
+  await setAvatar("https://lh3.googleusercontent.com/a/ACg8ocK=s96-c");
+  check("or the Google profile photo", (await one("select avatar_url from public.profiles where id = $1", [zuri])).avatar_url.startsWith("https://lh3."));
+  for (const [what, url] of [
+    ["any other host", "https://tracker.example/pixel.png?u=zuri"],
+    ["another Supabase project", `https://evil.supabase.co/storage/v1/object/public/media/${zuri}/avatars/a.webp`],
+    ["someone else's folder", `${OWN}${ayo}/avatars/a.webp`],
+    ["another folder", `${OWN}${zuri}/posts/a.webp`],
+    ["a nested path", `${OWN}${zuri}/avatars/../posts/a.webp`],
+    ["a query string", `${OWN}${zuri}/avatars/a.webp?u=1`],
+    ["plain http", `http://lh3.googleusercontent.com/a/x`],
+  ]) await fails(`an avatar can't point to ${what}`, "update public.profiles set avatar_url = $1 where id = $2", [url, zuri], /Upload the profile photo again/);
+  await fails("banners can't use the Google photo", "update public.profiles set banner_url = $1 where id = $2", ["https://lh3.googleusercontent.com/a/x", zuri], /Upload the banner again/);
+  await q("update public.profiles set banner_url = $1 where id = $2", [`${OWN}${zuri}/banners/b.webp`, zuri]);
+  check("banners can be this project's Storage files", (await one("select banner_url from public.profiles where id = $1", [zuri])).banner_url.endsWith("/b.webp"));
+  await superuser();
+  await db.exec("set session_replication_role = replica");
+  await q("update public.profiles set avatar_url = 'https://old.example/a.png' where id = $1", [zuri]);
+  await db.exec("set session_replication_role = origin");
+  await as(zuri);
+  await q("update public.profiles set bio = 'Still here' where id = $1", [zuri]);
+  check("a profile with an older outside image can still be edited", (await one("select bio from public.profiles where id = $1", [zuri])).bio === "Still here");
+  const tracked = await createUser("tracked@example.com", { username: "tracked", display_name: "Tracked", avatar_url: "https://tracker.example/me.png" });
+  check("a sign-up's photo from another host is dropped", (await one("select avatar_url from public.profiles where id = $1", [tracked])).avatar_url === null);
+  const google = await createUser("google@example.com", { username: "googler", display_name: "Googler", avatar_url: "https://lh3.googleusercontent.com/a/abc=s96-c" });
+  check("a sign-up's Google photo is kept", (await one("select avatar_url from public.profiles where id = $1", [google])).avatar_url !== null);
+  await as(zuri);
+  await fails("members can't read the trusted Storage hosts", "select * from public.storage_origins", [], /permission denied/);
+
+  const brisbaneCity = await city("brisbane");
+  const event = (cover) =>
+    one("insert into public.events (host_id, created_by, title, starts_at, city_id, venue_name, cover_url) values ($1, $1, 'Cover test', now() + interval '7 days', $2, 'Hall', $3) returning id", [zuri, brisbaneCity, cover]);
+  await as(zuri);
+  const covered = (await event(`${OWN}${zuri}/events/c.webp`)).id;
+  check("event covers can be the host's Storage files", Boolean(covered));
+  await fails("event covers can't point to any other host", "insert into public.events (host_id, created_by, title, starts_at, city_id, venue_name, cover_url) values ($1, $1, 'Cover test', now() + interval '7 days', $2, 'Hall', $3)", [zuri, brisbaneCity, "https://tracker.example/c.png"], /Upload the cover image again/);
+  await fails("or be changed to one", "update public.events set cover_url = $1 where id = $2", ["https://tracker.example/c.png", covered], /Upload the cover image again/);
+
+  await superuser();
+  await db.exec(`
+    create schema cron;
+    create table cron.job_run_details (runid bigserial primary key, jobid bigint, status text, start_time timestamptz);
+    insert into cron.job_run_details (jobid, status, start_time) values (1, 'succeeded', now() - interval '8 days'), (1, 'succeeded', now() - interval '6 days');
+  `);
+  check("pg_cron history older than 7 days is pruned", (await one("select public.prune_cron_history() as n")).n === 1 && (await one("select count(*)::int as n from cron.job_run_details")).n === 1);
+  await db.exec("drop schema cron cascade");
+  check("pruning does nothing without pg_cron", (await one("select public.prune_cron_history() as n")).n === 0);
+  await as(zuri);
+  await fails("members can't prune pg_cron history", "select public.prune_cron_history()", [], /permission denied/);
 }
 
 console.log("\nDemo seed");

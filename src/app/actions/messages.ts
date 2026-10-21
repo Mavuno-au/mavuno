@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { loadMembers, loadMessage, loadMessages, loadMessagesAfter, type Member, type Message, type MessagePage } from "@/lib/data/messages";
+import { loadMembers, loadMessage, loadMessages, loadMessagesAfter, loadReactions, type Member, type Message, type MessagePage, type Reaction } from "@/lib/data/messages";
 import { parsePeople, type PersonSummary } from "@/lib/domain";
 import { LIMITS } from "@/lib/catalogue";
 import { done, fail, failFrom, ok, type Result } from "@/lib/result";
@@ -150,6 +150,10 @@ export async function loadNewerMessages(conversationId: string, after: string | 
 
 export async function loadOlderMessages(conversationId: string, before: string): Promise<MessagePage> {
   return loadMessages(id.parse(conversationId), z.string().max(64).parse(before));
+}
+
+export async function fetchReactions(conversationId: string, messageIds: string[]): Promise<Record<string, Reaction[]>> {
+  return loadReactions(id.parse(conversationId), z.array(id).min(1).max(100).parse(messageIds));
 }
 
 export async function setReaction(messageId: string, emoji: string, on: boolean): Promise<Result> {

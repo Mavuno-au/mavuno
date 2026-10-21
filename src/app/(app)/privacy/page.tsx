@@ -146,6 +146,8 @@ export default function PrivacyPage() {
           <li>Everything is encrypted in transit and stored encrypted. Passwords are hashed, never stored as written.</li>
           <li>Database rules decide who can read each row, so private messages and settings can't be read by other members even through our API.</li>
           <li>Every photo is re-encoded on our servers before it's stored, which removes the location and camera details phones attach.</li>
+          <li>Profile photos, banners and event covers can only be images stored on Mavuno (or the photo Google shared when you signed up), so looking at a profile or event never tells another website who you are.</li>
+          <li>Typing and "seen" signals in a conversation reach only the people in it.</li>
           <li>Only a small number of moderators and administrators have extra access, and their moderation actions are recorded.</li>
         </ul>
         <p>If a data breach is likely to cause serious harm, we'll tell the people affected and the Office of the Australian Information Commissioner (OAIC) as quickly as we can.</p>
@@ -157,6 +159,9 @@ export default function PrivacyPage() {
           <li>
             When you delete your account, we immediately erase your profile, posts, likes, the messages you sent, your photos and your scheduled posts. Copies in our provider's backups are overwritten
             when those backups expire.
+          </li>
+          <li>
+            Photos from deleted posts, from messages that are removed or whose conversation is deleted, and from deleted accounts are removed from storage within a day.
           </li>
           <li>Translations we've saved are deleted after 7 days.</li>
           <li>We keep a record of moderation decisions (what was decided and why) so decisions stay consistent and can be reviewed.</li>
