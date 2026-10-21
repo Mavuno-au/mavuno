@@ -360,6 +360,7 @@ export function Composer({
                   <X className="size-4" />
                 </button>
                 <input
+                  dir="auto"
                   aria-label="Image description"
                   placeholder="Describe the image for people who can't see it"
                   maxLength={LIMITS.imageAlt}
@@ -522,6 +523,7 @@ function PollEditor({ poll, onChange }: { poll: PollDraft; onChange: (poll: Poll
       {poll.options.map((option, index) => (
         <div key={index} className="flex items-center gap-2">
           <input
+            dir="auto"
             value={option}
             maxLength={LIMITS.pollOption}
             placeholder={`Option ${index + 1}${index > 1 ? " (optional)" : ""}`}

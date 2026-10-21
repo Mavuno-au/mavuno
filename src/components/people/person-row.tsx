@@ -27,7 +27,7 @@ export function PersonRow({ person, detail, compact = false, card = false }: { p
           "block min-w-0",
         )}
         <p className="truncate font-mono text-xs text-ink-muted">@{person.username}</p>
-        {line ? <p className="truncate text-sm text-ink-muted">{line}</p> : null}
+        {line ? <p dir="auto" className="truncate text-sm text-ink-muted">{line}</p> : null}
       </div>
       <FollowButton profileId={person.id} following={person.following} followsYou={person.followsYou} />
     </div>

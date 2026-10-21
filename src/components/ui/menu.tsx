@@ -4,6 +4,7 @@ import { MoreHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import { menuKeyAction } from "@/lib/menu";
 
 export type MenuItem =
   | { kind: "action"; label: string; icon?: ReactNode; onSelect: () => void; danger?: boolean }
@@ -62,27 +63,26 @@ export function Menu({
 
   function onMenuKeyDown(event: KeyboardEvent) {
     const options = menuItems();
-    const index = options.findIndex((option) => option === document.activeElement);
-    const move = (to: number) => {
-      event.preventDefault();
-      options[(to + options.length) % options.length]?.focus();
-    };
-    switch (event.key) {
-      case "ArrowDown":
-        return move(index + 1);
-      case "ArrowUp":
-        return move(index - 1);
-      case "Home":
-        return move(0);
-      case "End":
-        return move(options.length - 1);
-      case "Escape":
-        // Only the menu closes, not a dialog it sits in.
+    const action = menuKeyAction(
+      event.key,
+      options.findIndex((option) => option === document.activeElement),
+      options.length,
+    );
+    switch (action.kind) {
+      case "focus":
         event.preventDefault();
-        event.stopPropagation();
-        return closeAndRefocus();
-      case "Tab":
-        return setState({ kind: "closed" });
+        options[action.index]?.focus();
+        return;
+      case "close":
+        if (action.refocus) {
+          // Only the menu closes, not a dialog it sits in.
+          event.preventDefault();
+          event.stopPropagation();
+          closeAndRefocus();
+        } else setState({ kind: "closed" });
+        return;
+      case "none":
+        return;
     }
   }
 

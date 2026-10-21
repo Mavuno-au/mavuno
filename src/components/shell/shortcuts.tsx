@@ -59,7 +59,7 @@ export function Shortcuts() {
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if ((event.metaKey || event.ctrlKey) && shortcutKey(event) === "k") {
+      if ((event.metaKey || event.ctrlKey) && shortcutKey(event).toLowerCase() === "k") {
         event.preventDefault();
         setPanel("search");
         return;
@@ -166,6 +166,7 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
       <div className="flex items-center gap-2 rounded-md border border-rail px-3 focus-within:border-primary">
         <Search className="size-4 text-ink-muted" />
         <input
+          dir="auto"
           autoFocus
           value={query}
           onChange={(event) => setQuery(event.target.value)}
