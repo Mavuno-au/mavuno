@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { cache } from "react";
 import { z } from "zod";
 import { parsePeople, parsePosts, parseReplyPreviews, postRowSchema, type PersonSummary, type Post, type PostRow, type ReplyPreviews, type ThreadPlace } from "@/lib/domain";
-import { PAGE_SIZE, THREAD_MAX_LENGTH, THREAD_PAGE_SIZE, type FeedSource } from "@/lib/feeds";
+import { feedTime, PAGE_SIZE, THREAD_MAX_LENGTH, THREAD_PAGE_SIZE, type FeedSource } from "@/lib/feeds";
 import { parseReplyPreviewCount, REPLY_PREVIEWS_COOKIE } from "@/lib/reply-previews";
 import { createClient } from "@/lib/supabase/server";
 
@@ -17,39 +17,59 @@ export const newTrendingSeed = () => randomInt(0, 2 ** 47);
 export type Continuation = { kind: "none" } | { kind: "thread"; place: ThreadPlace; parts: PostRow[] };
 
 const savedRows = z.array(z.object({ saved_at: z.string(), post: z.unknown() }));
-const trendingRows = z.array(z.object({ trending_score: z.union([z.number(), z.string()]).transform(String), post: z.unknown() }));
+const score = z.union([z.number(), z.string()]).transform(String);
+const trendingRows = z.array(z.object({ trending_score: score, post: z.unknown() }).transform((row) => ({ score: row.trending_score, post: row.post })));
+const searchRows = z.array(z.object({ search_score: score, post: z.unknown() }).transform((row) => ({ score: row.search_score, post: row.post })));
 
-// Trending pages after the score and id of the last post shown.
-const trendingCursor = z
+// Lists page after the sort key and id of the last row shown, so rows that
+// share a key (scheduled posts published together) are never skipped.
+const cursorOf = (key: string, id: string) => `${key}:${id}`;
+const splitCursor = (cursor: string) => ({ key: cursor.slice(0, -37), id: cursor.slice(-36) });
+
+const timeCursor = z
+  .string()
+  .regex(/^.+:[0-9a-f-]{36}$/)
+  .transform(splitCursor)
+  .pipe(z.object({ key: z.iso.datetime({ offset: true }), id: z.uuid() }));
+
+// Trending and search page after a score.
+const scoreCursor = z
   .string()
   .regex(/^-?\d+(\.\d+)?:[0-9a-f-]{36}$/)
-  .transform((cursor) => {
-    const [score, id] = cursor.split(":");
-    return { p_after_score: score ?? null, p_after_id: z.uuid().parse(id) };
-  });
+  .transform(splitCursor)
+  .pipe(z.object({ key: z.string(), id: z.uuid() }));
+
+const parseTimeCursor = (cursor: string | null) => (cursor ? timeCursor.parse(cursor) : null);
 
 async function query(source: FeedSource, cursor: string | null) {
   const supabase = await createClient();
-  const page = { p_before: cursor, p_limit: PAGE_SIZE };
+  const byTime = () => {
+    const after = parseTimeCursor(cursor);
+    return { p_before: after?.key ?? null, p_before_id: after?.id ?? null, p_limit: PAGE_SIZE };
+  };
+  const byScore = () => {
+    const after = cursor ? scoreCursor.parse(cursor) : null;
+    return { p_after_score: after?.key ?? null, p_after_id: after?.id ?? null, p_limit: PAGE_SIZE };
+  };
   switch (source.kind) {
     case "following":
-      return supabase.rpc("feed_following", page);
+      return supabase.rpc("feed_following", byTime());
     case "latest":
-      return supabase.rpc("feed_latest", page);
+      return supabase.rpc("feed_latest", byTime());
     case "trending":
-      return supabase.rpc("feed_trending", { p_seed: source.seed, ...(cursor ? trendingCursor.parse(cursor) : {}), p_limit: PAGE_SIZE });
+      return supabase.rpc("feed_trending", { p_seed: source.seed, ...byScore() });
     case "saved":
-      return supabase.rpc("feed_saved", page);
+      return supabase.rpc("feed_saved", byTime());
     case "space":
-      return supabase.rpc("feed_space", { p_space_id: source.spaceId, ...page });
+      return supabase.rpc("feed_space", { p_space_id: source.spaceId, ...byTime() });
     case "topic":
-      return supabase.rpc("feed_topic", { p_topic: source.topic, ...page });
+      return supabase.rpc("feed_topic", { p_topic: source.topic, ...byTime() });
     case "profile":
-      return supabase.rpc("feed_profile", { p_profile_id: source.profileId, p_kind: source.tab, ...page });
+      return supabase.rpc("feed_profile", { p_profile_id: source.profileId, p_kind: source.tab, ...byTime() });
     case "local":
-      return supabase.rpc("feed_local", { p_city_id: source.cityId, p_radius_km: source.radiusKm, ...page });
+      return supabase.rpc("feed_local", { p_city_id: source.cityId, p_radius_km: source.radiusKm, ...byTime() });
     case "search":
-      return supabase.rpc("search_posts", { p_query: source.query, ...page });
+      return supabase.rpc("search_posts", { p_query: source.query, ...byScore() });
     default: {
       const exhaustive: never = source;
       return exhaustive;
@@ -61,23 +81,38 @@ async function readPage(source: FeedSource, cursor: string | null): Promise<Omit
   const { data, error } = await query(source, cursor);
   if (error) throw new Error(`Feed ${source.kind} failed: ${error.message}`);
 
-  if (source.kind === "saved") {
-    const rows = savedRows.parse(data);
-    const posts = parsePosts(rows.map((row) => row.post));
-    return { posts, next: rows.length === PAGE_SIZE ? (rows.at(-1)?.saved_at ?? null) : null };
+  switch (source.kind) {
+    case "saved": {
+      const rows = savedRows.parse(data);
+      const posts = parsePosts(rows.map((row) => row.post));
+      const last = rows.at(-1);
+      const lastPost = posts.at(-1);
+      return { posts, next: rows.length === PAGE_SIZE && last && lastPost ? cursorOf(last.saved_at, lastPost.id) : null };
+    }
+    case "trending":
+    case "search": {
+      const rows = (source.kind === "trending" ? trendingRows : searchRows).parse(data);
+      const posts = parsePosts(rows.map((row) => row.post));
+      const last = rows.at(-1);
+      const lastPost = posts.at(-1);
+      return { posts, next: rows.length === PAGE_SIZE && last && lastPost ? cursorOf(last.score, lastPost.id) : null };
+    }
+    case "following":
+    case "latest":
+    case "space":
+    case "topic":
+    case "profile":
+    case "local": {
+      const posts = parsePosts(data);
+      const last = posts.at(-1);
+      if (posts.length < PAGE_SIZE || !last) return { posts, next: null };
+      return { posts, next: cursorOf(source.kind === "following" || source.kind === "latest" ? feedTime(last) : last.createdAt, last.id) };
+    }
+    default: {
+      const exhaustive: never = source;
+      return exhaustive;
+    }
   }
-
-  if (source.kind === "trending") {
-    const rows = trendingRows.parse(data);
-    const posts = parsePosts(rows.map((row) => row.post));
-    const last = rows.at(-1);
-    const lastPost = posts.at(-1);
-    return { posts, next: rows.length === PAGE_SIZE && last && lastPost ? `${last.trending_score}:${lastPost.id}` : null };
-  }
-
-  const posts = parsePosts(data);
-  if (posts.length < PAGE_SIZE) return { posts, next: null };
-  return { posts, next: posts.at(-1)?.createdAt ?? null };
 }
 
 // The newest replies to every post on a page, in one query.
@@ -96,12 +131,14 @@ export async function loadFeed(source: FeedSource, cursor: string | null = null,
   return { ...page, previews: previews ? await loadReplyPreviews(page.posts) : {} };
 }
 
-export async function loadReplies(postId: string, after: string | null = null) {
+export async function loadReplies(postId: string, cursor: string | null = null) {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("post_replies", { p_post_id: postId, p_after: after, p_limit: PAGE_SIZE });
+  const after = parseTimeCursor(cursor);
+  const { data, error } = await supabase.rpc("post_replies", { p_post_id: postId, p_after: after?.key ?? null, p_after_id: after?.id ?? null, p_limit: PAGE_SIZE });
   if (error) throw new Error(`Replies failed: ${error.message}`);
   const replies = parsePosts(data);
-  return { replies, next: replies.length === PAGE_SIZE ? (replies.at(-1)?.createdAt ?? null) : null };
+  const last = replies.at(-1);
+  return { replies, next: replies.length === PAGE_SIZE && last ? cursorOf(last.createdAt, last.id) : null };
 }
 
 export async function loadContinuation(postId: string) {
@@ -153,12 +190,14 @@ const LIKERS_PAGE = 30;
 export type Likers = { people: PersonSummary[]; next: string | null };
 
 // Who liked a post, newest first. The database only answers its author.
-export async function loadLikers(postId: string, before: string | null): Promise<Likers> {
+export async function loadLikers(postId: string, cursor: string | null): Promise<Likers> {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("post_likers", { p_post_id: postId, p_before: before, p_limit: LIKERS_PAGE });
+  const before = parseTimeCursor(cursor);
+  const { data, error } = await supabase.rpc("post_likers", { p_post_id: postId, p_before: before?.key ?? null, p_before_id: before?.id ?? null, p_limit: LIKERS_PAGE });
   if (error) throw new Error(`Likers failed: ${error.message}`);
-  const times = z.array(z.object({ liked_at: z.string() })).parse(data ?? []);
-  return { people: parsePeople(data), next: times.length === LIKERS_PAGE ? (times.at(-1)?.liked_at ?? null) : null };
+  const last = z.array(z.object({ liked_at: z.string(), id: z.uuid() })).parse(data ?? []).at(-1);
+  const people = parsePeople(data);
+  return { people, next: people.length === LIKERS_PAGE && last ? cursorOf(last.liked_at, last.id) : null };
 }
 
 export async function countNewPosts(feed: "following" | "latest", since: string) {

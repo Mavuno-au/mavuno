@@ -237,7 +237,7 @@ check("trending topics are counted", (await q("select topic from public.trending
 rows = await q("select id from public.post_ancestors($1)", [reply1]);
 check("a reply's ancestors resolve", rows.length === 1 && rows[0].id === post1, rows);
 check("people search matches partial names", (await q("select username from public.search_profiles('amar')")).some((r) => r.username === "amara"));
-check("post search matches words", (await q("select id from public.search_posts('jollof')")).length === 2);
+check("post search matches words", (await q("select post->>'id' as id from public.search_posts('jollof')")).length === 2);
 rows = await q("select username from public.nearby_profiles($1::smallint)", [logan]);
 check("nearby includes nearby cities", rows.some((r) => r.username === "amara"), rows);
 check("nearby leaves out distant cities", !rows.some((r) => r.username === "hana_t"), rows);
@@ -1357,6 +1357,89 @@ console.log("\nUsernames never carry email addresses");
   await fails("members can't change their username to include an email", "update public.profiles set username = 'kwame_gmail_com' where id = $1", [fine], /can't include your email address/);
   await q("update public.profiles set username = 'kwame_b' where id = $1", [fine]);
   check("other username changes still work", (await one("select username from public.profiles where id = $1", [fine])).username === "kwame_b");
+}
+
+console.log("\nFeed cursors");
+{
+  const user = (name) => createUser(`${name}@example.com`, { username: name });
+  const author = await user("tie_author");
+  const reader = await user("tie_reader");
+  const likers = await Promise.all([1, 2, 3, 4, 5].map((n) => user(`tie_liker_${n}`)));
+  await as(reader);
+  await q("insert into public.follows (follower_id, followee_id) values ($1, $2)", [reader, author]);
+
+  // Scheduled posts published in one transaction share their timestamps, like these.
+  const at = "2026-01-01 00:00:00+00";
+  const after = "2026-01-01 00:00:01+00";
+  const top = "ffffffff-ffff-ffff-ffff-ffffffffffff";
+  await superuser();
+  const insert = async (values) =>
+    (await one("insert into public.posts (author_id, created_by, status, body, topics, parent_id, created_at, published_at) values ($1, $1, 'published', $2, $3, $4, $5, $5) returning id", values)).id;
+  const tied = [];
+  for (let n = 0; n < 7; n++) tied.push(await insert([author, `Tied post ${n} about cassava #tiedfeed`, "{tiedfeed}", null, at]));
+  const replies = [];
+  for (let n = 0; n < 5; n++) replies.push(await insert([reader, `Tied reply ${n}`, "{}", tied[0], at]));
+  for (const liker of likers) await q("insert into public.likes (user_id, post_id, created_at) values ($1, $2, $3)", [liker, tied[0], at]);
+  for (const id of tied) await q("insert into public.saves (user_id, post_id, created_at) values ($1, $2, $3)", [reader, id, at]);
+
+  // Every row once, in the same order as one long page, however small the pages.
+  const walk = async (sql, params, start, limit = 3) => {
+    const seen = [];
+    let cursor = start;
+    for (let guard = 0; guard < 20; guard++) {
+      const page = await q(sql, [...params, ...cursor, limit]);
+      seen.push(...page.map((r) => r.id));
+      if (page.length < limit) break;
+      cursor = [page.at(-1).key, page.at(-1).id];
+    }
+    return seen;
+  };
+  const same = (paged, expected) => JSON.stringify(paged) === JSON.stringify(expected) && new Set(paged).size === paged.length;
+  const lists = [
+    ["Latest", "select id, greatest(published_at, created_at)::text as key from public.feed_latest($1, $2, $3)", [], tied],
+    ["Following", "select id, greatest(published_at, created_at)::text as key from public.feed_following($1, $2, $3)", [], tied],
+    ["a topic", "select id, created_at::text as key from public.feed_topic($1, $2, $3, $4)", ["tiedfeed"], tied],
+    ["a profile", "select id, created_at::text as key from public.feed_profile($1, 'posts', $2, $3, $4)", [author], tied],
+    ["saved posts", "select post->>'id' as id, saved_at::text as key from public.feed_saved($1, $2, $3)", [], tied],
+  ];
+  await as(reader);
+  for (const [name, sql, params, expected] of lists) {
+    const paged = await walk(sql, params, [after, top]);
+    const whole = (await walk(sql, params, [after, top], 50)).filter((id) => expected.includes(id));
+    check(`${name}: posts with the same timestamp page without skipping or repeating any`, same(paged, whole) && whole.length === expected.length, { paged: paged.length, whole: whole.length });
+  }
+  const repliesPaged = await walk("select id, created_at::text as key from public.post_replies($1, $2, $3, $4)", [tied[0]], [null, null]);
+  check("replies with the same timestamp page without skipping or repeating any", same(repliesPaged, [...replies].sort()), repliesPaged);
+  await as(author);
+  const likersPaged = await walk("select id, liked_at::text as key from public.post_likers($1, $2, $3, $4)", [tied[0]], [null, null], 2);
+  check("likes at the same moment page without skipping or repeating anyone", same(likersPaged, [...likers].sort().reverse()), likersPaged);
+
+  await as(reader);
+  const searched = await walk("select post->>'id' as id, search_score::text as key from public.search_posts($1, $2, $3, $4)", ["cassava"], [null, null]);
+  check("search results with the same score page without skipping or repeating any", same(searched, [...tied].sort().reverse()), searched);
+
+  // A post held for review and approved now was written two days ago.
+  await superuser();
+  const held = await insert([author, "Held, then approved", "{}", null, "2026-01-02 00:00:00+00"]);
+  await q("update public.posts set status = 'pending', published_at = null, created_at = now() - interval '2 days' where id = $1", [held]);
+  await q("select public.publish_post($1)", [held]);
+  await as(reader);
+  check("Latest shows a post approved after review at the top", (await one("select id from public.feed_latest(null, null, 1)")).id === held);
+  check("so does Following", (await one("select id from public.feed_following(null, null, 1)")).id === held);
+  check("new-post counts go by when posts were published", (await one("select public.count_new_posts('latest', now() - interval '1 minute') as n")).n >= 1);
+
+  // Relevance halves every 30 days: a strong match beats a newer passing mention, and equal matches go newest first.
+  await superuser();
+  const strong = await insert([author, "Ugali ugali ugali: how to cook ugali", "{}", null, "2026-03-01 00:00:00+00"]);
+  const passing = await insert([author, "Dinner was fine, there was ugalimix", "{}", null, "2026-03-15 00:00:00+00"]);
+  const older = await insert([author, "How to cook ugali", "{}", null, "2026-02-01 00:00:00+00"]);
+  const newer = await insert([author, "How to cook ugali!", "{}", null, "2026-05-01 00:00:00+00"]);
+  await as(reader);
+  const ranked = (await q("select post->>'id' as id from public.search_posts('ugali')")).map((r) => r.id);
+  check("search ranks a strong match above a newer passing mention", ranked.indexOf(strong) < ranked.indexOf(passing) && ranked.includes(passing), ranked);
+  check("search ranks equal matches newest first", ranked.indexOf(newer) < ranked.indexOf(older), ranked);
+  await anon();
+  check("guests can search posts", (await q("select post->>'id' as id from public.search_posts('ugali')")).length === 4);
 }
 
 console.log("\nDemo seed");

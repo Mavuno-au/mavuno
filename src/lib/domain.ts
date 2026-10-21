@@ -182,6 +182,7 @@ export const postRowSchema = z
     like_count: z.number(),
     quote_count: z.number(),
     deleted_at: timestamp.nullable(),
+    published_at: timestamp.nullable(),
     created_at: timestamp,
     author: profileCardSchema.nullable(),
     author_muted: z.boolean(),
@@ -200,7 +201,7 @@ export const postRowSchema = z
   .transform((r) => {
     // The post that continues this one is read as part of its thread, not as a reply.
     const replies = Math.max(r.reply_count - (r.continuation_count > 0 ? 1 : 0), 0);
-    const thread = { id: r.id, parentId: r.parent_id, rootId: r.root_id, replies, createdAt: r.created_at };
+    const thread = { id: r.id, parentId: r.parent_id, rootId: r.root_id, replies, createdAt: r.created_at, publishedAt: r.published_at };
     if (r.deleted_at || !r.author || !r.author_id) return { kind: "tombstone" as const, ...thread };
     return {
       kind: "post" as const,

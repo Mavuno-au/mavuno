@@ -12,6 +12,7 @@ import { ConfirmBlockDialog } from "@/components/people/confirm-block-dialog";
 import { ProfileHoverCard } from "@/components/people/profile-card";
 import { EventAttachment, ImageGrid, LinkCard, OpportunityAttachment, QuotedBlock } from "@/components/post/attachments";
 import { Composer } from "@/components/post/composer";
+import { useFeedActions } from "@/components/post/feed-context";
 import { LikeCount } from "@/components/post/likers";
 import { PollView } from "@/components/post/poll";
 import { RichText } from "@/components/post/rich-text";
@@ -59,6 +60,8 @@ export function PostItem({
   previews?: PostRow[];
 }) {
   const [state, setState] = useState<RowState>("shown");
+  const feed = useFeedActions();
+  if (row.kind === "post" && feed?.hidden.has(row.authorId)) return null;
   if (row.kind === "tombstone") return <TombstoneItem row={row} depth={thread?.depth ?? 0} />;
   if (state === "removed" && variant !== "focus") return null;
   return <LivePost post={row} variant={variant} thread={thread} place={place} pinned={pinned} previews={previews} state={state} setState={setState} />;
@@ -99,6 +102,7 @@ function LivePost({
 }) {
   const router = useRouter();
   const viewer = useViewer();
+  const feed = useFeedActions();
   const own = useActsAs(post.authorId);
   const [liked, setLiked] = useState(post.liked);
   const [likes, setLikes] = useState(post.likes);
@@ -182,7 +186,7 @@ function LivePost({
     });
   }
 
-  function run(action: () => Promise<Result>, success: string) {
+  function run(action: () => Promise<Result>, success: string, then: () => void) {
     startTransition(async () => {
       const result = await action();
       if (!result.ok) {
@@ -190,22 +194,26 @@ function LivePost({
         return;
       }
       toast(success);
-      router.refresh();
+      then();
     });
   }
+
+  // Outside a feed (a post's own page, the pinned post) the page reloads.
+  const hideAuthor = (relation: "mute" | "block") => (feed ? feed.hideAuthor(post.authorId, relation) : router.refresh());
+  const pinChanged = () => (feed ? feed.pinChanged(post.authorId) : router.refresh());
 
   const menu: MenuItem[] = [{ kind: "action", label: "Copy link", icon: <Link2 />, onSelect: copyLink }];
   if (own && !post.parentId && post.status === "published") {
     menu.push(
       pinned
-        ? { kind: "action", label: "Unpin from profile", icon: <PinOff />, onSelect: () => run(() => unpinPost(post.authorId), "Unpinned") }
-        : { kind: "action", label: "Pin to profile", icon: <Pin />, onSelect: () => run(() => pinPost(post.id), "Pinned to your profile") },
+        ? { kind: "action", label: "Unpin from profile", icon: <PinOff />, onSelect: () => run(() => unpinPost(post.authorId), "Unpinned", pinChanged) }
+        : { kind: "action", label: "Pin to profile", icon: <Pin />, onSelect: () => run(() => pinPost(post.id), "Pinned to your profile", pinChanged) },
     );
   }
   if (own) menu.push({ kind: "action", label: "Delete", icon: <Trash2 />, danger: true, onSelect: () => setState("confirming") });
   if (viewer && !own) {
     menu.push(
-      { kind: "action", label: `Mute @${post.author.username}`, icon: <VolumeX />, onSelect: () => run(() => setRelation("mute", post.authorId, true), `Muted @${post.author.username}. You can undo this in Settings.`) },
+      { kind: "action", label: `Mute @${post.author.username}`, icon: <VolumeX />, onSelect: () => run(() => setRelation("mute", post.authorId, true), `Muted @${post.author.username}. You can undo this in Settings.`, () => hideAuthor("mute")) },
       { kind: "action", label: `Block @${post.author.username}`, icon: <UserX />, danger: true, onSelect: () => setDialog("block") },
       { kind: "action", label: "Report post", icon: <Flag />, danger: true, onSelect: () => setDialog("report") },
     );
@@ -407,7 +415,7 @@ function LivePost({
         onClose={() => setDialog("none")}
         onBlocked={() => {
           setDialog("none");
-          router.refresh();
+          hideAuthor("block");
         }}
       />
     </article>
