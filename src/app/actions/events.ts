@@ -97,10 +97,18 @@ export async function setRsvp(eventId: string, status: RsvpStatus | null): Promi
   if (!viewer) return fail("Sign in first.");
   const supabase = await createClient();
   const key = { event_id: id.parse(eventId), user_id: viewer.id };
-  const { error } = status
-    ? await supabase.from("event_rsvps").upsert({ ...key, status: rsvpSchema.parse(status) }, { onConflict: "event_id,user_id" })
-    : await supabase.from("event_rsvps").delete().match(key);
-  return error ? failFrom(error) : done;
+  if (!status) {
+    const { error } = await supabase.from("event_rsvps").delete().match(key);
+    return error ? failFrom(error) : done;
+  }
+  // Members may update only an RSVP's status, and an upsert would rewrite the
+  // key columns too, which Postgres refuses even when nothing conflicts.
+  const parsed = rsvpSchema.parse(status);
+  const { data, error } = await supabase.from("event_rsvps").update({ status: parsed }).match(key).select("event_id");
+  if (error) return failFrom(error);
+  if (data.length > 0) return done;
+  const { error: inserted } = await supabase.from("event_rsvps").insert({ ...key, status: parsed });
+  return inserted ? failFrom(inserted) : done;
 }
 
 export async function cancelEvent(eventId: string): Promise<Result> {

@@ -143,7 +143,7 @@ export default async function EventPage({ params }: PageProps<"/events/[id]">) {
 
         <div className="flex flex-wrap items-center gap-2">
           {!event.cancelled && !ended ? (
-            <CalendarLink event={{ id: event.id, title: event.title, description: event.description, startsAt: event.startsAt, endsAt: event.endsAt, place: [place, event.address].filter(Boolean).join(", ") }} />
+            <CalendarLink eventId={event.id} />
           ) : null}
           <ListingControls kind="event" id={event.id} ownerId={event.hostId} published={event.review.kind === "published"} ended={event.cancelled || ended} />
         </div>

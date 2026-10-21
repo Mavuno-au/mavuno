@@ -487,6 +487,15 @@ const event = (await one(
 await as(kofi);
 await q("insert into public.event_rsvps (event_id, user_id, status) values ($1, $2, 'going')", [event, kofi]);
 check("RSVPs count", (await one("select going_count from public.events where id = $1", [event])).going_count === 1);
+await fails(
+  "an upsert that rewrites the key is refused, so the app updates the status instead",
+  "insert into public.event_rsvps (event_id, user_id, status) values ($1, $2, 'interested') on conflict (event_id, user_id) do update set event_id = excluded.event_id, user_id = excluded.user_id, status = excluded.status",
+  [event, kofi],
+  /permission denied/,
+);
+await q("update public.event_rsvps set status = 'interested' where event_id = $1 and user_id = $2", [event, kofi]);
+check("members change their RSVP's status", (await one("select status from public.event_rsvps where event_id = $1 and user_id = $2", [event, kofi])).status === "interested");
+await q("update public.event_rsvps set status = 'going' where event_id = $1 and user_id = $2", [event, kofi]);
 await as(hana);
 await fails("full events turn people away", "insert into public.event_rsvps (event_id, user_id, status) values ($1, $2, 'going')", [event, hana], /full/);
 await as(amara);
