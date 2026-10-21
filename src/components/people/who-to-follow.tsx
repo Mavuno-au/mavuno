@@ -4,7 +4,7 @@ import { EyeOff, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useId, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { loadSuggestionPage } from "@/app/actions/shell";
+import { dismissSuggestion, loadSuggestionPage } from "@/app/actions/shell";
 import { PersonRow } from "@/components/people/person-row";
 import { Button } from "@/components/ui/button";
 import { Menu } from "@/components/ui/menu";
@@ -12,12 +12,14 @@ import { cn } from "@/lib/cn";
 import type { PersonSummary } from "@/lib/domain";
 import { rememberHidden, rememberRound } from "@/lib/who-to-follow";
 
-export type WhoToFollowPage = { people: PersonSummary[]; pages: number; round: number; day: string };
+export type WhoToFollowPage = { people: PersonSummary[]; spares: PersonSummary[]; pages: number; round: number; day: string };
 
 // Hiding only writes the cookie, so the block stays in place with an Undo
-// until the next page load leaves it out.
+// until the next page load leaves it out. "Not for me" takes the person out
+// at once and a spare from a later page fills the gap.
 export function WhoToFollow({ initial, className }: { initial: WhoToFollowPage; className?: string }) {
   const [people, setPeople] = useState(initial.people);
+  const [spares, setSpares] = useState(initial.spares);
   const [round, setRound] = useState(initial.round);
   const [hidden, setHidden] = useState(false);
   const [refreshing, startRefresh] = useTransition();
@@ -34,13 +36,39 @@ export function WhoToFollow({ initial, className }: { initial: WhoToFollowPage; 
       }
       rememberRound(initial.day, next);
       setRound(next);
-      setPeople(result.data);
+      setPeople(result.data.people);
+      setSpares(result.data.spares);
     });
   }
 
   function hide(value: boolean) {
     rememberHidden(value);
     setHidden(value);
+  }
+
+  function dismiss(person: PersonSummary) {
+    const [spare, ...rest] = spares;
+    const before = { people, spares };
+    setPeople((current) => current.flatMap((shown) => (shown.id === person.id ? (spare ? [spare] : []) : [shown])));
+    setSpares(rest);
+    dismissSuggestion(person.id, true).then((result) => {
+      if (!result.ok) {
+        toast.error(result.error);
+        setPeople(before.people);
+        setSpares(before.spares);
+        return;
+      }
+      toast("We won't suggest them again", {
+        action: {
+          label: "Undo",
+          onClick: () =>
+            dismissSuggestion(person.id, false).then((undone) => {
+              if (!undone.ok) return toast.error(undone.error);
+              setPeople((current) => (current.some((shown) => shown.id === person.id) ? current : [person, ...current]));
+            }),
+        },
+      });
+    });
   }
 
   return (
@@ -75,9 +103,13 @@ export function WhoToFollow({ initial, className }: { initial: WhoToFollowPage; 
       ) : (
         <>
           <div aria-busy={refreshing}>
-            {people.map((person) => (
-              <PersonRow key={person.id} person={person} detail={person.reason} compact card />
-            ))}
+            {people.length === 0 ? (
+              <p className="py-2 text-sm text-ink-muted">No one else to suggest today.</p>
+            ) : (
+              people.map((person) => (
+                <PersonRow key={person.id} person={person} detail={person.reason} compact card onDismiss={() => dismiss(person)} />
+              ))
+            )}
           </div>
           <Link href="/discover/people" className="mt-1 inline-block text-sm text-primary hover:underline">See more people</Link>
         </>

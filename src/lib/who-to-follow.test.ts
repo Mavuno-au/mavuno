@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseRound, suggestionDay, suggestionPages } from "./who-to-follow";
+import { parseRound, spareSuggestions, suggestionDay, suggestionPages } from "./who-to-follow";
 
 const network = ["n1", "n2", "n3", "n4", "n5"];
 const popular = ["p1", "p2", "p3", "p4", "p5", "p6", "p7"];
@@ -43,5 +43,20 @@ describe("parseRound", () => {
 describe("suggestionDay", () => {
   it("uses the date in Sydney", () => {
     expect(suggestionDay(new Date("2026-10-20T14:00:00Z"))).toBe("2026-10-21");
+  });
+});
+
+describe("spareSuggestions", () => {
+  const person = (id: string) => ({ id });
+  const pages = [["a", "b", "c"], ["d", "e", "f"], ["g", "a", "b"]].map((page) => page.map(person));
+
+  it("takes people from the following pages, nearest first, skipping anyone on the page", () => {
+    expect(spareSuggestions(pages, 0, 3).map((p) => p.id)).toEqual(["d", "e", "f"]);
+    expect(spareSuggestions(pages, 2, 3).map((p) => p.id)).toEqual(["c", "d", "e"]);
+    expect(spareSuggestions(pages, 1, 5).map((p) => p.id)).toEqual(["g", "a", "b", "c"]);
+  });
+
+  it("has nobody spare when there is only one page", () => {
+    expect(spareSuggestions([pages[0] ?? []], 0, 3)).toEqual([]);
   });
 });

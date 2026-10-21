@@ -114,40 +114,40 @@ export async function loadTeam(orgId: string) {
   }));
 }
 
-const CONNECTIONS_PAGE = 50;
+const CONNECTIONS_PAGE = 30;
 
-const connectionRows = z.array(z.object({ created_at: z.string(), person: z.unknown() }));
+const connectionRows = z.array(z.object({ followed_at: z.string() }));
 
 export type Direction = "followers" | "following";
 
-// `next` is the follow time to continue from, or null at the end.
+// `next` is the follow time and id to continue from, or null at the end.
 export type ConnectionsPage = { people: PersonSummary[]; next: string | null };
 
-// People who follow the profile ("followers") or whom it follows ("following"),
-// newest follow first, leaving out accounts the viewer has blocked.
-export async function loadConnections(profileId: string, direction: Direction, viewer: Viewer | null, before: string | null = null): Promise<ConnectionsPage> {
-  const supabase = await createClient();
-  const relation =
-    direction === "followers"
-      ? "person:profiles!follows_follower_id_fkey(id, username, display_name, avatar_url, colour:effective_colour, bio, headline, account_type, org_verified, followers_count)"
-      : "person:profiles!follows_followee_id_fkey(id, username, display_name, avatar_url, colour:effective_colour, bio, headline, account_type, org_verified, followers_count)";
-  let query = supabase
-    .from("follows")
-    .select(`created_at, ${relation}`)
-    .eq(direction === "followers" ? "followee_id" : "follower_id", profileId)
-    .order("created_at", { ascending: false })
-    .limit(CONNECTIONS_PAGE);
-  if (before) query = query.lt("created_at", before);
-  const { data } = await query;
-  const rows = connectionRows.parse(data ?? []);
-  const people = parsePeople(rows.map((row) => row.person));
-  const next = rows.length === CONNECTIONS_PAGE ? (rows.at(-1)?.created_at ?? null) : null;
-  if (!viewer || people.length === 0) return { people, next };
+// "<follow time>:<person id>", so two follows in the same instant are never skipped.
+export const connectionCursor = z
+  .string()
+  .regex(/^.+:[0-9a-f-]{36}$/)
+  .transform((cursor) => ({ before: cursor.slice(0, -37), beforeId: cursor.slice(-36) }))
+  .pipe(z.object({ before: z.iso.datetime({ offset: true }), beforeId: z.uuid() }));
 
-  // Either side of a block: people the viewer blocked and people who blocked the viewer.
-  const { data: blockedIds } = await supabase.rpc("blocked_with_viewer", { p_profile_ids: people.map((person) => person.id) });
-  const blocked = new Set(z.array(z.string()).catch([]).parse(blockedIds ?? []));
-  return { people: await withFollowing(people.filter((person) => !blocked.has(person.id)), viewer), next };
+// People who follow the profile ("followers") or whom it follows ("following"),
+// newest follow first. The database leaves out blocks and hidden accounts
+// before cutting the page, and says who the viewer follows and who follows them.
+export async function loadConnections(profileId: string, direction: Direction, cursor: string | null = null): Promise<ConnectionsPage> {
+  const supabase = await createClient();
+  const after = cursor ? connectionCursor.parse(cursor) : null;
+  const { data } = await supabase.rpc("profile_connections", {
+    p_profile_id: profileId,
+    p_direction: direction,
+    p_before: after?.before ?? null,
+    p_before_id: after?.beforeId ?? null,
+    p_limit: CONNECTIONS_PAGE,
+  });
+  const rows = connectionRows.parse(data ?? []);
+  const people = parsePeople(data);
+  const last = rows.at(-1);
+  const lastPerson = people.at(-1);
+  return { people, next: rows.length === CONNECTIONS_PAGE && last && lastPerson ? `${last.followed_at}:${lastPerson.id}` : null };
 }
 
 // Fills in whether the viewer follows each person, for lists that don't know.

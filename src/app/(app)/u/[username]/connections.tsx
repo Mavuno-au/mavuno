@@ -11,7 +11,7 @@ export async function Connections({ username, direction }: { username: string; d
   if (page.kind === "missing") notFound();
   if (page.kind === "unavailable") return <ProfileUnavailable page={page} />;
   const { profile } = page;
-  const connections = await loadConnections(profile.id, direction, viewer);
+  const connections = await loadConnections(profile.id, direction);
   const base = `/@${profile.username}`;
 
   return (

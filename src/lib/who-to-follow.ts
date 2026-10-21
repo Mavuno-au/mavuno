@@ -87,3 +87,21 @@ export function suggestionPages<T>(network: readonly T[], popular: readonly T[],
   }
   return first ? [first, ...rest] : pages;
 }
+
+// Who fills the gap when someone on the page is dismissed: people from the
+// pages after this one, nearest first, never anyone already on the page.
+export function spareSuggestions<T extends { id: string }>(pages: readonly (readonly T[])[], round: number, limit: number): T[] {
+  if (pages.length < 2) return [];
+  const current = round % pages.length;
+  const shown = new Set(pages[current]?.map((person) => person.id));
+  const spares: T[] = [];
+  for (let step = 1; step < pages.length && spares.length < limit; step++) {
+    for (const person of pages[(current + step) % pages.length] ?? []) {
+      if (shown.has(person.id)) continue;
+      shown.add(person.id);
+      spares.push(person);
+      if (spares.length === limit) break;
+    }
+  }
+  return spares;
+}

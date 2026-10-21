@@ -754,6 +754,8 @@ console.log("\nWho to follow and followers you know");
   await follow(friendA, muted);
   await follow(viewer, muted);
   await follow(muted, known);
+  await as(known);
+  await post("Hello from someone worth following");
   await as(viewer);
   await q("insert into public.mutes (muter_id, muted_id) values ($1, $2)", [viewer, muted]);
 
@@ -1730,6 +1732,100 @@ console.log("\nWaking background tasks");
   await superuser();
   await q("update public.background_tasks set run_after = now() + interval '1 day' where failed_at is null");
   check("with nothing due it makes no request", (await one("select public.wake_background_tasks() as woke")).woke === false);
+}
+
+console.log("\nPeople and discovery");
+{
+  const viewer = await createUser("pd_viewer@example.com", { username: "pd_viewer" });
+  const writer = await createUser("pd_writer@example.com", { username: "pd_writer", display_name: "Pat Writer" });
+  const quiet = await createUser("pd_quiet@example.com", { username: "pd_quiet" });
+  const banned = await createUser("pd_banned@example.com", { username: "pd_banned" });
+  const young = await createUser("pd_young@example.com", { username: "pd_young" });
+  const blocker = await createUser("pd_blocker@example.com", { username: "pd_blocker" });
+  const follow = async (follower, followee) => {
+    await as(follower);
+    await q("insert into public.follows (follower_id, followee_id) values ($1, $2)", [follower, followee]);
+  };
+  for (const who of [writer, banned, young, blocker]) {
+    await as(who);
+    await post("Hello from a person who posts");
+    await follow(who, viewer);
+  }
+  await follow(quiet, viewer);
+  await follow(viewer, banned);
+  await follow(banned, writer);
+  await follow(writer, blocker);
+  await superuser();
+  await q("update public.profiles set headline = 'Midwife in Logan', bio = 'Loves jollof and long walks', city_id = $2 where id = $1", [writer, brisbane]);
+  await q("update public.profiles set city_id = $2 where id = $1", [banned, brisbane]);
+  await q("update public.profile_settings set suspended_until = now() + interval '1 day' where id = $1", [banned]);
+  await q("select public.deactivate_for_age($1, 'flagged', 'report')", [young]);
+  await as(blocker);
+  await q("insert into public.blocks (blocker_id, blocked_id) values ($1, $2)", [blocker, viewer]);
+  await as(writer);
+  const verifiedOrg = (await one("select public.create_organisation('pd_verified_org', 'Verified Org') as id")).id;
+  await q("select public.create_organisation('pd_new_org', 'New Org')");
+  await superuser();
+  await q("update public.profiles set org_verified = true where id = $1", [verifiedOrg]);
+
+  await as(viewer);
+  const names = (rows) => rows.map((r) => r.username);
+  rows = await q("select username from public.search_profiles('pd_', 50)");
+  check("people search leaves out suspended and deactivated accounts", !names(rows).includes("pd_banned") && !names(rows).includes("pd_young") && names(rows).includes("pd_writer"), names(rows));
+  check("people search matches headlines", names(await q("select username from public.search_profiles('midwife')")).includes("pd_writer"));
+  check("people search matches bios", names(await q("select username from public.search_profiles('long walks')")).includes("pd_writer"));
+  check("people search leaves out people across a block", !names(await q("select username from public.search_profiles('pd_blocker')")).includes("pd_blocker"));
+  rows = await q("select username from public.suggested_profiles(50)");
+  check("suggestions need a visible post", names(rows).includes("pd_writer") && !names(rows).includes("pd_quiet") && !names(rows).includes("pd_new_org"), names(rows));
+  check("a verified organisation is suggested before its first post", names(rows).includes("pd_verified_org"), names(rows));
+  check("suggestions leave out suspended and deactivated accounts", !names(rows).includes("pd_banned") && !names(rows).includes("pd_young"), names(rows));
+  rows = await q("select username from public.suggestion_pool()");
+  check("the Who to follow pool keeps the same rules", names(rows).includes("pd_writer") && !names(rows).some((u) => ["pd_quiet", "pd_banned", "pd_young", "pd_new_org"].includes(u)), names(rows));
+  rows = await q("select username from public.nearby_profiles($1::smallint)", [brisbane]);
+  check("nearby leaves out suspended accounts", names(rows).includes("pd_writer") && !names(rows).includes("pd_banned"), names(rows));
+  check("profile cards are empty for suspended accounts", (await q("select * from public.profile_preview('pd_banned')")).length === 0);
+  check("profile cards are empty for deactivated accounts", (await q("select * from public.profile_preview('pd_young')")).length === 0);
+  check("profile cards still show everyone else", (await q("select * from public.profile_preview('pd_writer')")).length === 1);
+  rows = await q("select username from public.mention_suggestions('pd_', null, null, 20)");
+  check("mention suggestions leave out suspended and deactivated accounts", names(rows).includes("pd_writer") && !names(rows).includes("pd_banned") && !names(rows).includes("pd_young"), names(rows));
+  rows = await q("select username from public.followers_you_know($1)", [writer]);
+  check("followers you know leave out suspended accounts", !names(rows).includes("pd_banned"), names(rows));
+
+  rows = await q("select username, follows_you, following from public.profile_connections($1, 'followers')", [viewer]);
+  check("follower lists leave out suspended, deactivated and blocked people", names(rows).toSorted().join() === "pd_quiet,pd_writer", names(rows));
+  check("follower lists say who follows you", rows.every((r) => r.follows_you === true && r.following === false), rows);
+  await follow(viewer, quiet);
+  await as(viewer);
+  row = await one("select following from public.profile_connections($1, 'followers') where username = 'pd_quiet'", [viewer]);
+  check("follower lists say whom you follow", row.following === true, row);
+  const page1 = await q("select username, id, followed_at from public.profile_connections($1, 'followers', null, null, 1)", [viewer]);
+  const page2 = await q("select username from public.profile_connections($1, 'followers', $2, $3, 1)", [viewer, page1[0].followed_at, page1[0].id]);
+  check("follower lists page on the follow time and id", page1.length === 1 && page2.length === 1 && page1[0].username !== page2[0].username, [page1, page2]);
+  rows = await q("select username from public.profile_connections($1, 'following')", [writer]);
+  check("following lists work the same way", names(rows).includes("pd_viewer") && !names(rows).includes("pd_blocker"), names(rows));
+  check("a direction that isn't followers or following lists nobody", (await q("select * from public.profile_connections($1, 'friends')", [viewer])).length === 0);
+
+  await q("insert into public.suggestion_dismissals (user_id, dismissed_id) values ($1, $2)", [viewer, writer]);
+  check("not for me leaves the person out of suggestions", !names(await q("select username from public.suggested_profiles(50)")).includes("pd_writer"));
+  check("not for me leaves the person out of the Who to follow pool", !names(await q("select username from public.suggestion_pool()")).includes("pd_writer"));
+  check("not for me still finds them in search", names(await q("select username from public.search_profiles('pd_writer')")).includes("pd_writer"));
+  row = (await one("select public.export_my_data() as data")).data;
+  check("dismissed suggestions are in the export", row.dismissed_suggestions.length === 1 && row.dismissed_suggestions[0].username === "pd_writer", row.dismissed_suggestions);
+  await fails("people dismiss suggestions only as themselves", "insert into public.suggestion_dismissals (user_id, dismissed_id) values ($1, $2)", [writer, quiet], /row-level security/);
+  await fails("nobody dismisses themselves", "insert into public.suggestion_dismissals (user_id, dismissed_id) values ($1, $1)", [viewer], /check constraint/);
+  await as(writer);
+  check("dismissals are private", (await q("select * from public.suggestion_dismissals")).length === 0);
+  await as(viewer);
+  await q("delete from public.suggestion_dismissals where dismissed_id = $1", [writer]);
+  check("undoing not for me brings the person back", names(await q("select username from public.suggested_profiles(50)")).includes("pd_writer"));
+  await q("insert into public.suggestion_dismissals (user_id, dismissed_id) values ($1, $2)", [viewer, writer]);
+  await anon();
+  check("guests read follower lists", (await q("select username from public.profile_connections($1, 'followers')", [viewer])).length === 2);
+  await fails("guests have no dismissals", "select * from public.suggestion_dismissals", [], /permission denied/);
+  await as(writer);
+  await q("select public.delete_my_account()");
+  await superuser();
+  check("dismissals go with the dismissed account", (await q("select * from public.suggestion_dismissals where dismissed_id = $1", [writer])).length === 0);
 }
 
 console.log("\nDemo seed");

@@ -1,6 +1,6 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { Clock, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useCompose } from "@/components/shell/compose";
@@ -9,6 +9,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { useViewer } from "@/components/shell/viewer-context";
 import { cn } from "@/lib/cn";
 import { parsePeople, type PersonSummary } from "@/lib/domain";
+import { readRecentSearches, recentSearchesKey, rememberSearch, writeRecentSearches } from "@/lib/recent-searches";
 import { getBrowserClient } from "@/lib/supabase/browser";
 
 const SHORTCUTS = [
@@ -118,11 +119,24 @@ export function Shortcuts() {
   );
 }
 
+// The body mounts when the palette opens, so the query starts empty and the
+// recent searches come from this browser each time, including another tab's.
 export function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
+  return (
+    <Dialog open={open} onClose={onClose} title="Search" className="max-w-xl">
+      {open ? <SearchPaletteBody onClose={onClose} /> : null}
+    </Dialog>
+  );
+}
+
+function SearchPaletteBody({ onClose }: { onClose: () => void }) {
   const router = useRouter();
+  const viewer = useViewer();
+  const recentKey = viewer ? recentSearchesKey(viewer.id) : null;
   const [query, setQuery] = useState("");
   const [found, setFound] = useState<{ term: string; people: PersonSummary[] }>({ term: "", people: [] });
   const [active, setActive] = useState(0);
+  const [recent, setRecent] = useState(() => (recentKey ? readRecentSearches(recentKey) : []));
   const term = query.trim();
   const results = term ? found.people : [];
   const loading = term !== "" && found.term !== term;
@@ -137,18 +151,19 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
     return () => clearTimeout(timer);
   }, [term]);
 
-  function close() {
-    setQuery("");
-    onClose();
+  function keepRecent(next: string[]) {
+    setRecent(next);
+    if (recentKey) writeRecentSearches(recentKey, next);
   }
 
   function go(path: string) {
-    close();
+    if (term && recentKey) keepRecent(rememberSearch(recent, term));
+    onClose();
     router.push(path);
   }
 
   return (
-    <Dialog open={open} onClose={close} title="Search" className="max-w-xl">
+    <>
       <div className="flex items-center gap-2 rounded-md border border-rail px-3 focus-within:border-primary">
         <Search className="size-4 text-ink-muted" />
         <input
@@ -162,7 +177,7 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
             }
             if (event.key === "Enter") {
               const person = results[active];
-              go(person ? `/@${person.username}` : `/search?q=${encodeURIComponent(query.trim())}`);
+              go(person ? `/@${person.username}` : `/search?q=${encodeURIComponent(term)}`);
             }
           }}
           placeholder="Search people, organisations and posts"
@@ -170,6 +185,24 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
           className="h-11 w-full bg-transparent text-[17px] focus:outline-none"
         />
       </div>
+      {!term && recent.length > 0 ? (
+        <div className="mt-2">
+          <div className="flex items-center justify-between gap-2 px-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Recent</h3>
+            <button type="button" onClick={() => keepRecent([])} className="text-xs text-primary hover:underline">Clear recent searches</button>
+          </div>
+          <ul className="mt-1 grid">
+            {recent.map((item) => (
+              <li key={item}>
+                <button type="button" onClick={() => setQuery(item)} className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left text-sm hover:bg-wash">
+                  <Clock className="size-4 shrink-0 text-ink-muted" aria-hidden />
+                  <span className="truncate">{item}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <ul className="mt-2 grid">
         {results.map((person, index) => (
           <li key={person.id}>
@@ -184,13 +217,13 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
         ))}
       </ul>
       <p className="mt-2 text-sm text-ink-muted">
-        {!query.trim() ? "Type a name or @username." : loading ? "Searching…" : results.length === 0 ? `No people match “${query.trim()}”. ` : ""}
-        {query.trim().length >= 3 ? (
-          <button type="button" className="text-primary hover:underline" onClick={() => go(`/search?q=${encodeURIComponent(query.trim())}`)}>
-            Search posts for “{query.trim()}”
+        {!term ? "Type a name or @username." : loading ? "Searching…" : results.length === 0 ? `No people match “${term}”. ` : ""}
+        {term.length >= 3 ? (
+          <button type="button" className="text-primary hover:underline" onClick={() => go(`/search?q=${encodeURIComponent(term)}`)}>
+            Search posts for “{term}”
           </button>
         ) : null}
       </p>
-    </Dialog>
+    </>
   );
 }
