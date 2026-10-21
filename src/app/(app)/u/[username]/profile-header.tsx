@@ -42,7 +42,11 @@ export function ProfileHeader({ profile, team, canManage, known }: { profile: Pr
           </p>
         </div>
 
-        {profile.headline ? <p className="mt-2 text-[15px] font-medium">{profile.headline}</p> : null}
+        {profile.headline ? (
+          <p dir="auto" className="mt-2 text-[15px] font-medium">
+            {profile.headline}
+          </p>
+        ) : null}
         {profile.bio ? <RichText body={profile.bio} className="mt-2 text-[15px] leading-relaxed" /> : null}
 
         <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-ink-muted [&_svg]:size-4 [&_svg]:shrink-0">

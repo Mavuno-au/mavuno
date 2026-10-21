@@ -313,6 +313,7 @@ export function Composer({
 
         <textarea
           ref={textarea}
+          dir="auto"
           value={body}
           rows={mode.kind === "post" ? 2 : 2}
           autoFocus={autoFocus}
@@ -328,7 +329,7 @@ export function Composer({
           onSelect={mentions.onSelect}
           hidden={previewing}
           className={cn(
-            "block w-full resize-none overflow-hidden bg-transparent text-[17px] leading-snug placeholder:text-ink-muted/80 focus:outline-none",
+            "block w-full resize-none overflow-hidden bg-transparent text-[17px] leading-snug placeholder:text-ink-muted focus:outline-none",
             // Never collapses, whatever the measurement says.
             roomy ? "min-h-[5rem] max-md:min-h-[9rem]" : "min-h-[2.5lh]",
             mode.kind !== "post" && "rounded-md border border-rail px-3 py-2 focus:border-primary",
@@ -496,7 +497,7 @@ export function Composer({
                   </button>
                 </span>
               ) : null}
-              <span className={cn("w-10 text-right font-mono text-[13px] tabular", remaining < 0 ? "text-destructive" : remaining < 200 ? "text-ink" : "text-ink-muted/60")}>
+              <span className={cn("w-10 text-right font-mono text-[13px] tabular", remaining < 0 ? "text-destructive" : remaining < 200 ? "text-ink" : "text-ink-muted")}>
                 {remaining < 500 ? remaining : ""}
               </span>
               {onCancel ? (

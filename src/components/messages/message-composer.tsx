@@ -1,7 +1,7 @@
 "use client";
 
 import { ImagePlus, SendHorizontal, X } from "lucide-react";
-import { useEffect, useRef, useState, useTransition, type ClipboardEvent, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, useTransition, type ClipboardEvent, type KeyboardEvent } from "react";
 import { toast } from "sonner";
 import { sendMessage } from "@/app/actions/messages";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,8 @@ export function MessageComposer({
 }) {
   const textarea = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const hintId = useId();
+  const touch = useTouchKeyboard();
   const { body, setBody } = useDraft(`${draftPrefix(viewerId)}message:${conversationId}`);
   const [images, setImages] = useState<Attachment[]>([]);
   const [pending, startTransition] = useTransition();
@@ -92,10 +94,13 @@ export function MessageComposer({
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key === "Escape" && replyTo) onCancelReply();
     // On touch keyboards Enter makes a new line; the send button sends.
-    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing || window.matchMedia("(pointer: coarse)").matches) return;
+    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing || touch) return;
     event.preventDefault();
     send();
   }
+
+  // Tapping a button beside the text box would blur it and drop the keyboard.
+  const keepTyping = (event: { preventDefault: () => void }) => event.preventDefault();
 
   return (
     <form
@@ -118,11 +123,12 @@ export function MessageComposer({
       ) : null}
 
       {images.length > 0 ? (
-        <ul className="mb-2 grid gap-2">
+        <ul aria-label="Attached images" className="mb-2 grid gap-2">
           {images.map((image, index) => (
             <li key={image.key} className="flex items-center gap-2">
               <img src={image.preview} alt="" className="size-14 shrink-0 rounded-lg border border-hairline object-cover" />
               <input
+                dir="auto"
                 aria-label={`Description for image ${index + 1}`}
                 placeholder="Describe the image for people who can't see it"
                 maxLength={LIMITS.imageAlt}
@@ -158,16 +164,26 @@ export function MessageComposer({
             event.target.value = "";
           }}
         />
-        <Button variant="ghost" size="icon" aria-label="Add images" title="Add up to 3 images" disabled={images.length >= LIMITS.messageImages || pending} onClick={() => fileInput.current?.click()}>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Add images"
+          title="Add up to 3 images"
+          disabled={images.length >= LIMITS.messageImages || pending}
+          onPointerDown={keepTyping}
+          onClick={() => fileInput.current?.click()}
+        >
           <ImagePlus className="text-primary" />
         </Button>
         <div className="relative min-w-0 flex-1">
           <textarea
             ref={textarea}
+            dir="auto"
             rows={1}
             value={body}
             maxLength={LIMITS.messageBody + 100}
             aria-label="Message"
+            aria-describedby={hintId}
             placeholder="Write a message"
             onChange={(event) => {
               setBody(event.target.value);
@@ -175,16 +191,32 @@ export function MessageComposer({
             }}
             onKeyDown={onKeyDown}
             onPaste={onPaste}
-            className="block max-h-40 w-full resize-none rounded-2xl border border-rail bg-surface px-3.5 py-2 text-[15px] leading-snug placeholder:text-ink-muted/80 focus:border-primary focus:outline-none"
+            className="block max-h-40 w-full resize-none rounded-2xl border border-rail bg-surface px-3.5 py-2 text-[15px] leading-snug placeholder:text-ink-muted focus:border-primary focus:outline-none"
           />
+          <p id={hintId} className="sr-only">
+            {touch ? "Enter starts a new line. Use the Send button to send." : "Enter sends. Shift and Enter starts a new line."}
+          </p>
           {remaining < 200 ? (
             <span className={cn("pointer-events-none absolute right-3 -top-5 font-mono text-[11px] tabular", remaining < 0 ? "text-destructive" : "text-ink-muted")}>{remaining}</span>
           ) : null}
         </div>
-        <Button type="submit" size="icon" aria-label="Send" title="Send (Enter)" disabled={!canSend} className="rounded-full">
+        <Button type="submit" size="icon" aria-label="Send" title={touch ? "Send" : "Send (Enter)"} disabled={!canSend} onPointerDown={keepTyping} className="rounded-full">
           <SendHorizontal />
         </Button>
       </div>
     </form>
   );
+}
+
+// Whether the main pointer is a finger, so Enter can make a new line there.
+function useTouchKeyboard() {
+  const [touch, setTouch] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(pointer: coarse)");
+    const update = () => setTouch(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  return touch;
 }

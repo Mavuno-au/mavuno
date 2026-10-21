@@ -24,7 +24,7 @@ export function DiscoverView({ tab }: { tab: DiscoverTab }) {
       <PageHeader title="Discover">
         <form action="/search" className="mx-4 mb-3 flex items-center gap-2 rounded-full border border-rail bg-shell px-4 focus-within:border-primary sm:mx-6">
           <Search className="size-4 text-ink-muted" />
-          <input name="q" placeholder="Search posts, people and organisations" aria-label="Search" className="h-10 w-full bg-transparent text-[15px] focus:outline-none" />
+          <input name="q" dir="auto" placeholder="Search posts, people and organisations" aria-label="Search" className="h-10 w-full bg-transparent text-[15px] focus:outline-none" />
         </form>
         <Tabs tabs={DISCOVER_TABS.map(({ key, label, href }) => ({ href, label, active: key === tab }))} />
       </PageHeader>

@@ -298,7 +298,7 @@ function LivePost({
                 <button type="button" className="rounded-md px-2 py-1 hover:bg-surface" onClick={() => setState("shown")}>
                   Cancel
                 </button>
-                <button type="button" className="rounded-md bg-destructive px-2.5 py-1 font-medium text-white" onClick={remove}>
+                <button type="button" className="rounded-md bg-destructive px-2.5 py-1 font-medium text-destructive-ink" onClick={remove}>
                   Delete
                 </button>
               </span>

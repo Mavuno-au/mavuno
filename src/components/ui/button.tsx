@@ -6,7 +6,7 @@ const VARIANTS = {
   primary: "bg-primary text-primary-ink hover:bg-primary-hover",
   outline: "border border-rail bg-shell text-ink hover:bg-wash",
   ghost: "text-ink-muted hover:bg-wash hover:text-ink",
-  destructive: "bg-destructive text-white hover:opacity-90",
+  destructive: "bg-destructive text-destructive-ink hover:opacity-90",
 } as const;
 
 const SIZES = {

@@ -19,7 +19,7 @@ export async function Aside({ viewer }: { viewer: Viewer | null }) {
     <aside className="sticky top-0 hidden h-dvh w-80 shrink-0 flex-col gap-6 overflow-y-auto px-6 py-4 xl:flex">
       <form action="/search" className="flex items-center gap-2 rounded-full border border-rail bg-surface px-4 focus-within:border-primary">
         <Search className="size-4 text-ink-muted" />
-        <input name="q" placeholder="Search Mavuno" aria-label="Search Mavuno" className="h-10 w-full bg-transparent text-sm focus:outline-none" />
+        <input name="q" dir="auto" placeholder="Search Mavuno" aria-label="Search Mavuno" className="h-10 w-full bg-transparent text-sm focus:outline-none" />
         <kbd className="rounded border border-rail px-1 font-mono text-[10px] text-ink-muted">/</kbd>
       </form>
 
@@ -34,7 +34,11 @@ export async function Aside({ viewer }: { viewer: Viewer | null }) {
               </span>
             </span>
           </Link>
-          {card.bio ? <p className="mt-3 line-clamp-2 text-sm text-ink-muted">{card.bio}</p> : null}
+          {card.bio ? (
+            <p dir="auto" className="mt-3 line-clamp-2 text-sm text-ink-muted">
+              {card.bio}
+            </p>
+          ) : null}
           <dl className="mt-3 flex gap-4 font-mono text-xs text-ink-muted">
             <Count href={`/@${viewer.username}`} value={card.posts} label="posts" />
             <Count href={`/@${viewer.username}/following`} value={card.following} label="following" />
