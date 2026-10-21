@@ -10,12 +10,21 @@ import { onboardingPath, safeNext } from "@/lib/safe-redirect";
 import { emailSchema, firstIssue, passwordSchema, revealsEmail, usernameSchema } from "@/lib/schemas";
 import { createClient } from "@/lib/supabase/server";
 
-// Google sign-in returns here with a one-time code.
-const callback = (next: string) => `${publicEnv.siteUrl}/auth/callback?next=${encodeURIComponent(next)}`;
+// Google sign-in returns here with a one-time code, and the inviter's
+// username when it started from someone's invite link.
+const callback = (next: string, invite: string | undefined) =>
+  `${publicEnv.siteUrl}/auth/callback?next=${encodeURIComponent(next)}${invite ? `&invite=${encodeURIComponent(invite)}` : ""}`;
 
 export async function signUp(_: Result | null, form: FormData): Promise<Result> {
   const parsed = z
-    .object({ email: emailSchema, password: passwordSchema, username: usernameSchema, displayName: z.string().trim().min(1, "Add your name.").max(60), next: z.string().optional() })
+    .object({
+      email: emailSchema,
+      password: passwordSchema,
+      username: usernameSchema,
+      displayName: z.string().trim().min(1, "Add your name.").max(60),
+      next: z.string().optional(),
+      invite: usernameSchema.optional().catch(undefined),
+    })
     .safeParse(Object.fromEntries(form));
   if (!parsed.success) return fail(firstIssue(parsed.error));
   const { data: input } = parsed;
@@ -38,10 +47,14 @@ export async function signUp(_: Result | null, form: FormData): Promise<Result> 
   if (reserved === true) return fail("That username is reserved for Mavuno. Choose another.");
 
   // Only the outcome of the age check goes with the account, never the date.
+  // The inviter is recorded once the email address is confirmed.
   const { data, error } = await supabase.auth.signUp({
     email: input.email,
     password: input.password,
-    options: { emailRedirectTo: emailLink(setup), data: { username: input.username, display_name: input.displayName, age_confirmed: true } },
+    options: {
+      emailRedirectTo: emailLink(setup),
+      data: { username: input.username, display_name: input.displayName, age_confirmed: true, ...(input.invite ? { invited_by: input.invite } : {}) },
+    },
   });
   if (error?.code === "user_already_exists") return fail("An account with that email already exists. Sign in instead.");
   if (error?.status === 429) return fail("We're sending a lot of sign-up emails right now. Wait a few minutes and try again.");
@@ -76,9 +89,10 @@ export async function sendMagicLink(_: Result | null, form: FormData): Promise<R
 
 export async function signInWithGoogle(form: FormData) {
   const supabase = await createClient();
+  const invite = usernameSchema.safeParse(form.get("invite")).data;
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo: callback(safeNext(form.get("next"))) },
+    options: { redirectTo: callback(safeNext(form.get("next")), invite) },
   });
   if (error || !data.url) redirect("/login?error=google");
   redirect(data.url);

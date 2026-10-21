@@ -44,7 +44,7 @@ export function SignInForm({ next }: { next: string }) {
   );
 }
 
-export function SignUpForm({ next }: { next: string }) {
+export function SignUpForm({ next, invite }: { next: string; invite?: string }) {
   const [state, action, pending] = useActionState(signUp, null);
   // Controlled, so an error from the server (a taken username) doesn't clear the form.
   const [form, setForm] = useState({ displayName: "", username: "", email: "", password: "" });
@@ -64,6 +64,7 @@ export function SignUpForm({ next }: { next: string }) {
   return (
     <form action={action} className="grid gap-4">
       <input type="hidden" name="next" value={next} />
+      {invite ? <input type="hidden" name="invite" value={invite} /> : null}
       <Field label="Your name" htmlFor="displayName">
         <Input
           id="displayName"

@@ -2,12 +2,13 @@ import { signInWithGoogle } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { publicEnv } from "@/lib/env";
 
-export function GoogleButton({ next }: { next: string }) {
+export function GoogleButton({ next, invite }: { next: string; invite?: string }) {
   if (!publicEnv.googleAuth) return null;
   return (
     <>
       <form action={signInWithGoogle}>
         <input type="hidden" name="next" value={next} />
+        {invite ? <input type="hidden" name="invite" value={invite} /> : null}
         <Button type="submit" variant="outline" size="lg" className="w-full">
           <svg viewBox="0 0 24 24" aria-hidden>
             <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.4h6.5a5.6 5.6 0 0 1-2.4 3.6v3h3.9c2.2-2.1 3.5-5.1 3.5-8.7Z" />

@@ -8,6 +8,7 @@ import { startConversation } from "@/app/actions/messages";
 import { setRelation } from "@/app/actions/social";
 import { ConfirmBlockDialog } from "@/components/people/confirm-block-dialog";
 import { FollowButton } from "@/components/people/follow-button";
+import { InviteFriendsButton } from "@/components/people/invite-friends";
 import { ShareProfileButton } from "@/components/people/share-profile-button";
 import { ReportDialog } from "@/components/moderation/report-dialog";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -27,6 +28,7 @@ export function ProfileActions({ profile }: { profile: { id: string; username: s
     return (
       <div className="flex items-center gap-2">
         <ShareProfileButton username={profile.username} />
+        {relationship.self ? <InviteFriendsButton username={profile.username} compact /> : null}
         <ButtonLink href={relationship.self ? "/settings" : `/settings/organisations/${profile.username}`} variant="outline" size="sm">
           Edit profile
         </ButtonLink>
