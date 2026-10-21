@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import { z } from "zod";
+import { PostGoneCover } from "@/components/post/gone-cover";
 import { PostItem } from "@/components/post/post-item";
 import { ReplyList } from "@/components/post/reply-list";
 import { ThreadContinuation } from "@/components/post/thread-continuation";
@@ -50,6 +51,7 @@ export default async function PostPage({ params }: PageProps<"/u/[username]/post
         <PostItem key={row.id} row={row} variant="ancestor" place={placeAbove(ancestors.length - index)} />
       ))}
       <PostItem row={post} variant="focus" place={place} />
+      <PostGoneCover postId={post.id} authorUsername={post.author.username} />
       {continuation.kind === "thread" ? <ThreadContinuation postId={post.id} place={continuation.place} initial={continuation.parts} /> : null}
       <ReplyList postId={post.id} initial={replies} next={next} />
     </>
