@@ -26,7 +26,7 @@ const CATCH_UP_EVERY_MS = 20_000;
 const REACTIONS_RECHECKED = 100;
 
 const insertedMessage = z.object({ id: z.uuid(), sender_id: z.uuid().nullable() });
-const updatedMessage = z.object({ id: z.uuid(), removed_at: z.string().nullable() });
+const updatedMessage = z.object({ id: z.uuid(), removed_at: z.string().nullable(), link_preview: z.unknown().nullable().optional() });
 const reactionPayload = z.object({ messageId: z.uuid() });
 const typingPayload = z.object({ userId: z.uuid() });
 type Row = Record<string, unknown>;
@@ -138,11 +138,22 @@ export function ThreadView({ conversation, viewerId, initial, next: initialNext 
         }
         if (senderId !== viewerId) void read();
       })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages", filter }, (payload: RealtimePostgresUpdatePayload<Row>) => {
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages", filter }, async (payload: RealtimePostgresUpdatePayload<Row>) => {
         const row = updatedMessage.safeParse(payload.new);
-        if (!row.success || !row.data.removed_at) return;
-        const removedId = row.data.id;
-        setMessages((current) => current.map((message) => (message.id === removedId ? { ...message, content: { kind: "removed" } } : message)));
+        if (!row.success) return;
+        const updatedId = row.data.id;
+        if (row.data.removed_at) {
+          setMessages((current) => current.map((message) => (message.id === updatedId ? { ...message, content: { kind: "removed" } } : message)));
+          return;
+        }
+        // The server writes a message's link card a moment after it is sent;
+        // re-reading the message shows it without waiting for a reload.
+        if (row.data.link_preview != null && known.current.has(updatedId)) {
+          try {
+            const message = await fetchMessage(id, updatedId);
+            if (message) setMessages((current) => current.map((item) => (item.id === updatedId ? { ...message, reactions: item.reactions } : item)));
+          } catch {}
+        }
       })
       // Reactions aren't streamed from the table: Realtime can't apply row level
       // security to deletions, so they would reach every subscriber. A ping

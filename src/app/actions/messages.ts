@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
+import { runTasksFor } from "@/lib/background-tasks";
 import { loadMembers, loadMessage, loadMessages, loadMessagesAfter, loadReactions, type Member, type Message, type MessagePage, type Reaction } from "@/lib/data/messages";
 import { parsePeople, type PersonSummary } from "@/lib/domain";
 import { LIMITS } from "@/lib/catalogue";
@@ -137,7 +139,10 @@ export async function sendMessage(input: NewMessage): Promise<Result<Message>> {
     .select("id")
     .single();
   if (error) return failFrom(error);
-  const sent = await loadMessage(message.conversationId, z.object({ id }).parse(data).id);
+  const messageId = z.object({ id }).parse(data).id;
+  // Its link card, if the message has a link, so the card doesn't wait for the next sweep.
+  after(() => runTasksFor(messageId));
+  const sent = await loadMessage(message.conversationId, messageId);
   return sent ? ok(sent) : fail("Your message was sent, but it could not be shown. Refresh the page.");
 }
 
