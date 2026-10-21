@@ -55,6 +55,11 @@ export function firstUrl(body: string) {
   return tokenize(body).find((segment) => segment.kind === "url")?.href ?? null;
 }
 
+// Every distinct link in the body, in the order written: the choices for a card.
+export function allUrls(body: string) {
+  return [...new Set(tokenize(body).flatMap((segment) => (segment.kind === "url" ? [segment.href] : [])))];
+}
+
 export function displayUrl(href: string) {
   const { host, pathname, search } = new URL(href);
   const rest = `${pathname === "/" ? "" : pathname}${search}`;
@@ -64,6 +69,8 @@ export function displayUrl(href: string) {
 
 const FOLD_CHARACTERS = 280;
 const FOLD_LINES = 8;
+
+export const FOLD_HINT = `Feeds show the first ${FOLD_CHARACTERS} characters or ${FOLD_LINES} lines, then Show more.`;
 
 // Long posts fold behind "Show more" in lists: the preview stops at a word
 // boundary near 280 characters or after 8 lines, whichever comes first.
@@ -77,4 +84,8 @@ export function foldBody(body: string): { folded: false } | { folded: true; prev
   }
   if (preview.length >= body.length) return { folded: false };
   return { folded: true, preview: `${preview.trimEnd()}…` };
+}
+
+export function foldsInLists(body: string) {
+  return foldBody(body).folded;
 }

@@ -38,7 +38,9 @@ export function MessageComposer({
   const [images, setImages] = useState<Attachment[]>([]);
   const [pending, startTransition] = useTransition();
   const remaining = LIMITS.messageBody - body.length;
-  const canSend = !pending && remaining >= 0 && (body.trim().length > 0 || images.length > 0);
+  // Why Send is greyed out, said on the button, since a disabled button can't be asked.
+  const blocker = remaining < 0 ? `Too long by ${-remaining} ${remaining === -1 ? "character" : "characters"}.` : body.trim().length === 0 && images.length === 0 ? "Write a message first." : null;
+  const canSend = !pending && blocker === null;
 
   useEffect(() => {
     const element = textarea.current;
@@ -200,9 +202,12 @@ export function MessageComposer({
             <span className={cn("pointer-events-none absolute right-3 -top-5 font-mono text-[11px] tabular", remaining < 0 ? "text-destructive" : "text-ink-muted")}>{remaining}</span>
           ) : null}
         </div>
-        <Button type="submit" size="icon" aria-label="Send" title={touch ? "Send" : "Send (Enter)"} disabled={!canSend} onPointerDown={keepTyping} className="rounded-full">
-          <SendHorizontal />
-        </Button>
+        <span title={blocker ?? undefined} className="inline-flex">
+          <Button type="submit" size="icon" aria-label="Send" aria-describedby={blocker ? `${hintId}-blocker` : undefined} title={blocker ? undefined : touch ? "Send" : "Send (Enter)"} disabled={!canSend} onPointerDown={keepTyping} className="rounded-full">
+            <SendHorizontal />
+          </Button>
+          {blocker ? <span id={`${hintId}-blocker`} className="sr-only">{blocker}</span> : null}
+        </span>
       </div>
     </form>
   );

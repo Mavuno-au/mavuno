@@ -9,7 +9,7 @@ import { feedSourceSchema } from "@/lib/feeds";
 import { publicEnv } from "@/lib/env";
 import { done, fail, failFrom, ok, type Result } from "@/lib/result";
 import { createClient } from "@/lib/supabase/server";
-import { tokenize } from "@/lib/text";
+import { allUrls } from "@/lib/text";
 import { getViewer } from "@/lib/viewer";
 
 const id = z.uuid();
@@ -48,8 +48,7 @@ export type NewScheduledPost = z.input<typeof scheduledPostSchema>;
 // Only a link that is in the post can become its card. The server fetches the
 // card after the post is created.
 function cardLink(body: string, linkUrl: string | null) {
-  const links = new Set(tokenize(body).flatMap((segment) => (segment.kind === "url" ? [segment.href] : [])));
-  return linkUrl && links.has(linkUrl) ? linkUrl : null;
+  return linkUrl && allUrls(body).includes(linkUrl) ? linkUrl : null;
 }
 
 const pollArgument = (poll: z.infer<typeof newPostSchema>["poll"]) => poll && { options: poll.options, duration_hours: poll.durationHours };

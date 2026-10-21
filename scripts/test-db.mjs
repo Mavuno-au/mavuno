@@ -735,6 +735,15 @@ console.log("\nSecurity hardening");
   await as(pollster);
   await fails("link cards need the link in the post", "select public.create_post('No link here', 'en', null, null, null, null, 'https://evil.example')", [], /link in the post/);
   check("link cards take a link from the post", (await one("select link_url from public.posts where id = $1", [await post("Read https://example.org/a", "en", null, null, null, null, "https://example.org/a")])).link_url === "https://example.org/a");
+  const second = await post("Compare https://example.org/one with https://example.org/two", "en", null, null, null, null, "https://example.org/two");
+  check("the author can choose which link gets the card", (await one("select link_url from public.posts where id = $1", [second])).link_url === "https://example.org/two");
+  const uncarded = await post("Just mentioning https://example.org/plain", "en", null, null, null, null, null);
+  await superuser();
+  check(
+    "choosing no card stores no link and fetches nothing",
+    (await one("select link_url from public.posts where id = $1", [uncarded])).link_url === null && (await q("select 1 from public.background_tasks where kind = 'link_preview' and target_id = $1", [uncarded])).length === 0,
+  );
+  await as(pollster);
   check("www links count as in the post", (await post("See www.example.org", "en", null, null, null, null, "https://www.example.org")) !== null);
   await fails("images point at their upload", "select public.create_post('pic', 'en', null, null, null, null, null, $1::jsonb)",
     [JSON.stringify([{ path: `${pollster}/posts/a.webp`, url: "https://evil.example/a.webp" }])], /Invalid image/);

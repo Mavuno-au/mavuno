@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayUrl, firstUrl, foldBody, tokenize } from "./text";
+import { allUrls, displayUrl, firstUrl, foldBody, foldsInLists, tokenize } from "./text";
 
 describe("tokenize", () => {
   it("finds mentions, topics and links in order", () => {
@@ -79,5 +79,23 @@ describe("foldBody", () => {
   it("cuts after 8 lines", () => {
     const result = foldBody(Array.from({ length: 12 }, (_, i) => `line ${i}`).join("\n"));
     expect(result).toEqual({ folded: true, preview: `${Array.from({ length: 8 }, (_, i) => `line ${i}`).join("\n")}…` });
+  });
+});
+
+describe("allUrls", () => {
+  it("lists each distinct link once, in the order written", () => {
+    expect(allUrls("See https://example.org/a and www.example.org/b, then https://example.org/a again")).toEqual(["https://example.org/a", "https://www.example.org/b"]);
+  });
+
+  it("is empty without links", () => {
+    expect(allUrls("Nothing to see @here #today")).toEqual([]);
+  });
+});
+
+describe("foldsInLists", () => {
+  it("says whether a post will fold behind Show more", () => {
+    expect(foldsInLists("Short and sweet")).toBe(false);
+    expect(foldsInLists("word ".repeat(70))).toBe(true);
+    expect(foldsInLists(Array.from({ length: 9 }, (_, i) => `line ${i}`).join("\n"))).toBe(true);
   });
 });
