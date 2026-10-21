@@ -3,9 +3,9 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import { Analytics } from "@/components/shell/analytics";
 import { KeyboardWatcher } from "@/components/shell/keyboard-watcher";
+import { ThemeScript } from "@/components/shell/theme-script";
 import { publicEnv } from "@/lib/env";
 import { serverEnv } from "@/lib/server-env";
-import { THEME_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
 const sans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -39,8 +39,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en-AU" suppressHydrationWarning className={`${sans.variable} ${mono.variable} antialiased`}>
       <head>
-        {/* Applies a saved dark theme before first paint so it never flashes light. */}
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        <ThemeScript />
       </head>
       <body className="min-h-dvh">
         {children}

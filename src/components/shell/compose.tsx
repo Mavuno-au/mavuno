@@ -15,7 +15,13 @@ export function ComposeProvider({ children }: { children: ReactNode }) {
   return (
     <ComposeContext value={value}>
       {children}
-      <Dialog open={isOpen} onClose={() => setOpen(false)} title="New post">
+      {/* On phones writing gets the whole screen above the keyboard, as a sheet. */}
+      <Dialog
+        open={isOpen}
+        onClose={() => setOpen(false)}
+        title="New post"
+        className="max-md:mt-(--visual-viewport-top,0px) max-md:mb-0 max-md:h-(--visual-viewport-height,100dvh) max-md:max-h-none max-md:w-full max-md:max-w-none max-md:rounded-none max-md:border-0"
+      >
         {isOpen ? (
           <Composer
             mode={{ kind: "post" }}
