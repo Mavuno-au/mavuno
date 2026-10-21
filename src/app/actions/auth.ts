@@ -24,9 +24,18 @@ export async function signUp(_: Result | null, form: FormData): Promise<Result> 
 
   const supabase = await createClient();
   const birthDate = await readBirthDate();
-  if (!birthDate || !(await meetsMinimumAge(supabase, birthDate))) return fail("Enter your date of birth first. Reload the page to start again.");
-  const { data: taken } = await supabase.from("profiles").select("id").eq("username", input.username).maybeSingle();
+  if (!birthDate) return fail("Enter your date of birth first. Reload the page to start again.");
+  const oldEnough = await meetsMinimumAge(supabase, birthDate);
+  if (oldEnough === null) return fail("We couldn't check your details. Try again.");
+  if (!oldEnough) return fail("Enter your date of birth first. Reload the page to start again.");
+  // The database gives a reserved name a generated one instead, so it is
+  // refused here, where the person can choose again.
+  const [{ data: taken }, { data: reserved }] = await Promise.all([
+    supabase.from("profiles").select("id").eq("username", input.username).maybeSingle(),
+    supabase.rpc("is_reserved_username", { p_username: input.username }),
+  ]);
   if (taken) return fail("That username is taken.");
+  if (reserved === true) return fail("That username is reserved for Mavuno. Choose another.");
 
   // Only the outcome of the age check goes with the account, never the date.
   const { data, error } = await supabase.auth.signUp({
@@ -36,6 +45,8 @@ export async function signUp(_: Result | null, form: FormData): Promise<Result> 
   });
   if (error?.code === "user_already_exists") return fail("An account with that email already exists. Sign in instead.");
   if (error?.status === 429) return fail("We're sending a lot of sign-up emails right now. Wait a few minutes and try again.");
+  // public.handle_new_user stops the sign-up when someone took the name a moment ago.
+  if (error && (await supabase.from("profiles").select("id").eq("username", input.username).maybeSingle()).data) return fail("Someone just took that username. Choose another.");
   if (error) return fail(error.message);
   await forgetBirthDate();
   if (data.session) redirect(setup);

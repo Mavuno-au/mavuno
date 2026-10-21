@@ -93,6 +93,16 @@ row = await one("select username from public.profiles where id = $1", [taken]);
 check("a reserved username falls back to a generated one", row.username.startsWith("member_"), row);
 row = await one("select count(*)::int as n from public.profile_settings");
 check("every profile gets private settings", row.n === 5, row);
+await fails(
+  "a chosen username taken a moment earlier stops the sign-up",
+  "insert into auth.users (email, raw_user_meta_data) values ('kofi2@example.com', '{\"username\": \"Kofi\", \"age_confirmed\": true}')",
+  [],
+  /username is taken/,
+);
+const unnamed = await createUser("unnamed@example.com", { full_name: "Kofi Mensah" });
+row = await one("select username, display_name from public.profiles where id = $1", [unnamed]);
+check("a sign-up without a chosen username still gets a generated one", row.username.startsWith("member_") && row.display_name === "Kofi Mensah", row);
+await q("delete from auth.users where id = $1", [unnamed]);
 
 await superuser();
 await q("update public.profile_settings set site_role = 'moderator' where id = $1", [mod]);
