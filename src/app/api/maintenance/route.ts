@@ -43,8 +43,9 @@ async function removeQueuedFiles(service: Service) {
 }
 
 // Publishes due scheduled posts, erases deleted posts past their undo window,
-// deletes accounts deactivated for being under 16 that no review reinstated, and
-// removes files left behind by erased content. pg_cron runs the database parts
+// deletes accounts deactivated for being under 16 that no review reinstated,
+// forgets server errors older than two weeks, and removes files left behind by
+// erased content. pg_cron runs the database parts
 // every minute where it's installed; running them here as well is harmless.
 async function maintain() {
   const service = createServiceClient();
@@ -59,6 +60,9 @@ async function maintain() {
   const deactivated = await service.rpc("purge_deactivated_accounts");
   if (deactivated.error) return NextResponse.json({ error: deactivated.error.message }, { status: 500 });
 
+  const errors = await service.rpc("prune_server_errors");
+  if (errors.error) return NextResponse.json({ error: errors.error.message }, { status: 500 });
+
   let removedFiles: number;
   try {
     removedFiles = await removeQueuedFiles(service);
@@ -66,7 +70,7 @@ async function maintain() {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Storage cleanup failed" }, { status: 500 });
   }
 
-  return NextResponse.json({ scheduledPosts: z.number().catch(0).parse(scheduled.data), purgedPosts: z.number().catch(0).parse(purge.data), deletedAccounts: z.number().catch(0).parse(deactivated.data), removedFiles });
+  return NextResponse.json({ scheduledPosts: z.number().catch(0).parse(scheduled.data), purgedPosts: z.number().catch(0).parse(purge.data), deletedAccounts: z.number().catch(0).parse(deactivated.data), prunedErrors: z.number().catch(0).parse(errors.data), removedFiles });
 }
 
 // Vercel's cron (vercel.json) sends a GET with CRON_SECRET.
