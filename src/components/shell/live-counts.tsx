@@ -19,7 +19,7 @@ export function LiveCounts({ viewerId, initial, children }: { viewerId: string |
     if (!viewerId) return;
     const supabase = getBrowserClient();
     const channel = supabase
-      .channel(`counts:${viewerId}`)
+      .channel(`counts:${viewerId}`, { config: { private: true } })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `recipient_id=eq.${viewerId}` }, () =>
         setCounts((current) => ({ ...current, notifications: current.notifications + 1 })),
       )

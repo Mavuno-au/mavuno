@@ -1,12 +1,12 @@
 "use client";
 
-import type { REALTIME_SUBSCRIBE_STATES, RealtimeChannel, RealtimePostgresDeletePayload, RealtimePostgresInsertPayload, RealtimePostgresUpdatePayload } from "@supabase/supabase-js";
+import type { REALTIME_SUBSCRIBE_STATES, RealtimeChannel, RealtimePostgresInsertPayload, RealtimePostgresUpdatePayload } from "@supabase/supabase-js";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
-import { fetchMembers, fetchMessage, loadNewerMessages, loadOlderMessages, markRead, setReaction } from "@/app/actions/messages";
+import { fetchMembers, fetchMessage, fetchReactions, loadNewerMessages, loadOlderMessages, markRead, setReaction } from "@/app/actions/messages";
 import { ConversationMenu } from "@/components/messages/conversation-menu";
 import { MessageComposer, type ReplyTarget } from "@/components/messages/message-composer";
 import { MessageItem, snippet, summary, type Placement } from "@/components/messages/message-item";
@@ -22,10 +22,12 @@ const RUN_GAP_MS = 5 * 60_000;
 const TYPING_MS = 4_000;
 const TYPING_EVERY_MS = 2_500;
 const CATCH_UP_EVERY_MS = 20_000;
+// The newest messages on screen whose reactions are re-read on reconnecting or returning to the tab.
+const REACTIONS_RECHECKED = 100;
 
 const insertedMessage = z.object({ id: z.uuid(), sender_id: z.uuid().nullable() });
 const updatedMessage = z.object({ id: z.uuid(), removed_at: z.string().nullable() });
-const reactionRow = z.object({ message_id: z.uuid(), user_id: z.uuid(), emoji: z.string() });
+const reactionPayload = z.object({ messageId: z.uuid() });
 const typingPayload = z.object({ userId: z.uuid() });
 type Row = Record<string, unknown>;
 
@@ -41,6 +43,13 @@ function withReaction(messages: Message[], messageId: string, reaction: Reaction
     if (message.id !== messageId) return message;
     const others = message.reactions.filter((item) => !isReaction(reaction)(item));
     return { ...message, reactions: on ? [...others, reaction] : others };
+  });
+}
+
+function withReactions(messages: Message[], reactions: Record<string, Reaction[]>) {
+  return messages.map((message) => {
+    const fresh = reactions[message.id];
+    return fresh ? { ...message, reactions: fresh } : message;
   });
 }
 
@@ -82,7 +91,8 @@ export function ThreadView({ conversation, viewerId, initial, next: initialNext 
   useEffect(() => {
     const supabase = getBrowserClient();
     const filter = `conversation_id=eq.${id}`;
-    const live: RealtimeChannel = supabase.channel(`conversation:${id}`, { config: { broadcast: { self: false } } });
+    // Private: Realtime lets only the conversation's participants join (see the realtime.messages policies).
+    const live: RealtimeChannel = supabase.channel(`conversation:${id}`, { config: { private: true, broadcast: { self: false } } });
 
     // Other people's read positions are private, so a read is announced with
     // a ping and everyone re-reads receipts through shared_read_at.
@@ -96,12 +106,21 @@ export function ThreadView({ conversation, viewerId, initial, next: initialNext 
       } catch {}
     };
 
+    const refreshReactions = async (messageIds: string[]) => {
+      if (messageIds.length === 0) return;
+      try {
+        const reactions = await fetchReactions(id, messageIds);
+        setMessages((current) => withReactions(current, reactions));
+      } catch {}
+    };
+
     const catchUp = async () => {
       try {
         const fresh = await loadNewerMessages(id, shown.current.at(-1)?.createdAt ?? null);
         for (const message of fresh) add(message);
         if (fresh.some((message) => message.senderId !== viewerId)) void read();
       } catch {}
+      void refreshReactions(shown.current.slice(-REACTIONS_RECHECKED).map((message) => message.id));
     };
 
     live
@@ -125,14 +144,12 @@ export function ThreadView({ conversation, viewerId, initial, next: initialNext 
         const removedId = row.data.id;
         setMessages((current) => current.map((message) => (message.id === removedId ? { ...message, content: { kind: "removed" } } : message)));
       })
-      // Reactions have no conversation column to filter on; ones for messages not shown here change nothing.
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "message_reactions" }, (payload: RealtimePostgresInsertPayload<Row>) => {
-        const row = reactionRow.safeParse(payload.new);
-        if (row.success) setMessages((current) => withReaction(current, row.data.message_id, { emoji: row.data.emoji, userId: row.data.user_id }, true));
-      })
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "message_reactions" }, (payload: RealtimePostgresDeletePayload<Row>) => {
-        const row = reactionRow.safeParse(payload.old);
-        if (row.success) setMessages((current) => withReaction(current, row.data.message_id, { emoji: row.data.emoji, userId: row.data.user_id }, false));
+      // Reactions aren't streamed from the table: Realtime can't apply row level
+      // security to deletions, so they would reach every subscriber. A ping
+      // names the message and everyone re-reads its reactions instead.
+      .on("broadcast", { event: "reaction" }, ({ payload }: { payload?: unknown }) => {
+        const row = reactionPayload.safeParse(payload);
+        if (row.success && known.current.has(row.data.messageId)) void refreshReactions([row.data.messageId]);
       })
       .on("broadcast", { event: "read" }, async () => {
         try {
@@ -225,7 +242,10 @@ export function ThreadView({ conversation, viewerId, initial, next: initialNext 
     void setReaction(message.id, emoji, on)
       .catch(() => ({ ok: false as const, error: "Couldn't save your reaction. Try again." }))
       .then((result) => {
-        if (result.ok) return;
+        if (result.ok) {
+          void channel.current?.send({ type: "broadcast", event: "reaction", payload: { messageId: message.id } });
+          return;
+        }
         setMessages((current) => withReaction(current, message.id, reaction, !on));
         toast.error(result.error);
       });

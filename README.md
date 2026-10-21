@@ -35,7 +35,7 @@ cp .env.example .env.local
 
 3. In the dashboard, under Authentication → URL Configuration, set the Site URL to your site and add `<site>/auth/callback` to the redirect URLs.
 4. Enable `pg_cron` under Database → Extensions if the maintenance migration reported it missing, then run `pnpm db:push` again.
-5. Check the result with Supabase's advisors. Only "unused index" notes and the two internal tables without policies should remain:
+5. Check the result with Supabase's advisors. Only "unused index" notes and the internal tables without policies (read and written only by database functions) should remain:
 
    ```bash
    pnpm supabase db advisors --db-url "$SUPABASE_DB_URL" --type all
@@ -84,7 +84,8 @@ Admins can then make other members moderators from Moderation → Admin.
 | `NEXT_PUBLIC_AUTH_GOOGLE` | no | `true` shows "Continue with Google". Enable the provider in Supabase first |
 | `TRANSLATE_API_URL`, `TRANSLATE_API_KEY` | no | A [LibreTranslate](https://github.com/LibreTranslate/LibreTranslate)-compatible API. Without it, Translate opens Google Translate |
 | `SUPABASE_SERVICE_ROLE_KEY` | for photos | Server only. Stores uploaded photos after re-encoding them; without it photo uploads are off. Also caches translations and lets `/api/maintenance` remove erased files |
-| `MAINTENANCE_SECRET` | no | Bearer token for `POST /api/maintenance` |
+| `CRON_SECRET` | for erasing files | Vercel's cron sends it to `/api/indexnow` and to `GET /api/maintenance`, which removes erased photos from Storage daily |
+| `MAINTENANCE_SECRET` | no | Bearer token for `POST /api/maintenance`, for a scheduler other than Vercel's |
 | `OPENAI_API_KEY` | no | Turns on the automatic check: after a post is created, posts from members without a track record (new, or reported in the past week) go to OpenAI's `omni-moderation-latest`, and a flagged post goes back to the review queue with its categories. It never rejects. Needs `SUPABASE_SERVICE_ROLE_KEY`; without either key nothing is sent |
 | `NEXT_PUBLIC_FATHOM_SITE_ID` | no | [Fathom](https://usefathom.com) site ID for cookieless visit counts. Nothing loads without it |
 | `NEXT_PUBLIC_GA_MEASUREMENT_ID` | no | Google Analytics 4 ID (G-…). Advertising features and Google Signals stay off |
@@ -117,6 +118,7 @@ Everything that has to be true lives in `supabase/migrations`:
 | `conversation_visibility` | the newest replies under each post in a page of a feed in one query, Trending drawn at random by hot score with a new seed each visit (likes on a thread's replies count towards it), who liked a post for its author only, mention suggestions from the conversation, and profile cards |
 | `automatic_check` | `post_flags`, and the service-role functions the automatic check uses to read a post and hold it for review (never reject it) |
 | `duplicate_post_hold` | `create_post` holds for review a third copy of the same text (20 characters or more, ignoring case and spacing) from one person within an hour |
+| `privacy_and_security_fixes` | `realtime.messages` policies for the private channels, reactions limited to listed emoji and 60 a minute (and no longer streamed), message photos queued for erasure with their message, conversation or account, avatars, banners and event covers limited to this project's Storage (`storage_origins`) or the Google photo, and 7 days of `pg_cron` history |
 
 Every table has row level security, and `api_grants` declares every privilege explicitly: Supabase no longer exposes new tables and functions automatically, and internal functions (publishing, notifying, purging) get no grant at all, so only database code can call them. Writes that need more than a one-row check go through `SECURITY DEFINER` functions such as `create_post`, `report_content` and `start_direct_conversation`, which check permissions, limits and blocks themselves. Rate limits (posts, messages, reports, listings, message requests) are enforced in the database, so they hold for every client.
 
@@ -125,7 +127,7 @@ Every table has row level security, and `api_grants` declares every privilege ex
 - **Nothing new is public before review when it needs to be.** Posts, events and opportunities from members without a good reputation (a member for an hour, something approved before, nothing reported recently) wait for a moderator. Authors see their own pending items. Three reports from different people hold a post for review. Admins can turn premoderation off.
 - **Posts are immutable.** Create and delete, never edit. Deleting blanks a post at once and keeps its content privately for 30 seconds so Undo works; then it is erased and an authorless tombstone keeps other people's replies in their thread.
 - **Mutes and blocks apply everywhere**: feeds, threads, search, suggestions, notifications and messages. A muted person's profile can still be visited; a blocked one is unavailable in both directions.
-- **Store as little as possible.** Settings are private to their owner. Location is a city, never coordinates. Photos are re-encoded on the server (`/api/upload`, with sharp) before they are stored, which strips EXIF and location data; members cannot write to Storage directly. Deleting an account erases the profile, posts, likes, messages sent, settings and uploaded files. The JSON export includes everything stored about the person.
+- **Store as little as possible.** Settings are private to their owner. Location is a city, never coordinates. Photos are re-encoded on the server (`/api/upload`, with sharp) before they are stored, which strips EXIF and location data; members cannot write to Storage directly. Deleting an account erases the profile, posts, likes, messages sent, settings and uploaded files. Profile and event images can only be this project's Storage files (or the Google photo someone signed up with), so viewing a page never tells another host who looked; another project or a local stack adds its Storage origin to `public.storage_origins`. The JSON export includes everything stored about the person.
 
 ### App structure
 
@@ -156,7 +158,10 @@ This runs the type checker, ESLint, the unit tests (`pnpm test`) and the databas
 
 ## Maintenance
 
-- Scheduled posts are published and deleted posts are purged every minute by `pg_cron`. Without it, call `POST /api/maintenance` with `Authorization: Bearer $MAINTENANCE_SECRET` on a schedule, for example a Vercel cron. That endpoint also removes erased images from Storage, which a database function cannot do.
+- Scheduled posts are published and deleted posts are purged every minute by `pg_cron`. Without it, call `POST /api/maintenance` with `Authorization: Bearer $MAINTENANCE_SECRET` on a schedule.
+- Erased photos (from deleted posts, removed or deleted messages, and deleted accounts) are queued in `storage_cleanup`, and `/api/maintenance` removes them from Storage, which a database function cannot do. Vercel's cron calls `GET /api/maintenance` daily with `CRON_SECRET` (`vercel.json`).
+- `pg_cron` keeps 7 days of run history.
+- Realtime channels are private (`private: true`, with policies on `realtime.messages`): only a conversation's participants hear its typing, read and reaction pings. Turn off "Allow public access" in Supabase's Realtime settings so no channel can be joined without them.
 - Accounts deactivated for being under 16 are deleted after 30 days unless a moderator reinstates them, daily by `pg_cron` or by `/api/maintenance`. See `docs/AGE_ASSURANCE.md` and `docs/ONLINE_SAFETY.md` for what the online safety law asks of Mavuno and how it is reviewed.
 - Translations are cached for seven days.
 - Admins see product metrics, the day's activity and whether background jobs are keeping up (pg_cron runs included) at `/operations`.

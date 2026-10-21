@@ -78,6 +78,7 @@ export async function fetchLinkPreview(href: string): Promise<LinkPreview | null
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     if (url.protocol !== "https:" && url.protocol !== "http:") return null;
     if (url.port && url.port !== "80" && url.port !== "443") return null;
+    if (url.username || url.password) return null;
     const host = url.hostname.replace(/^\[|\]$/g, "");
     if (isIP(host) && !isPublicAddress(host)) return null;
     try {

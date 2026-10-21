@@ -229,3 +229,17 @@ export async function loadMessage(conversationId: string, messageId: string): Pr
   const [message] = await hydrate(supabase, [messageRowSchema.parse(data)]);
   return message ?? null;
 }
+
+const reactionRowSchema = z.object({ message_id: id, emoji: z.string(), user_id: id });
+
+// Reactions for messages already on screen, re-read when someone in the
+// conversation says theirs changed. Row level security limits it to
+// conversations the viewer is in.
+export async function loadReactions(conversationId: string, messageIds: string[]): Promise<Record<string, Reaction[]>> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("message_reactions").select("message_id, emoji, user_id, message:messages!inner(conversation_id)").eq("message.conversation_id", conversationId).in("message_id", messageIds);
+  if (error) throw new Error(`Reactions failed: ${error.message}`);
+  const reactions: Record<string, Reaction[]> = Object.fromEntries(messageIds.map((messageId) => [messageId, []]));
+  for (const row of z.array(reactionRowSchema).parse(data ?? [])) reactions[row.message_id]?.push({ emoji: row.emoji, userId: row.user_id });
+  return reactions;
+}

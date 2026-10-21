@@ -30,7 +30,7 @@ export function LiveInbox({ viewerId }: { viewerId: string }) {
     };
 
     const supabase = getBrowserClient();
-    const channel = supabase.channel(`inbox:${viewerId}`).on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, refresh).subscribe();
+    const channel = supabase.channel(`inbox:${viewerId}`, { config: { private: true } }).on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, refresh).subscribe();
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       if (timer) clearTimeout(timer);

@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { publicEnv } from "@/lib/env";
+import { authCookieOptions } from "@/lib/supabase/cookie-options";
 import { DISPLAY_TIME_ZONE } from "@/lib/format";
 
 // Remembers the day (and member) last recorded as active, so mark_seen runs at
@@ -23,6 +24,7 @@ export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(publicEnv.supabaseUrl, publicEnv.supabaseKey, {
+    cookieOptions: authCookieOptions(publicEnv.siteUrl),
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll(cookiesToSet, headers) {

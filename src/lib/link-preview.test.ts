@@ -8,10 +8,36 @@ const { fetchLinkPreview, parseMetadata } = await import("./link-preview");
 
 describe("fetchLinkPreview", () => {
   // IP hosts skip the DNS lookup that guards hostnames, so they are refused before any request.
-  it.each(["http://127.0.0.1/", "http://2130706433/", "http://[::1]/", "http://169.254.169.254/latest/meta-data", "http://10.0.0.5/"])("never requests %s", async (url) => {
+  it.each([
+    "http://127.0.0.1/",
+    "http://2130706433/",
+    "http://[::1]/",
+    "http://169.254.169.254/latest/meta-data",
+    "http://10.0.0.5/",
+    "http://[::ffff:127.0.0.1]/",
+    "http://[::ffff:169.254.169.254]/latest/meta-data",
+    "http://[::ffff:a00:1]/",
+    "http://[0:0:0:0:0:ffff:7f00:1]/",
+    "http://[::127.0.0.1]/",
+    "http://[64:ff9b::a9fe:a9fe]/",
+    "http://[2002:a9fe:a9fe::]/",
+    "http://[2001::1]/",
+    "http://[fec0::1]/",
+    "http://[100::1]/",
+    "http://192.0.2.1/",
+    "https://user:secret@example.org/",
+    "https://user@example.org/",
+  ])("never requests %s", async (url) => {
     fetchMock.mockClear();
     expect(await fetchLinkPreview(url)).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("follows no redirect to a mapped loopback address", async () => {
+    fetchMock.mockClear();
+    fetchMock.mockImplementationOnce(async () => new Response(null, { status: 302, headers: { location: "http://[::ffff:127.0.0.1]/" } }));
+    expect(await fetchLinkPreview("https://example.org/")).toBeNull();
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it("requests public hosts", async () => {

@@ -39,7 +39,8 @@ export async function signUp(_: Result | null, form: FormData): Promise<Result> 
   if (error) return fail(error.message);
   await forgetBirthDate();
   if (data.session) redirect(setup);
-  redirect(`/login?sent=confirm&email=${encodeURIComponent(input.email)}`);
+  // Never the address itself: analytics and logs record full URLs.
+  redirect("/login?sent=confirm");
 }
 
 export async function signIn(_: Result | null, form: FormData): Promise<Result> {
