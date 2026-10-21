@@ -8,15 +8,39 @@ import { SaveOpportunity } from "@/components/community/save-opportunity";
 import { RichText } from "@/components/post/rich-text";
 import { Avatar } from "@/components/ui/avatar";
 import { buttonClass } from "@/components/ui/button";
+import { JsonLd } from "@/components/seo/json-ld";
 import { Chip, PageHeader } from "@/components/ui/page";
 import { OPPORTUNITY_TYPES } from "@/lib/catalogue";
 import { loadOpportunity } from "@/lib/data/community";
+import type { OpportunityType } from "@/lib/domain";
 import { relativeTime } from "@/lib/format";
+import { breadcrumbJsonLd } from "@/lib/structured-data";
 import { getViewer } from "@/lib/viewer";
+
+// How the title joins the organisation: "Marketing internship at Acme",
+// "Research scholarship from the Smith Trust".
+const JOINER: Record<OpportunityType, string> = { job: "at", internship: "at", volunteering: "at", mentoring: "with", scholarship: "from", grant: "from", business: "from" };
+
+const excerpt = (text: string, max: number) => {
+  const flat = text.replace(/\s+/g, " ").trim();
+  return flat.length > max ? `${flat.slice(0, max - 1).trimEnd()}…` : flat;
+};
 
 export async function generateMetadata({ params }: PageProps<"/opportunities/[id]">): Promise<Metadata> {
   const found = await loadOpportunity((await params).id, await getViewer());
-  return { title: found?.opportunity.title ?? "Opportunity", description: found?.opportunity.description.slice(0, 160) };
+  if (!found) return { title: "Opportunity" };
+  const { opportunity } = found;
+  const offeredBy = opportunity.organisation ?? opportunity.poster.displayName;
+  const path = `/opportunities/${opportunity.id}`;
+  const facts = [OPPORTUNITY_TYPES[opportunity.type].label, opportunityPlace(opportunity), opportunity.deadlineAt ? `apply by ${deadlineLabel(opportunity.deadlineAt)}` : null].filter(Boolean).join(" · ");
+  return {
+    title: opportunity.title.toLowerCase().includes(offeredBy.toLowerCase()) ? opportunity.title : `${opportunity.title} ${JOINER[opportunity.type]} ${offeredBy}`,
+    description: `${facts}. ${excerpt(opportunity.description, Math.max(60, 160 - facts.length - 2))}`,
+    alternates: { canonical: path },
+    openGraph: { url: path },
+    // A closed listing stays readable for anyone holding the link but leaves search results.
+    robots: opportunity.closed || opportunity.review.kind !== "published" ? { index: false, follow: true } : undefined,
+  };
 }
 
 export default async function OpportunityPage({ params }: PageProps<"/opportunities/[id]">) {
@@ -34,6 +58,9 @@ export default async function OpportunityPage({ params }: PageProps<"/opportunit
 
   return (
     <>
+      {opportunity.review.kind === "published" ? (
+        <JsonLd data={breadcrumbJsonLd([{ name: "Opportunities", path: "/opportunities" }, { name: type.plural, path: `/opportunities?type=${opportunity.type}` }, { name: opportunity.title }])} />
+      ) : null}
       <PageHeader title={type.label} back="/opportunities" meta={`Posted ${relativeTime(opportunity.createdAt)}`} />
       <ReviewBanner review={opportunity.review} what="opportunity" />
       {opportunity.closed ? (

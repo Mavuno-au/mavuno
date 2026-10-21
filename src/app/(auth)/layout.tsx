@@ -1,5 +1,9 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Wordmark } from "@/components/shell/brand";
+
+// Sign-in, sign-up and password pages are for members, not search results.
+export const metadata: Metadata = { robots: { index: false, follow: true } };
 
 export default function AuthLayout({ children }: LayoutProps<"/">) {
   return (

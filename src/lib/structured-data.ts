@@ -122,3 +122,18 @@ export function eventJsonLd(event: CommunityEvent) {
       : {}),
   };
 }
+
+// https://developers.google.com/search/docs/appearance/structured-data/breadcrumb
+// The last crumb is the page itself, so it carries no link.
+export function breadcrumbJsonLd(trail: Array<{ name: string; path?: string }>) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: trail.map((crumb, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: crumb.name,
+      ...(crumb.path ? { item: absoluteUrl(crumb.path) } : {}),
+    })),
+  };
+}
