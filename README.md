@@ -167,6 +167,7 @@ This runs the type checker, ESLint, the unit tests (`pnpm test`) and the databas
 - Accounts deactivated for being under 16 are deleted after 30 days unless a moderator reinstates them, daily by `pg_cron` or by `/api/maintenance`. See `docs/AGE_ASSURANCE.md` and `docs/ONLINE_SAFETY.md` for what the online safety law asks of Mavuno and how it is reviewed.
 - Link cards and automatic checks run straight after the post that needs them. Retries, and work a scheduled post or a direct API call queued, are picked up by later requests and by `GET /api/tasks` (daily on Vercel's Hobby plan, with `Authorization: Bearer $CRON_SECRET`). Failed tasks are kept for a week.
 - Translations are cached for seven days.
+- The sitemap is split into files under `/sitemap/` (`pages.xml`, then `people-N.xml` and `posts-N.xml` with 20,000 addresses each, oldest first); `/sitemap.xml` is the index and `robots.txt` lists every file. They refresh hourly, and `/api/indexnow` sends the addresses that changed in the last day to IndexNow.
 - Admins see product metrics, the day's activity and whether background jobs are keeping up (pg_cron runs included) at `/operations`.
 
 ## Known limits
