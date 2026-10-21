@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { HomeComposer } from "@/components/post/home-composer";
 import { Feed } from "@/components/post/feed";
+import { InviteFriends } from "@/components/people/invite-friends";
 import { PersonRow } from "@/components/people/person-row";
 import { JsonLd } from "@/components/seo/json-ld";
 import { WhoToFollow } from "@/components/people/who-to-follow";
@@ -70,6 +71,7 @@ export async function HomeFeedView({ feed }: { feed: HomeFeed }) {
                 {suggestions.map((person) => (
                   <PersonRow key={person.id} person={person} detail={person.reason} />
                 ))}
+                {viewer ? <InviteFriends username={viewer.username} className="border-b border-hairline px-4 py-4 sm:px-6" /> : null}
               </div>
             ) : (
               <EmptyState title="Nothing here yet">Be the first to post something.</EmptyState>

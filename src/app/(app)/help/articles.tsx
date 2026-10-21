@@ -146,6 +146,41 @@ export const HELP_CONTENT: Record<HelpSlug, HelpContent> = {
     related: ["mute-and-block", "removed-posts"],
   },
 
+  "invite-friends": {
+    lead: <p>Your invite link brings friends straight to you. When someone joins with it, you follow each other, and you're told so you can welcome them.</p>,
+    sections: [
+      {
+        heading: "How to invite friends",
+        body: (
+          <ol>
+            <li>Go to your profile, or Home while your feed is quiet. On a wide screen it's also in the side column.</li>
+            <li>
+              Select <strong>Invite friends</strong> to share your link, or <strong>Send on WhatsApp</strong> to send a ready-made message to a chat or group.
+            </li>
+          </ol>
+        ),
+      },
+      {
+        heading: "What happens when a friend joins",
+        body: (
+          <p>
+            Once they've confirmed their email address, you follow each other and you get a notification with a <strong>Say welcome</strong> button. Either of you can unfollow, mute or{" "}
+            <Link href={helpHref("mute-and-block")}>block</Link> the other at any time.
+          </p>
+        ),
+      },
+      {
+        heading: "Who can see who invited whom",
+        body: <p>Only the two of you. It shows on each other's profiles as Invited you or Joined from your invite. Mavuno's admins see how many people joined with an invite, never who.</p>,
+      },
+      {
+        heading: "If your link stops working",
+        body: <p>Your link is mavuno.au/join/ followed by your username, so changing your username changes it. An old link still leads to the sign-up page, just without your name.</p>,
+      },
+    ],
+    related: ["mute-and-block", "download-your-data"],
+  },
+
   "mute-and-block": {
     lead: <p>Muting hides someone from you. Blocking separates you both ways. Neither person is told.</p>,
     sections: [

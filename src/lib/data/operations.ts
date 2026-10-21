@@ -22,7 +22,7 @@ const ratesSchema = z.object({
 const metricsSchema = z.object({
   today: day,
   days: rangeSchema,
-  signups: z.object({ total: count, today: count, range: count, previousRange: count }),
+  signups: z.object({ total: count, today: count, range: count, previousRange: count, invited: count, invitedTotal: count }),
   active: z.object({ day: count, week: count, month: count, postedMonth: count }),
   current: ratesSchema.extend({
     activationByDay: z.array(z.object({ day, eligible: count, activated: count, complete: z.boolean() })),

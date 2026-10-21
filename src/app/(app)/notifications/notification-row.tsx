@@ -1,13 +1,16 @@
 "use client";
 
-import { AtSign, CalendarCheck, Heart, MessageCircle, Repeat2, ShieldAlert, ShieldCheck, UserPlus, Users } from "lucide-react";
+import { AtSign, CalendarCheck, Heart, MessageCircle, PartyPopper, Repeat2, ShieldAlert, ShieldCheck, UserPlus, Users } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
+import { startConversation } from "@/app/actions/messages";
 import { loadNotificationGroup } from "@/app/actions/notifications";
 import { FollowButton } from "@/components/people/follow-button";
 import { ProfileHoverCard } from "@/components/people/profile-card";
 import { Avatar } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import { LocalTime, useNow } from "@/components/ui/local-time";
 import { cn } from "@/lib/cn";
 import { calendarDate } from "@/lib/format";
@@ -23,6 +26,7 @@ const ICONS: Record<NotificationType, ReactNode> = {
   event_rsvp: <CalendarCheck />,
   org_added: <Users />,
   moderation: <ShieldAlert />,
+  joined: <PartyPopper />,
 };
 
 const VERBS: Record<NotificationType, string> = {
@@ -34,6 +38,7 @@ const VERBS: Record<NotificationType, string> = {
   event_rsvp: "is going to",
   org_added: "invited you to its team",
   moderation: "",
+  joined: "joined Mavuno from your invite. You follow each other now.",
 };
 
 const theirWords = (type: NotificationType) => type === "reply" || type === "mention" || type === "quote";
@@ -80,6 +85,36 @@ function ModerationNotice({ notification }: { notification: Notification }) {
         </p>
       ) : null}
     </>
+  );
+}
+
+// A friend who joined from the reader's invite: a message is the warmest welcome.
+function SayWelcome({ profileId }: { profileId: string }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      disabled={pending}
+      onClick={() =>
+        startTransition(async () => {
+          try {
+            const result = await startConversation(profileId);
+            if (!result.ok) {
+              toast.error(result.error);
+              return;
+            }
+            router.push(`/messages/${result.data.id}`);
+          } catch {
+            toast.error("Couldn't reach Mavuno. Check your connection and try again.");
+          }
+        })
+      }
+    >
+      <MessageCircle />
+      Say welcome
+    </Button>
   );
 }
 
@@ -168,6 +203,12 @@ export function NotificationRow({ group, recipientId, owner, followable, timeZon
               {latest.post.body}
             </Link>
           ) : null
+        ) : null}
+
+        {followable && latest.type === "joined" && first ? (
+          <div className="mt-2">
+            <SayWelcome profileId={first.id} />
+          </div>
         ) : null}
 
         {followable && latest.type === "follow" && first && actorCount === 1 ? (

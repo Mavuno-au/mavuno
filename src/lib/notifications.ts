@@ -2,7 +2,7 @@ import { z } from "zod";
 import { profileCardSchema } from "@/lib/domain";
 import { ruleSchema } from "@/lib/rules";
 
-export const notificationTypeSchema = z.enum(["follow", "like", "reply", "quote", "mention", "event_rsvp", "org_added", "moderation"]);
+export const notificationTypeSchema = z.enum(["follow", "like", "reply", "quote", "mention", "event_rsvp", "org_added", "moderation", "joined"]);
 export type NotificationType = z.infer<typeof notificationTypeSchema>;
 
 export const notificationSchema = z
@@ -38,7 +38,8 @@ export type Notification = z.infer<typeof notificationSchema>;
 
 // A row of the inbox, grouped by the database: likes by post, follows by the
 // reader's day, RSVPs by event and mentions by thread. Replies, quotes and
-// notices stand alone because their words are the point.
+// notices stand alone because their words are the point, and so does a friend
+// joining from the reader's invite.
 export const notificationGroupSchema = z
   .object({
     key: z.string(),
@@ -73,7 +74,7 @@ export const NOTIFICATION_FILTERS = [
   { key: "mentions", label: "Mentions", types: ["mention"], empty: { title: "No mentions yet", body: "When someone mentions you in a post, it shows up here." } },
   { key: "quotes", label: "Quotes", types: ["quote"], empty: { title: "No quotes yet", body: "When someone quotes one of your posts, it shows up here." } },
   { key: "likes", label: "Likes", types: ["like"], empty: { title: "No likes yet", body: "When someone likes one of your posts, it shows up here." } },
-  { key: "follows", label: "Follows", types: ["follow"], empty: { title: "No new followers yet", body: "When someone follows you, it shows up here." } },
+  { key: "follows", label: "Follows", types: ["follow", "joined"], empty: { title: "No new followers yet", body: "When someone follows you, it shows up here." } },
   { key: "events", label: "Events", types: ["event_rsvp"], empty: { title: "No RSVPs yet", body: "When people say they're going to your events, it shows up here." } },
   { key: "moderation", label: "Moderation", types: ["moderation", "org_added"], empty: { title: "No updates", body: "Moderation updates about your posts and teams you're added to show up here." } },
 ] as const satisfies readonly { key: string; label: string; types: readonly NotificationType[] | null; empty: { title: string; body: string } }[];

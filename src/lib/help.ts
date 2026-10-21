@@ -4,7 +4,7 @@ export const HELP_CATEGORIES = [
   { key: "posting", title: "Posting", summary: "Posts, review, and events and opportunities." },
   { key: "safety", title: "Safety", summary: "Reporting, muting, blocking and messages from strangers." },
   { key: "decisions", title: "Moderation decisions", summary: "Removals, suspensions, bans and appeals." },
-  { key: "account", title: "Your account", summary: "The age check, your data, deleting your account and organisations." },
+  { key: "account", title: "Your account", summary: "Inviting friends, the age check, your data, deleting your account and organisations." },
 ] as const;
 
 export type HelpCategory = (typeof HELP_CATEGORIES)[number]["key"];
@@ -20,6 +20,7 @@ export const HELP_ARTICLES = [
   { slug: "suspensions", category: "decisions", title: "About suspended accounts", summary: "How long a suspension lasts and what you can still do.", keywords: "suspended suspension locked can't post" },
   { slug: "bans", category: "decisions", title: "About banned accounts", summary: "What a ban means and why it outlives the account.", keywords: "banned ban permanent sign up again" },
   { slug: "appeals", category: "decisions", title: "How to appeal a decision", summary: "Ask a different moderator to look again, within 30 days.", keywords: "appeal mistake wrong review again" },
+  { slug: "invite-friends", category: "account", title: "How to invite friends", summary: "Share your link, and follow each other when they join.", keywords: "invite friends link share whatsapp join bring family" },
   { slug: "age-check", category: "account", title: "About the age check", summary: "Why Mavuno is 16 and over, and how a review works.", keywords: "age under 16 birth date deactivated id esafety minimum" },
   { slug: "download-your-data", category: "account", title: "How to download your data", summary: "A copy of everything Mavuno holds about you.", keywords: "export download data json copy backup" },
   { slug: "delete-your-account", category: "account", title: "How to delete your account", summary: "What's deleted, what stays, and the one exception.", keywords: "delete account remove close leave erase" },

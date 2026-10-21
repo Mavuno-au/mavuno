@@ -73,12 +73,20 @@ export default async function MetricsPage({ searchParams }: PageProps<"/operatio
       </Section>
 
       <Section title="Sign-ups">
-        <StatGrid>
-          <Stat label="Today" value={signups.today} />
-          <Stat label={`Last ${days} days`} value={signups.range} note={change(signups.range, signups.previousRange, days)} />
-          <Stat label={`${days} days before`} value={signups.previousRange} />
-          <Stat label="All time" value={signups.total} />
-        </StatGrid>
+        <div className="grid gap-5">
+          <StatGrid>
+            <Stat label="Today" value={signups.today} />
+            <Stat label={`Last ${days} days`} value={signups.range} note={change(signups.range, signups.previousRange, days)} />
+            <Stat label={`${days} days before`} value={signups.previousRange} />
+            <Stat label="All time" value={signups.total} />
+          </StatGrid>
+          <ShareRow
+            label="Came from an invite"
+            hint={`Joined with a member's invite link in the last ${days} days. ${signups.invitedTotal} of ${signups.total} all time`}
+            part={signups.invited}
+            whole={signups.range}
+          />
+        </div>
       </Section>
 
       <Section title="Activation" meta={`${current.activation.eligible} joined in the last ${days} days`}>

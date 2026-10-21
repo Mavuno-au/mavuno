@@ -1,6 +1,7 @@
 import { Search } from "lucide-react";
 import Link from "next/link";
 import { SpaceAvatar } from "@/components/community/city-photo";
+import { InviteFriends } from "@/components/people/invite-friends";
 import { WhoToFollow } from "@/components/people/who-to-follow";
 import { Avatar, ColourDot } from "@/components/ui/avatar";
 import { ButtonLink } from "@/components/ui/button";
@@ -55,6 +56,8 @@ export async function Aside({ viewer }: { viewer: Viewer | null }) {
           </p>
         </section>
       )}
+
+      {viewer ? <InviteFriends username={viewer.username} className="rounded-xl border border-hairline bg-surface p-4" /> : null}
 
       {viewer && !viewer.cityId ? (
         <section className="rounded-xl border border-hairline bg-surface p-4 text-sm">

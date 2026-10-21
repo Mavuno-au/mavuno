@@ -2581,6 +2581,104 @@ console.log("\nSecurity audit: the low findings");
   check("the owner's own row was accepted from the start", (await one("select accepted_at from public.organisation_members where org_id = $1 and user_id = $2", [orgx, owner])).accepted_at !== null);
 }
 
+console.log("\nInvite links");
+{
+  const confirm = (id) => q("update auth.users set email_confirmed_at = now() where id = $1", [id]);
+  const invite = (id) => one("select invited_by from public.invites where member_id = $1", [id]);
+  const follows = (from, to) => one("select count(*)::int as n from public.follows where follower_id = $1 and followee_id = $2", [from, to]).then((r) => r.n === 1);
+  const host = await createUser("invite_host@example.com", { username: "invite_host", display_name: "Invite Host" });
+  const friend = await createUser("invite_friend@example.com", { username: "invite_friend", display_name: "Invite Friend", invited_by: "Invite_Host" });
+
+  await superuser();
+  check("an unconfirmed sign-up records no invite and follows nobody", (await invite(friend)) === undefined && !(await follows(host, friend)));
+  await confirm(friend);
+  check("confirming the email records who invited them", (await invite(friend))?.invited_by === host);
+  check("the two follow each other", (await follows(friend, host)) && (await follows(host, friend)));
+  rows = await q("select type from public.notifications where recipient_id = $1 and actor_id = $2", [host, friend]);
+  check("the inviter is told their friend joined, not that they followed", rows.length === 1 && rows[0].type === "joined", rows);
+  rows = await q("select type from public.notifications where recipient_id = $1 and actor_id = $2", [friend, host]);
+  check("the new member is told the inviter follows them", rows.length === 1 && rows[0].type === "follow", rows);
+  await q("update auth.users set email_confirmed_at = null where id = $1", [friend]);
+  await confirm(friend);
+  check("confirming again changes nothing", (await one("select count(*)::int as n from public.notifications where recipient_id = $1 and type = 'joined'", [host])).n === 1);
+
+  await as(host);
+  rows = await q("select * from public.notification_groups($1)", [host]);
+  check("the welcome is its own row in the inbox", rows.some((g) => g.type === "joined" && g.actors[0]?.id === friend), rows.map((g) => g.type));
+  check("the inviter sees the invite", (await q("select member_id from public.invites")).length === 1);
+  await fails("nobody writes invites directly", "insert into public.invites (member_id, invited_by) values ($1, $2)", [host, friend], /permission denied/);
+  await fails("members cannot call the internal function", "select public.record_invite($1, 'invite_host')", [host], /permission denied/);
+  await as(friend);
+  check("the new member sees who invited them", (await q("select invited_by from public.invites"))[0]?.invited_by === host);
+  await fails("and cannot remove it", "delete from public.invites where member_id = $1", [friend], /permission denied/);
+  await q("select public.accept_invite('amara')");
+  check("a member already invited keeps their inviter", (await invite(friend))?.invited_by === host);
+  await as(amara);
+  check("nobody else can see an invite", (await q("select * from public.invites")).length === 0);
+  await anon();
+  await fails("guests cannot read invites", "select * from public.invites", [], /permission denied/);
+  await fails("guests cannot accept an invite", "select public.accept_invite('invite_host')", [], /permission denied/);
+
+  // Google sign-ups: accept_invite, only for an account made in the last hour.
+  const google = await createUser("invite_google@example.com", { username: "invite_google" });
+  await as(google);
+  await q("select public.accept_invite('invite_host')");
+  check("a new Google account takes the invite", (await invite(google))?.invited_by === host && (await follows(google, host)) && (await follows(host, google)));
+  const old = await createUser("invite_old@example.com", { username: "invite_old" });
+  await superuser();
+  await q("update public.profiles set created_at = now() - interval '2 hours' where id = $1", [old]);
+  await as(old);
+  await q("select public.accept_invite('invite_host')");
+  await superuser();
+  check("an existing member can't be made to follow anyone with a link", (await invite(old)) === undefined && !(await follows(host, old)));
+
+  // Links that don't fit are ignored, and the sign-up still works.
+  const toOrg = await createUser("invite_org@example.com", { username: "invite_to_org", invited_by: "brisbane_african_assoc" });
+  const toNobody = await createUser("invite_nobody@example.com", { username: "invite_to_nobody", invited_by: "no_such_member" });
+  const toSelf = await createUser("invite_self@example.com", { username: "invite_self", invited_by: "invite_self" });
+  await superuser();
+  await confirm(toOrg);
+  await confirm(toNobody);
+  await confirm(toSelf);
+  check("organisations, unknown usernames and yourself invite nobody", (await q("select 1 from public.invites where member_id = any($1)", [[toOrg, toNobody, toSelf]])).length === 0);
+  const suspendedHost = await createUser("invite_suspended@example.com", { username: "invite_suspended" });
+  await q("update public.profile_settings set suspended_until = now() + interval '1 day' where id = $1", [suspendedHost]);
+  const toSuspended = await createUser("invite_to_suspended@example.com", { username: "invite_to_suspended", invited_by: "invite_suspended" });
+  await confirm(toSuspended);
+  check("a suspended member's link invites nobody", (await invite(toSuspended)) === undefined);
+  await q("insert into public.rate_limits (user_id, action, hits) values ($1, 'follow', 30) on conflict (user_id, action) do update set hits = 30, window_start = now()", [host]);
+  const limited = await createUser("invite_limited@example.com", { username: "invite_limited", invited_by: "invite_host" });
+  await confirm(limited);
+  check("an inviter at their follow limit loses the invite, not the sign-up", (await one("select email_confirmed_at from auth.users where id = $1", [limited])).email_confirmed_at !== null && (await invite(limited)) === undefined);
+  await q("delete from public.rate_limits where user_id = $1", [host]);
+  const autoConfirmed = (await one("insert into auth.users (email, raw_user_meta_data, email_confirmed_at) values ($1, $2, now()) returning id", ["invite_auto@example.com", JSON.stringify({ age_confirmed: true, username: "invite_auto", invited_by: "invite_host" })])).id;
+  check("a sign-up confirmed straight away is recorded at once", (await invite(autoConfirmed))?.invited_by === host);
+  const unconfirmedAge = await createUser("invite_age@example.com", { username: "invite_age", invited_by: "invite_host", age_confirmed: false });
+  await confirm(unconfirmedAge);
+  check("someone who hasn't confirmed their age isn't recorded", (await invite(unconfirmedAge)) === undefined);
+
+  await as(host);
+  let data = (await one("select public.export_my_data() as data")).data;
+  check("the inviter's export lists who joined with their link", data.invited.map((entry) => entry.username).sort().join() === "invite_auto,invite_friend,invite_google", data.invited);
+  await as(friend);
+  data = (await one("select public.export_my_data() as data")).data;
+  check("the new member's export names who invited them", data.invited_by?.username === "invite_host", data.invited_by);
+
+  const boss = await createUser("invite_admin@example.com", { username: "invite_admin" });
+  await superuser();
+  await q("update public.profile_settings set site_role = 'admin' where id = $1", [boss]);
+  const total = (await one("select count(*)::int as n from public.invites")).n;
+  await as(boss);
+  const metrics = (await one("select public.admin_metrics(7) as m")).m;
+  check("Operations counts invited sign-ups without naming anyone", metrics.signups.invited === 3 && metrics.signups.invitedTotal === total && total === 3, metrics.signups);
+
+  await superuser();
+  await q("delete from auth.users where id = $1", [host]);
+  check("an inviter who leaves takes their name with them, and the count stays", (await one("select count(*)::int as n from public.invites where invited_by is null")).n === 3);
+  await q("delete from auth.users where id = $1", [google]);
+  check("a member who leaves takes their invite with them", (await invite(google)) === undefined);
+}
+
 console.log("\nDemo seed");
 const seeded = new PGlite({ extensions: { pg_trgm, pgcrypto } });
 await seeded.exec(stubs);

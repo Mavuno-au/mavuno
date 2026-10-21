@@ -11,6 +11,7 @@ Mavuno succeeds when a newcomer finds their people in the first day, gets a repl
 | `member_activity` | The last day each member used Mavuno (Sydney date) | Nobody through the API; only `admin_metrics()` and the member's own export |
 | `active_member_counts` | How many members were active each day, with no identities | Nobody through the API; only `admin_metrics()` |
 | Posts, follows, profiles | The existing tables | As their policies allow |
+| `invites` | Who joined with whose invite link | Only the two people; `admin_metrics()` counts rows without reading names |
 | Fathom (optional) | Page views, `guest-visit`, `signup` | Whoever has the Fathom account |
 
 The proxy calls `mark_seen()` for a signed-in member at most once a day per browser (the `mavuno-seen` cookie holds the date and member). Repeated calls the same day change nothing. Tracking started with migration `product_metrics`, so retention for people who joined before then reads low until enough days have passed.
@@ -23,7 +24,7 @@ Metrics and Activity show the last **7 or 30 Sydney days** (30 by default; `?ran
 
 **Active members.** Members seen today, in the last 7 days and in the last 30 days. *Daily / monthly* is today's actives as a share of the month's: how habitual Mavuno is. These don't follow the range: `member_activity` only keeps each member's latest day.
 
-**Sign-ups.** People (not organisations) who created an account today, in the range, in the range before, and in all.
+**Sign-ups.** People (not organisations) who created an account today, in the range, in the range before, and in all. *Came from an invite* is the share of the range's sign-ups who joined with a member's invite link (`/join/<username>`), with the all-time count beside it. It comes from `invites` and counts people, never who invited whom: whether members bringing friends is how Mavuno grows.
 
 **Activation.** Of people who joined in the range and are at least 12 hours old, the share who *received value* within their first 12 hours, in either of two ways:
 - *As a reader*: liked or saved posts written by 3 or more different people (not themselves). Counting people rather than likes means the feeds showed them several people, not one friend.

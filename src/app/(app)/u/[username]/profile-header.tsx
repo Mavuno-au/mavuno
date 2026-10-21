@@ -37,6 +37,8 @@ export function ProfileHeader({ profile, team, canManage, known }: { profile: Pr
           <p className="flex flex-wrap items-center gap-2 font-mono text-[13px] text-ink-muted">
             <ColourDot colour={profile.colour} />@{profile.username}
             {profile.relationship.followsYou ? <Chip>Follows you</Chip> : null}
+            {profile.relationship.invite === "invited_you" ? <Chip>Invited you</Chip> : null}
+            {profile.relationship.invite === "you_invited" ? <Chip>Joined from your invite</Chip> : null}
             {profile.relationship.muted ? <Chip tone="warning">Muted</Chip> : null}
             {profile.account_type === "organisation" ? <Chip tone="primary">{profile.org_category ?? "Organisation"}</Chip> : null}
           </p>

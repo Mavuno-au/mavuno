@@ -32,6 +32,10 @@ export default function PrivacyPage() {
           <li>Your email address and a password, which we store only as a secure hash. Or, if you continue with Google, the name, email address and profile photo Google shares with us.</li>
           <li>Your name and username.</li>
           <li>That you confirmed you're 16 or older, and when. We ask for your date of birth to check this, but we don't keep it.</li>
+          <li>
+            If you joined with a member's invite link, who invited you. You and they follow each other from then on (you can unfollow at any time), and they're told you joined so they can
+            welcome you.
+          </li>
         </ul>
         <h3>What you choose to add</h3>
         <ul>
@@ -74,6 +78,10 @@ export default function PrivacyPage() {
             closes), what you saved, and who you muted or blocked.
           </li>
           <li>
+            <strong>Only the two of you:</strong> who invited you to Mavuno, and who joined with your invite link. It's shown on each other's profiles, and nobody else can see it.
+            Administrators only see how many people joined with an invite, never who.
+          </li>
+          <li>
             <strong>Only you:</strong> your email address, your settings, and posts you've scheduled until they go out.
           </li>
           <li>
@@ -87,7 +95,7 @@ export default function PrivacyPage() {
           <li>To suggest people, spaces and posts, using your city, interests and who you follow. You can turn suggestions off.</li>
           <li>To keep the community safe: review new members' posts, act on reports, stop spam and scams, and enforce the <Link href="/rules">community rules</Link>.</li>
           <li>To send emails about your account, such as confirming your address or resetting your password. We don't send marketing email.</li>
-          <li>To understand, in anonymous totals, whether Mavuno is working: how many people join, come back and get replies.</li>
+          <li>To understand, in anonymous totals, whether Mavuno is working: how many people join (and how many with an invite), come back and get replies.</li>
         </ul>
         <p>We don't use your information for advertising, we don't sell it, and we don't use your posts or messages to train AI models.</p>
 
@@ -157,7 +165,7 @@ export default function PrivacyPage() {
           <li>Your account and content stay until you delete them.</li>
           <li>A post you delete is erased once its 30-second undo has passed. Replies from other people stay, under a "deleted" placeholder.</li>
           <li>
-            When you delete your account, we immediately erase your profile, posts, likes, the messages you sent, your photos and your scheduled posts. Copies in our provider's backups are overwritten
+            When you delete your account, we immediately erase your profile, posts, likes, the messages you sent, your photos, your scheduled posts and who invited you. Copies in our provider's backups are overwritten
             when those backups expire.
           </li>
           <li>

@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { z } from "zod";
-import { accountTypeSchema, colourSchema, parsePeople, postRowSchema, type PersonSummary } from "@/lib/domain";
+import { accountTypeSchema, colourSchema, parsePeople, postRowSchema, type Colour, type PersonSummary } from "@/lib/domain";
 import { createClient } from "@/lib/supabase/server";
 import type { Viewer } from "@/lib/viewer";
 
@@ -45,7 +45,12 @@ const teamRow = z.array(
   }),
 );
 
-export type Relationship = { following: boolean; followsYou: boolean; muted: boolean; canMessage: boolean; self: boolean };
+// Who invited whom is shown only to the two people (invites' row level security).
+export type Invite = "invited_you" | "you_invited" | null;
+
+export type Relationship = { following: boolean; followsYou: boolean; muted: boolean; canMessage: boolean; self: boolean; invite: Invite };
+
+const inviteRows = z.array(z.object({ member_id: z.uuid(), invited_by: z.uuid().nullable() }));
 
 export type Profile = z.infer<typeof profileRow> & { relationship: Relationship };
 
@@ -66,17 +71,24 @@ export const loadProfile = cache(async (username: string, viewer: Viewer | null)
   const self = viewer?.id === row.id;
 
   if (!viewer || self) {
-    return { kind: "profile", profile: { ...row, relationship: { following: false, followsYou: false, muted: false, canMessage: false, self } } };
+    return { kind: "profile", profile: { ...row, relationship: { following: false, followsYou: false, muted: false, canMessage: false, self, invite: null } } };
   }
 
-  const [following, followsYou, muted, blockedByViewer, blockedEitherWay, canMessage] = await Promise.all([
+  const [following, followsYou, muted, blockedByViewer, blockedEitherWay, canMessage, invites] = await Promise.all([
     supabase.from("follows").select("follower_id").match({ follower_id: viewer.id, followee_id: row.id }).maybeSingle(),
     supabase.from("follows").select("follower_id").match({ follower_id: row.id, followee_id: viewer.id }).maybeSingle(),
     supabase.from("mutes").select("muter_id").match({ muter_id: viewer.id, muted_id: row.id }).maybeSingle(),
     supabase.from("blocks").select("blocker_id").match({ blocker_id: viewer.id, blocked_id: row.id }).maybeSingle(),
     supabase.rpc("is_blocked_with_viewer", { p_profile_id: row.id }),
     supabase.rpc("can_message", { p_user_id: row.id }),
+    supabase.from("invites").select("member_id, invited_by").or(`member_id.eq.${row.id},invited_by.eq.${row.id}`),
   ]);
+  const invite = inviteRows.catch([]).parse(invites.data ?? []);
+  const between: Invite = invite.some((entry) => entry.member_id === viewer.id && entry.invited_by === row.id)
+    ? "invited_you"
+    : invite.some((entry) => entry.member_id === row.id && entry.invited_by === viewer.id)
+      ? "you_invited"
+      : null;
 
   if (blockedEitherWay.data === true) return { kind: "unavailable", username: row.username, blockedByViewer: Boolean(blockedByViewer.data), id: row.id };
 
@@ -84,9 +96,26 @@ export const loadProfile = cache(async (username: string, viewer: Viewer | null)
     kind: "profile",
     profile: {
       ...row,
-      relationship: { following: Boolean(following.data), followsYou: Boolean(followsYou.data), muted: Boolean(muted.data), canMessage: canMessage.data === true, self },
+      relationship: { following: Boolean(following.data), followsYou: Boolean(followsYou.data), muted: Boolean(muted.data), canMessage: canMessage.data === true, self, invite: between },
     },
   };
+});
+
+const inviterRow = z.object({ id: z.uuid(), username: z.string(), display_name: z.string(), avatar_url: z.string().nullable(), colour: colourSchema, account_type: accountTypeSchema });
+
+export type Inviter = { id: string; username: string; displayName: string; avatarUrl: string | null; colour: Colour };
+
+// The person behind /join/<username>: only people who could be followed
+// today, since joining makes the two follow each other. Cached per request
+// for the page and its metadata.
+export const loadInviter = cache(async (username: string): Promise<Inviter | null> => {
+  const supabase = await createClient();
+  const { data } = await supabase.from("profiles").select("id, username, display_name, avatar_url, colour:effective_colour, account_type").eq("username", username.toLowerCase()).maybeSingle();
+  const row = inviterRow.safeParse(data).data;
+  if (!row || row.account_type !== "person") return null;
+  const { data: listed } = await supabase.rpc("is_listed", { p_profile_id: row.id });
+  if (listed !== true) return null;
+  return { id: row.id, username: row.username, displayName: row.display_name, avatarUrl: row.avatar_url, colour: row.colour };
 });
 
 export async function loadPinnedPost(postId: string | null) {
