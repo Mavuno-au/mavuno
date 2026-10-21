@@ -141,12 +141,13 @@ export function Shortcuts() {
   );
 }
 
-// The body mounts when the palette opens, so the query starts empty and the
-// recent searches come from this browser each time, including another tab's.
+// The body mounts with the dialog each time the palette opens, so the query
+// starts empty and the recent searches come from this browser each time,
+// including another tab's.
 export function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
     <Dialog open={open} onClose={onClose} title="Search" className="max-w-xl">
-      {open ? <SearchPaletteBody onClose={onClose} /> : null}
+      <SearchPaletteBody onClose={onClose} />
     </Dialog>
   );
 }

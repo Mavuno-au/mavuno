@@ -63,17 +63,15 @@ export function ComposeProvider({ children }: { children: ReactNode }) {
           title="New post"
           className="max-md:mt-(--visual-viewport-top,0px) max-md:mb-0 max-md:h-(--visual-viewport-height,100dvh) max-md:max-h-none max-md:w-full max-md:max-w-none max-md:rounded-none max-md:border-0"
         >
-          {isOpen ? (
-            <Composer
-              mode={{ kind: "post" }}
-              autoFocus
-              roomy
-              onPosted={(row) => {
-                setOpen(false);
-                if (row.kind === "post") router.push(postPath(row));
-              }}
-            />
-          ) : null}
+          <Composer
+            mode={{ kind: "post" }}
+            autoFocus
+            roomy
+            onPosted={(row) => {
+              setOpen(false);
+              if (row.kind === "post") router.push(postPath(row));
+            }}
+          />
         </Dialog>
       </ComposeContext>
     </RulesContext>
