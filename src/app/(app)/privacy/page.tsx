@@ -167,7 +167,8 @@ export default function PrivacyPage() {
           <li>We keep a record of moderation decisions (what was decided and why) so decisions stay consistent and can be reviewed.</li>
           <li>
             One exception to erasing everything: if your account is banned, or you delete it while it's suspended, we keep a scrambled form (a keyed hash) of your email address and any
-            sign-in such as Google until the ban or suspension would have ended, so the same person can't simply sign up again. Nothing can be read back from it, and it's all that stays.
+            sign-in such as Google until the ban or suspension would have ended, so the same person can't simply sign up again. The same scrambled form is kept for a year when an
+            account deactivated as under 16 is deleted, so the review by email stays the way back. Nothing can be read back from it, and it's all that stays.
           </li>
         </ul>
 

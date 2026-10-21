@@ -106,3 +106,18 @@ export async function deleteOrganisation(orgId: string): Promise<Result> {
   if (error) return failFrom(error);
   redirect("/settings/organisations");
 }
+
+// Being added to a team is an invitation; the person says yes or no.
+export async function acceptTeamInvitation(orgId: string): Promise<Result> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("accept_team_invitation", { p_org_id: id.parse(orgId) });
+  return error ? failFrom(error) : done;
+}
+
+export async function declineTeamInvitation(orgId: string): Promise<Result> {
+  const viewer = await getViewer();
+  if (!viewer) return fail("Sign in first.");
+  const supabase = await createClient();
+  const { error } = await supabase.from("organisation_members").delete().match({ org_id: id.parse(orgId), user_id: viewer.id });
+  return error ? failFrom(error) : done;
+}

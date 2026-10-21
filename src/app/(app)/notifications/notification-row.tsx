@@ -32,7 +32,7 @@ const VERBS: Record<NotificationType, string> = {
   quote: "quoted your post",
   mention: "mentioned you",
   event_rsvp: "is going to",
-  org_added: "added you to its team",
+  org_added: "invited you to its team",
   moderation: "",
 };
 

@@ -31,7 +31,7 @@ const viewerRow = identity.extend({
     age_deactivated_at: z.string().nullable(),
   }),
   organisation_members: z.array(
-    z.object({ role: z.enum(["owner", "admin", "editor"]), organisation: identity }),
+    z.object({ role: z.enum(["owner", "admin", "editor"]), accepted_at: z.string().nullable(), organisation: identity }),
   ),
 });
 
@@ -60,6 +60,8 @@ export type Viewer = Identity & {
   onboarded: boolean;
   age: AgeStatus;
   organisations: (Identity & { role: "owner" | "admin" | "editor" })[];
+  // Teams the person has been asked to join and not yet accepted.
+  invitations: (Identity & { role: "owner" | "admin" | "editor" })[];
 };
 
 const toIdentity = (row: z.infer<typeof identity>): Identity => ({
@@ -79,7 +81,7 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
   const { data } = await supabase
     .from("profiles")
     .select(
-      `${IDENTITY}, city_id, languages, profile_settings(site_role, suspended_until, banned_at, rules_accepted_at, translation_language, onboarded_at, age_confirmed_at, age_deactivated_at), organisation_members!organisation_members_user_id_fkey(role, organisation:profiles!organisation_members_org_id_fkey(${IDENTITY}))`,
+      `${IDENTITY}, city_id, languages, profile_settings(site_role, suspended_until, banned_at, rules_accepted_at, translation_language, onboarded_at, age_confirmed_at, age_deactivated_at), organisation_members!organisation_members_user_id_fkey(role, accepted_at, organisation:profiles!organisation_members_org_id_fkey(${IDENTITY}))`,
     )
     .eq("id", userId)
     .maybeSingle();
@@ -106,7 +108,8 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
         : settings.age_confirmed_at !== null
           ? { kind: "confirmed" }
           : { kind: "unconfirmed" },
-    organisations: row.organisation_members.map((m) => ({ ...toIdentity(m.organisation), role: m.role })),
+    organisations: row.organisation_members.filter((m) => m.accepted_at !== null).map((m) => ({ ...toIdentity(m.organisation), role: m.role })),
+    invitations: row.organisation_members.filter((m) => m.accepted_at === null).map((m) => ({ ...toIdentity(m.organisation), role: m.role })),
   };
 });
 

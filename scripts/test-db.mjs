@@ -57,7 +57,6 @@ const post = async (body, ...args) => {
   return (await one(`select public.create_post(${placeholders}) as id`, params)).id;
 };
 
-const MEDIA = "https://x.supabase.co/storage/v1/object/public/media/";
 // Event covers and avatars must come from the project's own Storage (storage_origins).
 const OWN_MEDIA = "https://hposvtbqckeyyxtjzyas.supabase.co/storage/v1/object/public/media/";
 
@@ -212,9 +211,9 @@ check("quotes embed the original", row.u === "amara", row);
 console.log("\nImages and polls");
 await as(amara);
 await fails("images must be in the uploader's folder", "select public.create_post('pic', 'en', null, null, null, null, null, $1::jsonb)",
-  [JSON.stringify([{ path: `${kofi}/posts/a.webp`, url: `${MEDIA}${kofi}/posts/a.webp` }])], /Invalid image/);
+  [JSON.stringify([{ path: `${kofi}/posts/a.webp`, url: `${OWN_MEDIA}${kofi}/posts/a.webp` }])], /Invalid image/);
 const imgPost = await post("Jollof night", "en", null, null, null, null, null,
-  JSON.stringify([{ path: `${amara}/posts/a.webp`, url: `${MEDIA}${amara}/posts/a.webp`, width: 800, height: 600, alt: "A pot of jollof rice" }]));
+  JSON.stringify([{ path: `${amara}/posts/a.webp`, url: `${OWN_MEDIA}${amara}/posts/a.webp`, width: 800, height: 600, alt: "A pot of jollof rice" }]));
 row = await one("select images from public.post_details where id = $1", [imgPost]);
 check("images are attached with descriptions", row.images[0]?.alt === "A pot of jollof rice", row);
 const poll = await post("Best jollof?", "en", null, null, null, null, null, "[]", JSON.stringify({ options: ["Nigerian", "Ghanaian", "Senegalese"], duration_hours: 24 }));
@@ -448,6 +447,8 @@ await as(amara);
 check("the team sees the organisation's notifications", (await one("select count(*)::int as n from public.notifications where recipient_id = $1", [org])).n === 1);
 await q("insert into public.organisation_members (org_id, user_id, role) values ($1, $2, 'editor')", [org, kofi]);
 await as(kofi);
+check("an invitation is not membership until accepted", (await one("select public.can_act_as($1) as ok", [org])).ok === false);
+await q("select public.accept_team_invitation($1)", [org]);
 check("editors act as the organisation", (await one("select public.can_act_as($1) as ok", [org])).ok);
 await fails("editors cannot add people", "insert into public.organisation_members (org_id, user_id) values ($1, $2)", [org, hana], /row-level security/);
 await as(amara);
@@ -670,6 +671,7 @@ console.log("\nSecurity hardening");
   const team = (await one("select public.create_organisation('hardening_org', 'Hardening Org') as id")).id;
   await q("insert into public.organisation_members (org_id, user_id, role) values ($1, $2, 'editor')", [team, editor]);
   await as(editor);
+  await q("select public.accept_team_invitation($1)", [team]);
   await q("update public.profiles set bio = 'edited by an editor' where id = $1", [team]);
   await q("update public.profile_settings set discoverable = false where id = $1", [team]);
   await superuser();
@@ -748,7 +750,7 @@ console.log("\nSecurity hardening");
   await fails("images point at their upload", "select public.create_post('pic', 'en', null, null, null, null, null, $1::jsonb)",
     [JSON.stringify([{ path: `${pollster}/posts/a.webp`, url: "https://evil.example/a.webp" }])], /Invalid image/);
   await fails("image paths stay in the uploader's folder", "select public.create_post('pic', 'en', null, null, null, null, null, $1::jsonb)",
-    [JSON.stringify([{ path: `${pollster}/../${voter}/posts/a.webp`, url: `${MEDIA}${pollster}/../${voter}/posts/a.webp` }])], /Invalid image/);
+    [JSON.stringify([{ path: `${pollster}/../${voter}/posts/a.webp`, url: `${OWN_MEDIA}${pollster}/../${voter}/posts/a.webp` }])], /Invalid image/);
 
   await fails("profile links are web addresses", "update public.profiles set links = $2::jsonb where id = $1", [pollster, JSON.stringify([{ label: "x", url: "javascript:alert(1)" }])], /profiles_links_are_web/);
   await q("update public.profiles set links = $2::jsonb where id = $1", [pollster, JSON.stringify([{ label: "Site", url: "https://example.org" }])]);
@@ -811,7 +813,7 @@ console.log("\nScheduled posts");
     await q("update public.scheduled_posts set scheduled_at = now() - interval '1 minute' where submitted_at is null");
     return (await one("select public.publish_scheduled_posts() as n")).n;
   };
-  const image = (owner, name) => ({ path: `${owner}/posts/${name}.webp`, url: `${MEDIA}${owner}/posts/${name}.webp`, width: 10, height: 10, alt: "" });
+  const image = (owner, name) => ({ path: `${owner}/posts/${name}.webp`, url: `${OWN_MEDIA}${owner}/posts/${name}.webp`, width: 10, height: 10, alt: "" });
 
   await as(writer);
   const queued = await schedule("Scheduled hello @other_scheduler");
@@ -880,6 +882,7 @@ console.log("\nScheduled posts");
   await as(writer);
   await q("insert into public.organisation_members (org_id, user_id, role) values ($1, $2, 'editor')", [org, editor]);
   await as(editor);
+  await q("select public.accept_team_invitation($1)", [org]);
   const leftOrg = await schedule("Before I leave", { p_author_id: org });
   await as(writer);
   await q("delete from public.organisation_members where org_id = $1 and user_id = $2", [org, editor]);
@@ -1055,7 +1058,7 @@ console.log("\nPhotos re-encoded on the server");
   await fails("guests cannot ask", "select public.can_upload('media', $1)", [amara], /permission denied/);
   await as(amara);
   await fails("post images must be the server's WebP", "select public.create_post('pic', 'en', null, null, null, null, null, $1::jsonb)",
-    [JSON.stringify([{ path: `${amara}/posts/a.jpg`, url: `${MEDIA}${amara}/posts/a.jpg` }])], /Invalid image/);
+    [JSON.stringify([{ path: `${amara}/posts/a.jpg`, url: `${OWN_MEDIA}${amara}/posts/a.jpg` }])], /Invalid image/);
   await fails("message images must be the server's WebP", "insert into public.messages (conversation_id, sender_id, image_paths) values ($1, $2, $3)", [conv, amara, [`${conv}/a.png`]], /Invalid attachment/);
   await fails("and sit directly in the conversation's folder", "insert into public.messages (conversation_id, sender_id, image_paths) values ($1, $2, $3)", [conv, amara, [`${conv}/../a.webp`]], /Invalid attachment/);
 }
@@ -2457,6 +2460,125 @@ console.log("\nSecurity audit: sanctioned operators, listing edits, messaging, w
   check("ordinary web addresses still pass", (await one("select website from public.profiles where id = $1", [victim])).website === "https://example.org/me?x=1#top");
   check("an IPv6 literal with a port passes", (await one("select public.is_web_url('https://[2001:db8::1]:8443/x') as ok")).ok === true);
   check("a port above 65535 fails", (await one("select public.is_web_url('https://a:65536') as ok")).ok === false);
+}
+
+console.log("\nSecurity audit: the low findings");
+{
+  const admin2 = await createUser("lowfix-admin@example.com", { username: "admin_two" });
+  const mod2 = await createUser("lowfix-mod@example.com", { username: "mod_two" });
+  const owner = await createUser("lowfix-owner@example.com", { username: "owner_two" });
+  const pal = await createUser("lowfix-pal@example.com", { username: "pal_two" });
+  const stranger = await createUser("lowfix-stranger@example.com", { username: "stranger_two" });
+  await superuser();
+  await q("update public.profile_settings set site_role = 'admin' where id = $1", [admin2]);
+  await q("update public.profile_settings set site_role = 'moderator' where id = $1", [mod2]);
+  await q("insert into vault.decrypted_secrets (name, decrypted_secret) values ('identity_pepper', 'test-pepper') on conflict do nothing");
+
+  // 1. post images from own storage only
+  await as(owner);
+  await fails("a post image on another host is refused", "select public.create_post('Photo', 'en', null, null, null, null, null, $1::jsonb)",
+    [JSON.stringify([{ path: `${owner}/posts/a.webp`, url: `https://evil.example/storage/v1/object/public/media/${owner}/posts/a.webp`, width: 10, height: 10, alt: "" }])], /Invalid image/);
+  const photo = await post("Photo", "en", null, null, null, null, null, JSON.stringify([{ path: `${owner}/posts/a.webp`, url: `${OWN_MEDIA}${owner}/posts/a.webp`, width: 10, height: 10, alt: "" }]));
+  check("a post image on the project's own storage is accepted", typeof photo === "string");
+
+  // 2. mention cap
+  const handles = [];
+  for (let i = 0; i < 11; i++) handles.push((await createUser(`lowfix-named${i}@example.com`, { username: `named_${i}` }), `named_${i}`));
+  await as(owner);
+  await fails("a post cannot mention more than ten people", "select public.create_post($1)", [`Hello ${handles.map((h) => `@${h}`).join(" ")}`], /up to 10 people/);
+  await post(`Hello ${handles.slice(0, 10).map((h) => `@${h}`).join(" ")}`);
+  await superuser();
+  check("ten mentions notify ten people", (await one("select count(*)::int as n from public.notifications where type = 'mention' and actor_id = $1", [owner])).n === 10);
+
+  // 3. listing cap is a ledger
+  await as(owner);
+  for (let i = 0; i < 10; i++) await q("insert into public.events (host_id, created_by, title, starts_at, city_id, venue_name) values ($1, $1, $2, now() + interval '7 days', $3, 'Hall')", [owner, `Listing ${i}`, brisbane]);
+  await fails("the eleventh listing of the day is refused", "insert into public.events (host_id, created_by, title, starts_at, city_id, venue_name) values ($1, $1, 'Eleven', now() + interval '7 days', $2, 'Hall')", [owner, brisbane], /limit for new listings/);
+  await q("delete from public.events where created_by = $1 and title = 'Listing 0'", [owner]);
+  await fails("deleting a listing gives nothing back", "insert into public.events (host_id, created_by, title, starts_at, city_id, venue_name) values ($1, $1, 'Again', now() + interval '7 days', $2, 'Hall')", [owner, brisbane], /limit for new listings/);
+
+  // 4. message photos belong to one message
+  await as(pal);
+  await q("insert into public.follows (follower_id, followee_id) values ($1, $2)", [pal, owner]);
+  await as(owner);
+  const chat = (await one("select public.start_direct_conversation($1) as id", [pal])).id;
+  await q("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'hi')", [chat, owner]);
+  await as(pal);
+  await q("select public.respond_to_message_request($1, true)", [chat]);
+  const snap = (await one("insert into public.messages (conversation_id, sender_id, body, image_paths) values ($1, $2, 'look', $3) returning id", [chat, pal, `{${chat}/pal-photo.webp}`])).id;
+  await as(owner);
+  await fails("a photo another participant sent cannot be re-attached", "insert into public.messages (conversation_id, sender_id, body, image_paths) values ($1, $2, 'mine now', $3)", [chat, owner, `{${chat}/pal-photo.webp}`], /Invalid attachment/);
+  await superuser();
+  await q("update public.messages set image_paths = '{}' where id = $1", [snap]);
+  check("a photo nothing shows any more is queued for erasure", (await q("select 1 from public.storage_cleanup where path = $1", [`${chat}/pal-photo.webp`])).length === 1);
+
+  // 5. blocks follow the writer into quote cards and notifications
+  await as(owner);
+  const orgx = (await one("select public.create_organisation('orgx_two', 'Org X') as id")).id;
+  const orgPost = await post("Written by owner as orgx", "en", orgx);
+  await as(stranger);
+  const root = await post("Stranger root");
+  await as(owner);
+  await post("Owner replying as orgx", "en", orgx, root);
+  await as(pal);
+  const quote = await post("Pal quotes orgx", "en", null, null, orgPost);
+  await as(stranger);
+  await q("insert into public.blocks (blocker_id, blocked_id) values ($1, $2)", [stranger, owner]);
+  row = await one("select quoted from public.post_details where id = $1", [quote]);
+  check("a quote of a post the blocked person wrote as an organisation is unavailable", row.quoted?.unavailable === true, row.quoted);
+  check("a reply the blocked person wrote as an organisation leaves the notifications", (await q("select 1 from public.notification_details where recipient_id = $1 and type = 'reply'", [stranger])).length === 0);
+
+  // 6. restore is bound to the decision
+  await as(mod2);
+  await q("select public.moderate_suspend($1, interval '1 hour', 'Cooling off', 'respect')", [stranger]);
+  await q("select public.moderate_ban($1, 'Fraud', 'honesty')", [stranger]);
+  await superuser();
+  const firstDecision = (await one("select id from public.moderation_actions where profile_id = $1 and action = 'suspend' order by id limit 1", [stranger])).id;
+  await as(admin2);
+  await fails("restoring an older suspension does not lift a later ban", "select public.moderate_restore($1, 'Appeal upheld')", [firstDecision], /followed by a ban/);
+  await superuser();
+  check("the ban stands", (await one("select banned_at from public.profile_settings where id = $1", [stranger])).banned_at !== null);
+
+  // 7. a sanctioned account's email cannot change
+  await as(mod2);
+  await q("select public.moderate_suspend($1, interval '7 days', 'Spam', 'respect')", [pal]);
+  await superuser();
+  await fails("a suspended member's email cannot change", "update auth.users set email = 'burner@example.com' where id = $1", [pal], /suspended/);
+  await q("update public.profile_settings set suspended_until = null where id = $1", [pal]);
+  await q("update auth.users set email = 'pal2-new@example.com' where id = $1", [pal]);
+  check("a member in good standing can still change their email", (await one("select email from auth.users where id = $1", [pal])).email === "pal2-new@example.com");
+
+  // 8. an under-16 deactivation outlives the account
+  const young = await createUser("lowfix-young@example.com", { username: "young_two" });
+  await as(mod2);
+  await q("select public.moderate_deactivate_under_16($1, 'report')", [young]);
+  await as(young);
+  await q("select public.delete_my_account()");
+  await superuser();
+  check("the identity of a deleted under-16 account is refused at sign-up", (await one("select (public.before_user_created('{\"user\":{\"email\":\"lowfix-young@example.com\",\"identities\":[]}}'::jsonb) -> 'error' ->> 'http_code') as c")).c === "403");
+
+  // 9. the purge finds uploads whatever the folder's spelling
+  const purged = await createUser("lowfix-purged@example.com", { username: "purged_two" });
+  await superuser();
+  await q("insert into storage.objects (bucket_id, name) values ('media', $1), ('media', $2)", [`${purged}/avatars/lower.webp`, `${purged.toUpperCase()}/avatars/upper.webp`]);
+  await q("update public.profile_settings set age_deactivated_at = now() - interval '31 days' where id = $1", [purged]);
+  await q("select public.purge_deactivated_accounts()");
+  check("the purge queues the member's uploads in every spelling", (await one("select count(*)::int as n from public.storage_cleanup where path like $1 or path like $2", [`${purged}/%`, `${purged.toUpperCase()}/%`])).n === 2);
+
+  // 10. team membership is an invitation
+  await as(stranger);
+  await superuser();
+  await q("update public.profile_settings set banned_at = null, suspended_until = null where id = $1", [stranger]);
+  await as(owner);
+  await fails("nobody is added to a team across a block", "insert into public.organisation_members (org_id, user_id, role) values ($1, $2, 'editor')", [orgx, stranger], /cannot add this person/);
+  await q("insert into public.organisation_members (org_id, user_id, role) values ($1, $2, 'editor')", [orgx, pal]);
+  await as(pal);
+  check("an invitation is not membership yet", (await one("select public.can_act_as($1) as ok", [orgx])).ok === false);
+  await fails("an invited person cannot post as the organisation", "select public.create_post('As orgx', 'en', $1)", [orgx], /cannot post as this profile/);
+  await q("select public.accept_team_invitation($1)", [orgx]);
+  check("accepting makes it membership", (await one("select public.can_act_as($1) as ok", [orgx])).ok === true);
+  await superuser();
+  check("the owner's own row was accepted from the start", (await one("select accepted_at from public.organisation_members where org_id = $1 and user_id = $2", [orgx, owner])).accepted_at !== null);
 }
 
 console.log("\nDemo seed");

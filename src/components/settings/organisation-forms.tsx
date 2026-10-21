@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
-import { addTeamMember, createOrganisation, deleteOrganisation, handOverOwnership, removeTeamMember, setTeamRole, type TeamRole } from "@/app/actions/organisations";
+import { acceptTeamInvitation, addTeamMember, declineTeamInvitation, createOrganisation, deleteOrganisation, handOverOwnership, removeTeamMember, setTeamRole, type TeamRole } from "@/app/actions/organisations";
 import { updateProfile } from "@/app/actions/settings";
 import { CitySelect } from "@/components/settings/city-select";
 import { SaveBar, SettingsGroup } from "@/components/settings/layout";
@@ -101,7 +101,7 @@ export function OrganisationProfileForm({ org, cities }: { org: EditableProfile;
   );
 }
 
-export type TeamMember = { id: string; username: string; displayName: string; avatarUrl: string | null; colour: Colour; role: OrgRole };
+export type TeamMember = { id: string; username: string; displayName: string; avatarUrl: string | null; colour: Colour; role: OrgRole; invited: boolean };
 
 function AddMemberForm({ orgId }: { orgId: string }) {
   const [username, setUsername] = useState("");
@@ -140,6 +140,7 @@ export function TeamManager({ orgId, team, viewerId, viewerRole }: { orgId: stri
 
   function itemsFor(member: TeamMember): MenuItem[] {
     if (member.id === viewerId) return [{ kind: "action", label: "Leave organisation", danger: true, onSelect: () => save(() => removeTeamMember({ orgId, userId: member.id })) }];
+    if (member.invited) return [{ kind: "action", label: "Withdraw invitation", danger: true, onSelect: () => save(() => removeTeamMember({ orgId, userId: member.id }), `Invitation to @${member.username} withdrawn`) }];
     const items: MenuItem[] = [];
     if (owner && member.role !== "owner") {
       const other: TeamRole = member.role === "admin" ? "editor" : "admin";
@@ -170,7 +171,7 @@ export function TeamManager({ orgId, team, viewerId, viewerRole }: { orgId: stri
               </p>
               <p className="truncate font-mono text-xs text-ink-muted">@{member.username}</p>
             </div>
-            <Chip tone={member.role === "owner" ? "primary" : "muted"}>{ROLE_LABELS[member.role]}</Chip>
+            <Chip tone={member.role === "owner" ? "primary" : "muted"}>{member.invited ? "Invited" : ROLE_LABELS[member.role]}</Chip>
             <Menu label={`Options for @${member.username}`} items={itemsFor(member)} />
           </li>
         ))}
@@ -234,6 +235,35 @@ export function DeleteOrganisation({ org }: { org: { id: string; username: strin
           <Input id="confirm-org-delete" value={typed} onChange={(event) => setTyped(event.target.value)} autoComplete="off" autoCapitalize="none" spellCheck={false} className="font-mono" />
         </Field>
       </Dialog>
+    </SettingsGroup>
+  );
+}
+
+// Invitations the viewer has not answered yet, on the organisations settings page.
+export function TeamInvitations({ invitations }: { invitations: { id: string; username: string; displayName: string; role: OrgRole }[] }) {
+  const { pending, error, save } = useSave();
+  if (invitations.length === 0) return null;
+  return (
+    <SettingsGroup title="Invitations" hint="Someone has asked you to help run their organisation. Nothing changes until you accept.">
+      <ul className="-mx-4 divide-y divide-hairline border-y border-hairline sm:-mx-6" aria-busy={pending}>
+        {invitations.map((org) => (
+          <li key={org.id} className="flex items-center gap-3 px-4 py-3 sm:px-6">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[15px] font-semibold">{org.displayName}</p>
+              <p className="truncate font-mono text-xs text-ink-muted">
+                @{org.username} · as {ROLE_LABELS[org.role].toLowerCase()}
+              </p>
+            </div>
+            <Button size="sm" variant="outline" disabled={pending} onClick={() => save(() => declineTeamInvitation(org.id), `Declined @${org.username}`)}>
+              Decline
+            </Button>
+            <Button size="sm" disabled={pending} onClick={() => save(() => acceptTeamInvitation(org.id), `You're on @${org.username}'s team`)}>
+              Accept
+            </Button>
+          </li>
+        ))}
+      </ul>
+      {error ? <p className="mt-2 text-sm text-destructive">{error}</p> : null}
     </SettingsGroup>
   );
 }

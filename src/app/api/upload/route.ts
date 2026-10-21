@@ -11,9 +11,13 @@ const MAX_BYTES = 4 * 1024 * 1024;
 
 const WIDTHS = { posts: 1600, events: 1600, banners: 1500, avatars: 400 } as const;
 
+// The folder is compared as text by the rules that recognise and clean up
+// uploads, so it is stored in the one spelling they use.
+const canonicalId = z.uuid().transform((value) => value.toLowerCase());
+
 const targetSchema = z.discriminatedUnion("bucket", [
-  z.object({ bucket: z.literal("media"), folder: z.enum(["posts", "events", "banners", "avatars"]), ownerId: z.uuid() }),
-  z.object({ bucket: z.literal("message-media"), conversationId: z.uuid() }),
+  z.object({ bucket: z.literal("media"), folder: z.enum(["posts", "events", "banners", "avatars"]), ownerId: canonicalId }),
+  z.object({ bucket: z.literal("message-media"), conversationId: canonicalId }),
 ]);
 
 function destination(target: z.infer<typeof targetSchema>) {

@@ -46,7 +46,7 @@ export async function ProfileView({ username, tab }: { username: string; tab: Pr
   const [feed, pinned, team, known] = await Promise.all([
     loadFeed({ kind: "profile", profileId: profile.id, tab }),
     tab === "posts" ? loadPinnedPost(profile.pinned_post_id) : Promise.resolve(null),
-    profile.account_type === "organisation" ? loadTeam(profile.id) : Promise.resolve([]),
+    profile.account_type === "organisation" ? loadTeam(profile.id).then((team) => team.filter((member) => !member.invited)) : Promise.resolve([]),
     loadFollowersYouKnow(profile.id, viewer),
   ]);
   const canManage = team.some((member) => member.id === viewer?.id && member.role !== "editor");

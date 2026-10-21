@@ -1,7 +1,7 @@
 import { BadgeCheck, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { SettingsGroup } from "@/components/settings/layout";
-import { CreateOrganisationForm } from "@/components/settings/organisation-forms";
+import { CreateOrganisationForm, TeamInvitations } from "@/components/settings/organisation-forms";
 import { Avatar } from "@/components/ui/avatar";
 import { Chip } from "@/components/ui/page";
 import { loadCities } from "@/lib/data/shell";
@@ -16,6 +16,7 @@ export default async function OrganisationSettingsPage() {
   const cities = await loadCities();
   return (
     <>
+      <TeamInvitations invitations={viewer.invitations} />
       <SettingsGroup title="Organisations you help run" hint="Post, host events and list opportunities as an organisation. Switch who you're posting as in the composer.">
         {viewer.organisations.length === 0 ? (
           <p className="text-sm text-ink-muted">You're not on any organisation's team yet.</p>

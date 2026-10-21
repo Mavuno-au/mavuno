@@ -160,6 +160,10 @@ export async function updateLanguages(input: z.input<typeof languageSettingsSche
 }
 
 export async function changeEmail(_: Result | null, form: FormData): Promise<Result> {
+  const viewer = await getViewer();
+  if (!viewer) return fail("Sign in first.");
+  // The database refuses this too; saying so here saves two confirmation emails that would fail.
+  if (viewer.suspended) return fail("Your email can't be changed while your account is suspended.");
   const parsed = emailSchema.safeParse(form.get("email"));
   if (!parsed.success) return fail(firstIssue(parsed.error));
   const supabase = await createClient();

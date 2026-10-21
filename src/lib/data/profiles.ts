@@ -40,6 +40,7 @@ const profileRow = z.object({
 const teamRow = z.array(
   z.object({
     role: z.enum(["owner", "admin", "editor"]),
+    accepted_at: z.string().nullable(),
     person: z.object({ id: z.uuid(), username: z.string(), display_name: z.string(), avatar_url: z.string().nullable(), colour: colourSchema }),
   }),
 );
@@ -101,11 +102,12 @@ export async function loadTeam(orgId: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("organisation_members")
-    .select("role, person:profiles!organisation_members_user_id_fkey(id, username, display_name, avatar_url, colour:effective_colour)")
+    .select("role, accepted_at, person:profiles!organisation_members_user_id_fkey(id, username, display_name, avatar_url, colour:effective_colour)")
     .eq("org_id", orgId)
     .order("created_at");
-  return teamRow.parse(data ?? []).map(({ role, person }) => ({
+  return teamRow.parse(data ?? []).map(({ role, accepted_at, person }) => ({
     role,
+    invited: accepted_at === null,
     id: person.id,
     username: person.username,
     displayName: person.display_name,

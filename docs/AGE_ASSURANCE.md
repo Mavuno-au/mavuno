@@ -16,7 +16,7 @@ eSafety's guidance says self-declaration alone is not enough, so no single step 
 | 4. Moderator review | Moderators see under-16 reports, and anything they notice in posts or profiles, and can deactivate the account. Accounts with a recent report have their posts reviewed before they go public. | Moderation → Reports, Moderation → Age checks |
 | 5. Deactivation with notice | The person sees a notice saying why, what happens next and how to ask for a review. Their posts, events and opportunities are hidden, they can download their data, and support services (Kids Helpline, eSafety) are listed. | `src/app/deactivated` |
 | 6. Review by email | A moderator who didn't make the decision offers a choice: a short unrecorded video call, a letter from a school, TAFE, university or employer, or ID if the person prefers. Government ID is never the only option (s63DB). | Moderation → Age checks → Reinstate |
-| 7. Deletion | Accounts not reinstated within 30 days are deleted with everything in them, by `purge_deactivated_accounts()` (daily with `pg_cron`, or `/api/maintenance`). | migration `age_assurance_and_notices` |
+| 7. Deletion | Accounts not reinstated within 30 days are deleted with everything in them, by `purge_deactivated_accounts()` (daily with `pg_cron`, or `/api/maintenance`). Whether the person deletes the account or the purge does, a keyed hash of its email address and sign-in is kept for a year (`banned_identities`, rule `age`), so signing up again with the same identity is refused and the review by email stays the way back. | migration `age_assurance_and_notices`, `audit_low_findings` |
 
 ## Privacy (s63F)
 
