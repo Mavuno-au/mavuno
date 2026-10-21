@@ -58,6 +58,9 @@ export default async function DeactivatedPage() {
             </p>
           </section>
 
+          <p className="text-sm text-ink-muted">
+            How the age check works, in plain words, is in <Link href="/help#age" className="text-primary hover:underline">Help</Link>.
+          </p>
           <Under16Support />
 
           <form action={signOut}>

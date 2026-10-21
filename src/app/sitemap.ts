@@ -11,7 +11,7 @@ const PAGE = 1000;
 // Well under the 50,000 addresses a sitemap file may list.
 const PER_FILE = 20_000;
 
-const STATIC_PATHS = ["/", "/latest", "/spaces", "/events", "/opportunities", "/discover", "/about", "/rules", "/privacy", "/terms"];
+const STATIC_PATHS = ["/", "/latest", "/spaces", "/events", "/opportunities", "/discover", "/about", "/help", "/rules", "/privacy", "/terms"];
 
 const postRows = z.array(z.object({ id: z.uuid(), created_at: z.string(), published_at: z.string().nullable(), author: z.object({ username: z.string() }).nullable() }));
 const profileRows = z.array(z.object({ username: z.string(), updated_at: z.string() }));

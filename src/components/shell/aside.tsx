@@ -117,6 +117,7 @@ export async function Aside({ viewer }: { viewer: Viewer | null }) {
 
       <footer className="mt-auto flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-muted">
         <Link href="/about" className="hover:text-ink">About</Link>
+        <Link href="/help" className="hover:text-ink">Help</Link>
         <Link href="/rules" className="hover:text-ink">Community rules</Link>
         <Link href="/privacy" className="hover:text-ink">Privacy</Link>
         <Link href="/terms" className="hover:text-ink">Terms</Link>

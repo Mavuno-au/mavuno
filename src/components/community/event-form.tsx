@@ -1,6 +1,7 @@
 "use client";
 
 import { ImagePlus } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useRef, useState, useTransition, type FormEvent } from "react";
 import { toast } from "sonner";
@@ -294,7 +295,8 @@ function Created({ saved }: { saved: SavedListing }) {
   if (saved.status !== "published") {
     return (
       <EmptyState title="Sent for review" action={view}>
-        A moderator will check it, usually within a day. Until then only its hosts can see it, on its page.
+        A moderator will check it, usually within a day. Until then only its hosts can see it, on its page.{" "}
+        <Link href="/help#sent-for-review" className="text-primary hover:underline">What this means</Link>
       </EmptyState>
     );
   }
