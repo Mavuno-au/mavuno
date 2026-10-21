@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { PostRow } from "@/lib/domain";
 
 // Every list of posts in the app is one of these. Client components send a
 // FeedSource back to load more, so it is parsed again on the server.
@@ -18,6 +19,10 @@ export const feedSourceSchema = z.discriminatedUnion("kind", [
 export type FeedSource = z.infer<typeof feedSourceSchema>;
 
 export const PAGE_SIZE = 20;
+
+// Latest and Following sort by when a post was published, so a post approved
+// after review comes in at the top. One still waiting has only its writing time.
+export const feedTime = (row: Pick<PostRow, "publishedAt" | "createdAt">) => row.publishedAt ?? row.createdAt;
 
 // A continued thread reads this many posts at a time, and at most THREAD_MAX_LENGTH past the post on screen.
 export const THREAD_PAGE_SIZE = 10;

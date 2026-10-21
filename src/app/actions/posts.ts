@@ -167,11 +167,11 @@ export async function setSaved(postId: string, saved: boolean) {
 }
 
 export async function loadMore(source: unknown, cursor: string | null): Promise<FeedPage> {
-  return loadFeed(feedSourceSchema.parse(source), cursor === null ? null : z.string().max(64).parse(cursor));
+  return loadFeed(feedSourceSchema.parse(source), cursor === null ? null : z.string().max(100).parse(cursor));
 }
 
 export async function loadMoreReplies(postId: string, after: string | null) {
-  return loadReplies(id.parse(postId), after === null ? null : z.string().max(64).parse(after));
+  return loadReplies(id.parse(postId), after === null ? null : z.string().max(100).parse(after));
 }
 
 // The next page of a thread is the thread of the last post shown.
@@ -186,7 +186,7 @@ export async function loadMoreThread(lastPostId: string): Promise<Result<PostRow
 }
 
 export async function loadPostLikers(postId: string, before: string | null): Promise<Result<Likers>> {
-  const parsed = z.object({ postId: id, before: z.iso.datetime({ offset: true }).nullable() }).safeParse({ postId, before });
+  const parsed = z.object({ postId: id, before: z.string().max(100).nullable() }).safeParse({ postId, before });
   if (!parsed.success) return fail("That post is no longer available.");
   try {
     return ok(await loadLikers(parsed.data.postId, parsed.data.before));
