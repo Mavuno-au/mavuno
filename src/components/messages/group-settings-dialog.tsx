@@ -8,7 +8,7 @@ import { PeoplePicker } from "@/components/messages/people-picker";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { Field, Input } from "@/components/ui/field";
+import { Checkbox, Field, Input } from "@/components/ui/field";
 import { Menu, type MenuItem } from "@/components/ui/menu";
 import { Chip } from "@/components/ui/page";
 import { useViewer } from "@/components/shell/viewer-context";
@@ -22,6 +22,7 @@ export function GroupSettingsDialog({ open, onClose, conversation }: { open: boo
   const viewer = useViewer();
   const [title, setTitle] = useState(conversation.title ?? "");
   const [adding, setAdding] = useState<PersonSummary[]>([]);
+  const [shareHistory, setShareHistory] = useState(false);
   const [pending, startTransition] = useTransition();
   const isAdmin = conversation.myRole !== "member";
   const isOwner = conversation.myRole === "owner";
@@ -108,13 +109,21 @@ export function GroupSettingsDialog({ open, onClose, conversation }: { open: boo
             <h3 className="text-sm font-medium">Add people</h3>
             <PeoplePicker selected={adding} onChange={setAdding} exclude={conversation.members.map((member) => member.id)} />
             {adding.length > 0 ? (
-              <Button
-                className="min-w-24 justify-self-end"
-                disabled={pending}
-                onClick={() => run(() => addMembers(conversation.id, adding.map((person) => person.id)), adding.length === 1 ? `Added ${adding[0]?.displayName}` : `Added ${adding.length} people`, () => setAdding([]))}
-              >
-                {adding.length === 1 ? "Add" : `Add ${adding.length}`}
-              </Button>
+              <>
+                <Checkbox label="Show them earlier messages" hint="Otherwise they see only what is sent from now on." checked={shareHistory} onChange={(event) => setShareHistory(event.target.checked)} />
+                <Button
+                  className="min-w-24 justify-self-end"
+                  disabled={pending}
+                  onClick={() =>
+                    run(() => addMembers(conversation.id, adding.map((person) => person.id), shareHistory), adding.length === 1 ? `Added ${adding[0]?.displayName}` : `Added ${adding.length} people`, () => {
+                      setAdding([]);
+                      setShareHistory(false);
+                    })
+                  }
+                >
+                  {adding.length === 1 ? "Add" : `Add ${adding.length}`}
+                </Button>
+              </>
             ) : null}
           </section>
         ) : null}

@@ -43,8 +43,9 @@ export async function createGroup(input: z.input<typeof newGroupSchema>): Promis
   return startedConversation(supabase.rpc("create_group_conversation", { p_title: parsed.data.title, p_member_ids: parsed.data.memberIds }));
 }
 
-export async function addMembers(conversationId: string, memberIds: string[]) {
-  return rpc("add_group_members", { p_conversation_id: id.parse(conversationId), p_member_ids: ids.parse(memberIds) });
+// People added read from when they join unless the history is shared with them.
+export async function addMembers(conversationId: string, memberIds: string[], shareHistory: boolean) {
+  return rpc("add_group_members", { p_conversation_id: id.parse(conversationId), p_member_ids: ids.parse(memberIds), p_share_history: z.boolean().parse(shareHistory) });
 }
 
 export async function renameGroup(conversationId: string, title: string) {

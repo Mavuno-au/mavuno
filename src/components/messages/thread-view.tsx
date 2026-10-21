@@ -322,6 +322,8 @@ export function ThreadView({ conversation, viewerId, initial, next: initialNext 
             </p>
           ) : next ? (
             <p className="h-8 text-center font-mono text-xs text-ink-muted">{loadingOlder ? "Loading earlier messages…" : ""}</p>
+          ) : conversation.historyFrom ? (
+            <p className="pb-2 text-center font-mono text-xs text-ink-muted">Messages from before you joined aren't shown</p>
           ) : messages.length > 0 ? (
             <p className="pb-2 text-center font-mono text-xs text-ink-muted">Start of the conversation</p>
           ) : (

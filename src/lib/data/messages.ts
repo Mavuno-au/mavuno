@@ -66,6 +66,8 @@ const conversationSchema = z
     unread_count: z.number(),
     last_message: lastMessageSchema.nullable(),
     members: z.array(memberSchema),
+    // "-infinity" for anyone who can read everything.
+    history_from: timestamp.nullable(),
   })
   .transform((c) => {
     const other = c.kind === "direct" ? (c.members[0] ?? null) : null;
@@ -91,6 +93,8 @@ const conversationSchema = z
       lastMessage: c.last_message,
       members: c.members,
       access,
+      // When the viewer joined a group without its history, where their view starts.
+      historyFrom: c.history_from === "-infinity" ? null : c.history_from,
     };
   });
 export type Conversation = z.infer<typeof conversationSchema>;

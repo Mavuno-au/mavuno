@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { loadNotifications } from "@/app/actions/notifications";
 import { EmptyState } from "@/components/ui/page";
+import { DISPLAY_TIME_ZONE } from "@/lib/format";
 import { findFilter, isFilterKey, NOTIFICATION_FILTERS } from "@/lib/notifications";
 import { requireViewer } from "@/lib/viewer";
 import { NotificationList } from "./notification-list";
@@ -26,7 +27,7 @@ export default async function NotificationsPage({ searchParams }: PageProps<"/no
       own={own}
       filter={filter.key}
       explicit={isFilterKey(params.filter)}
-      initial={first.ok ? first.data : { notifications: [], next: null }}
+      initial={first.ok ? first.data : { groups: [], next: null, timeZone: DISPLAY_TIME_ZONE }}
       header={{
         meta: own ? null : `as ${identity.displayName}`,
         identities:
