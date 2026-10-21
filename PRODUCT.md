@@ -20,7 +20,7 @@ Mavuno ("harvest" in Swahili) is a social network for that community. Members po
 - **Languages:** posts carry their language; members can translate posts.
 - **Safety:** mute, block, reports, review after a report (and of new members' content when an admin turns it on), the community rules accepted before the first post, moderation tools: removals that name the rule, suspensions from an hour to 30 days, bans that outlive the account, appeals, and a record of every decision.
 - **Data:** JSON export and account deletion.
-- **Help:** plain answers at /help to the questions people ask most, each with its own address so a notice or an email can point at one, found from the search palette. No ticket system: an email address and a reply within 7 days.
+- **Help:** one article per question at /help/<slug>, grouped by category, with numbered steps that name the real buttons. Section links are the heading (/help/appeals#how-to-appeal), so a notice or an email can point at one. Searchable on the Help page and from the search palette. No ticket system: an email address and a reply within 7 days.
 
 ## Rules every feature keeps
 

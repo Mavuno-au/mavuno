@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { HELP_ARTICLES, helpHref } from "@/lib/help";
 import { z } from "zod";
 import { publicEnv } from "@/lib/env";
 import { createGuestClient } from "@/lib/supabase/server";
@@ -81,6 +82,7 @@ export default async function sitemap({ id }: { id: Promise<string> }): Promise<
       ]);
       return [
         ...STATIC_PATHS.map((path) => ({ url: url(path), changeFrequency: "hourly" as const })),
+        ...HELP_ARTICLES.map((article) => ({ url: url(helpHref(article.slug)), changeFrequency: "monthly" as const })),
         ...spaceRows.parse(spaces.data ?? []).map((space) => ({ url: url(`/spaces/${space.slug}`), lastModified: space.last_post_at ?? space.created_at, changeFrequency: "daily" as const })),
         ...eventRows.parse(events.data ?? []).map((event) => ({ url: url(`/events/${event.id}`), lastModified: event.cancelled_at ?? event.created_at })),
         ...opportunityRows.parse(opportunities.data ?? []).map((opportunity) => ({ url: url(`/opportunities/${opportunity.id}`), lastModified: opportunity.created_at, changeFrequency: "daily" as const })),

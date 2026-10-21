@@ -142,7 +142,7 @@ export function ReviewBanner({ review, what }: { review: Review; what: string })
           <p className="font-medium">Sent for review</p>
           <p className="text-ink-muted">
             A moderator will check it, usually within a day. Until then only its hosts can see this {what}.{" "}
-            <Link href="/help#sent-for-review" className="text-primary hover:underline">What this means</Link>
+            <Link href="/help/review" className="text-primary hover:underline">What this means</Link>
           </p>
         </div>
       );

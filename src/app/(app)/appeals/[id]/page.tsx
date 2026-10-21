@@ -52,7 +52,7 @@ export default async function AppealPage({ params }: PageProps<"/appeals/[id]">)
             </p>
             <p className="text-ink-muted">Or write to {CONTACT_EMAIL} yourself, with "{subject}" as the subject.</p>
             <p className="text-ink-muted">
-              <Link href="/help#appeal" className="text-primary hover:underline">How appeals work</Link>
+              <Link href="/help/appeals" className="text-primary hover:underline">How appeals work</Link>
             </p>
           </>
         ) : (

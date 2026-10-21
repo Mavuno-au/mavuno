@@ -10,7 +10,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { useViewer } from "@/components/shell/viewer-context";
 import { cn } from "@/lib/cn";
 import { parsePeople, type PersonSummary } from "@/lib/domain";
-import { findHelp } from "@/lib/help";
+import { findHelp, helpHref } from "@/lib/help";
 import { readRecentSearches, recentSearchesKey, rememberSearch, writeRecentSearches } from "@/lib/recent-searches";
 import { readShortcutsEnabled, shortcutKey, subscribeToShortcuts } from "@/lib/shortcuts";
 import { getBrowserClient } from "@/lib/supabase/browser";
@@ -161,7 +161,7 @@ function SearchPaletteBody({ onClose }: { onClose: () => void }) {
   const [recent, setRecent] = useState(() => (recentKey ? readRecentSearches(recentKey) : []));
   const term = query.trim();
   const results = term ? found.people : [];
-  const help = findHelp(term);
+  const help = findHelp(term, 3);
   const loading = term !== "" && found.term !== term;
 
   useEffect(() => {
@@ -244,11 +244,11 @@ function SearchPaletteBody({ onClose }: { onClose: () => void }) {
         <div className="mt-2">
           <h3 className="px-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">Help</h3>
           <ul className="mt-1 grid">
-            {help.map((topic) => (
-              <li key={topic.slug}>
-                <button type="button" onClick={() => go(`/help#${topic.slug}`)} className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left text-sm hover:bg-wash">
+            {help.map((article) => (
+              <li key={article.slug}>
+                <button type="button" onClick={() => go(helpHref(article.slug))} className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left text-sm hover:bg-wash">
                   <CircleHelp className="size-4 shrink-0 text-ink-muted" aria-hidden />
-                  <span className="truncate">{topic.question}</span>
+                  <span className="truncate">{article.title}</span>
                 </button>
               </li>
             ))}

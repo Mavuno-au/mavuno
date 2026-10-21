@@ -296,7 +296,7 @@ function Created({ saved }: { saved: SavedListing }) {
     return (
       <EmptyState title="Sent for review" action={view}>
         A moderator will check it, usually within a day. Until then only its hosts can see it, on its page.{" "}
-        <Link href="/help#sent-for-review" className="text-primary hover:underline">What this means</Link>
+        <Link href="/help/review" className="text-primary hover:underline">What this means</Link>
       </EmptyState>
     );
   }

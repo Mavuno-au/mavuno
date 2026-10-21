@@ -85,7 +85,7 @@ export default async function BannedPage() {
           </section>
 
           <p className="text-sm text-ink-muted">
-            More answers, including how appeals work, are in <Link href="/help#banned" className="text-primary hover:underline">Help</Link>.
+            How bans and appeals work is explained in <Link href="/help/bans" className="text-primary hover:underline">Help</Link>.
           </p>
           <form action={signOut}>
             <Button type="submit" variant="outline">
