@@ -5,15 +5,13 @@ import { after } from "next/server";
 import { z } from "zod";
 import { runTasksFor } from "@/lib/background-tasks";
 import { loadMembers, loadMessage, loadMessages, loadMessagesAfter, loadReactions, type Member, type Message, type MessagePage, type Reaction } from "@/lib/data/messages";
+import { groupTitleSchema as groupTitle, memberIdsSchema as ids, newGroupSchema, newMessageSchema, type NewMessage } from "@/lib/messages";
 import { parsePeople, type PersonSummary } from "@/lib/domain";
-import { LIMITS } from "@/lib/catalogue";
 import { done, fail, failFrom, ok, type Result } from "@/lib/result";
 import { createClient } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/viewer";
 
 const id = z.uuid();
-const ids = z.array(id).min(1).max(99);
-const groupTitle = z.string().trim().max(60, "Group names can be up to 60 characters.");
 
 async function rpc(name: string, args: Record<string, unknown>): Promise<Result> {
   const supabase = await createClient();
@@ -35,8 +33,6 @@ export async function startConversation(profileId: string): Promise<Result<{ id:
   const supabase = await createClient();
   return startedConversation(supabase.rpc("start_direct_conversation", { p_user_id: parsed.data }));
 }
-
-const newGroupSchema = z.object({ title: groupTitle, memberIds: ids });
 
 export async function createGroup(input: z.input<typeof newGroupSchema>): Promise<Result<{ id: string }>> {
   const parsed = newGroupSchema.safeParse(input);
@@ -113,18 +109,7 @@ export async function fetchMembers(conversationId: string): Promise<Member[]> {
   return loadMembers(id.parse(conversationId));
 }
 
-const newMessageSchema = z
-  .object({
-    conversationId: id,
-    body: z.string().trim().max(LIMITS.messageBody, `Messages can be up to ${LIMITS.messageBody} characters.`),
-    imagePaths: z.array(z.string().max(200)).max(LIMITS.messageImages, `You can send up to ${LIMITS.messageImages} images.`),
-    imageAlts: z.array(z.string().trim().max(LIMITS.imageAlt, `Image descriptions can be up to ${LIMITS.imageAlt} characters.`)),
-    replyToId: id.nullable(),
-  })
-  .refine((message) => message.body.length > 0 || message.imagePaths.length > 0, "Write a message or add an image.")
-  .refine((message) => message.imageAlts.length === message.imagePaths.length, "Each image needs its own description field.");
-
-export type NewMessage = z.input<typeof newMessageSchema>;
+export type { NewMessage } from "@/lib/messages";
 
 export async function sendMessage(input: NewMessage): Promise<Result<Message>> {
   const parsed = newMessageSchema.safeParse(input);

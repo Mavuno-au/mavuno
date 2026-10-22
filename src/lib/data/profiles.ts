@@ -1,41 +1,9 @@
 import "server-only";
 import { cache } from "react";
 import { z } from "zod";
-import { accountTypeSchema, colourSchema, parsePeople, postRowSchema, type Colour, type PersonSummary } from "@/lib/domain";
+import { accountTypeSchema, colourSchema, parsePeople, postRowSchema, PROFILE_COLUMNS, profileRowSchema, type Colour, type PersonSummary, type ProfileRow } from "@/lib/domain";
 import { createClient } from "@/lib/supabase/server";
 import type { Viewer } from "@/lib/viewer";
-
-const linkSchema = z.object({ label: z.string(), url: z.string() });
-
-const profileRow = z.object({
-  id: z.uuid(),
-  account_type: accountTypeSchema,
-  username: z.string(),
-  display_name: z.string(),
-  bio: z.string(),
-  avatar_url: z.string().nullable(),
-  banner_url: z.string().nullable(),
-  colour: colourSchema,
-  heritage: z.string().nullable(),
-  pronouns: z.string().nullable(),
-  interests: z.array(z.string()),
-  languages: z.array(z.string()),
-  website: z.string().nullable(),
-  links: z.array(linkSchema).catch([]),
-  headline: z.string().nullable(),
-  occupation: z.string().nullable(),
-  company: z.string().nullable(),
-  industry: z.string().nullable(),
-  open_to: z.array(z.string()),
-  org_category: z.string().nullable(),
-  org_verified: z.boolean(),
-  pinned_post_id: z.uuid().nullable(),
-  followers_count: z.number(),
-  following_count: z.number(),
-  posts_count: z.number(),
-  created_at: z.string(),
-  city: z.object({ name: z.string(), state: z.string(), slug: z.string() }).nullable(),
-});
 
 const teamRow = z.array(
   z.object({
@@ -52,22 +20,19 @@ export type Relationship = { following: boolean; followsYou: boolean; muted: boo
 
 const inviteRows = z.array(z.object({ member_id: z.uuid(), invited_by: z.uuid().nullable() }));
 
-export type Profile = z.infer<typeof profileRow> & { relationship: Relationship };
+export type Profile = ProfileRow & { relationship: Relationship };
 
 export type ProfilePage =
   | { kind: "missing" }
   | { kind: "unavailable"; username: string; blockedByViewer: boolean; id: string }
   | { kind: "profile"; profile: Profile };
 
-const SELECT =
-  "id, account_type, username, display_name, bio, avatar_url, banner_url, colour:effective_colour, heritage, pronouns, interests, languages, website, links, headline, occupation, company, industry, open_to, org_category, org_verified, pinned_post_id, followers_count, following_count, posts_count, created_at, city:cities(name, state, slug)";
-
 // Cached per request: metadata and the page both ask for the same profile.
 export const loadProfile = cache(async (username: string, viewer: Viewer | null): Promise<ProfilePage> => {
   const supabase = await createClient();
-  const { data } = await supabase.from("profiles").select(SELECT).eq("username", username.toLowerCase()).maybeSingle();
+  const { data } = await supabase.from("profiles").select(PROFILE_COLUMNS).eq("username", username.toLowerCase()).maybeSingle();
   if (!data) return { kind: "missing" };
-  const row = profileRow.parse(data);
+  const row = profileRowSchema.parse(data);
   const self = viewer?.id === row.id;
 
   if (!viewer || self) {

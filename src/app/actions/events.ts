@@ -3,61 +3,15 @@
 import { after } from "next/server";
 import { z } from "zod";
 import { runTasksFor } from "@/lib/background-tasks";
-import { eventCategorySchema, eventFormatSchema, formField, fromZonedInput, rsvpSchema, timezoneSchema, type RsvpStatus, type SavedListing } from "@/lib/data/community";
-import { contentStatusSchema } from "@/lib/domain";
+import { eventFormSchema, rsvpSchema, savedListingRow, type RsvpStatus, type SavedListing } from "@/lib/community";
 import { publicEnv } from "@/lib/env";
 import { done, fail, failFrom, ok, type Result } from "@/lib/result";
-import { firstIssue, httpsUrl } from "@/lib/schemas";
+import { firstIssue } from "@/lib/schemas";
 import { createClient } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/viewer";
 
 const id = z.uuid();
-const localTime = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, "Choose a date and time.");
-const MEDIA = `${publicEnv.supabaseUrl}/storage/v1/object/public/media/`;
-
-const eventSchema = z
-  .object({
-    title: z.string().trim().min(3, "Give your event a title of at least 3 characters.").max(120, "Keep the title to 120 characters."),
-    description: z.string().trim().max(4000, "Keep the description to 4,000 characters."),
-    category: eventCategorySchema,
-    format: eventFormatSchema,
-    timezone: timezoneSchema,
-    startsAt: localTime,
-    endsAt: z.union([z.literal(""), localTime]).optional(),
-    cityId: formField.number(1, 32767, "Choose a city from the list."),
-    venue: formField.text(120, "Keep the venue name to 120 characters."),
-    address: formField.text(200, "Keep the address to 200 characters."),
-    onlineUrl: httpsUrl.optional(),
-    ticketUrl: httpsUrl,
-    coverUrl: formField.text(500, "Upload the cover image again.").refine((url) => url === null || url.startsWith(MEDIA), "Upload the cover image again."),
-    free: formField.checkbox,
-    capacity: formField.number(1, 100000, "Capacity is a number from 1 to 100,000."),
-    spaceId: formField.text(36, "Choose a space from the list.").pipe(id.nullable()),
-  })
-  .refine((event) => event.format === "online" || event.cityId !== null, { message: "Choose the city it's in.", path: ["cityId"] })
-  .refine((event) => event.format === "in_person" || Boolean(event.onlineUrl), { message: "Add the link people use to join online.", path: ["onlineUrl"] })
-  .refine((event) => !event.endsAt || event.endsAt > event.startsAt, { message: "The end has to be after the start.", path: ["endsAt"] })
-  .transform((event) => ({
-    title: event.title,
-    description: event.description,
-    category: event.category,
-    format: event.format,
-    timezone: event.timezone,
-    starts_at: fromZonedInput(event.startsAt, event.timezone),
-    ends_at: event.endsAt ? fromZonedInput(event.endsAt, event.timezone) : null,
-    city_id: event.cityId,
-    venue_name: event.format === "online" ? null : event.venue,
-    address: event.format === "online" ? null : event.address,
-    online_url: event.format === "in_person" ? null : (event.onlineUrl ?? null),
-    ticket_url: event.ticketUrl,
-    cover_url: event.coverUrl,
-    is_free: event.free,
-    capacity: event.capacity,
-    space_id: event.spaceId,
-  }));
-
-const savedRow = z.object({ id, status: contentStatusSchema });
-
+const eventSchema = eventFormSchema(`${publicEnv.supabaseUrl}/storage/v1/object/public/media/`);
 export async function createEvent(form: FormData): Promise<Result<SavedListing>> {
   const viewer = await getViewer();
   if (!viewer) return fail("Sign in first.");
@@ -74,7 +28,7 @@ export async function createEvent(form: FormData): Promise<Result<SavedListing>>
     .select("id, status")
     .single();
   if (error) return failFrom(error);
-  const saved = savedRow.parse(data);
+  const saved = savedListingRow.parse(data);
   // The database queued the automatic check for new members' listings.
   after(() => runTasksFor(saved.id));
   return ok(saved);
@@ -86,7 +40,7 @@ export async function updateEvent(eventId: string, form: FormData): Promise<Resu
   const supabase = await createClient();
   const { data, error } = await supabase.from("events").update(parsed.data).eq("id", id.parse(eventId)).select("id, status").single();
   if (error) return failFrom(error);
-  const saved = savedRow.parse(data);
+  const saved = savedListingRow.parse(data);
   // The database queues a fresh automatic check for the edited text.
   after(() => runTasksFor(saved.id));
   return ok(saved);

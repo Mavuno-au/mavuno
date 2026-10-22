@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { cache } from "react";
 import { z } from "zod";
 import { parsePeople, parsePosts, parseReplyPreviews, postRowSchema, type PersonSummary, type Post, type PostRow, type ReplyPreviews, type ThreadPlace } from "@/lib/domain";
-import { feedTime, PAGE_SIZE, THREAD_MAX_LENGTH, THREAD_PAGE_SIZE, type FeedSource } from "@/lib/feeds";
+import { cursorOf, feedCall, feedPage, PAGE_SIZE, parseTimeCursor, THREAD_MAX_LENGTH, THREAD_PAGE_SIZE, type FeedSource } from "@/lib/feeds";
 import { parseReplyPreviewCount, REPLY_PREVIEWS_COOKIE } from "@/lib/reply-previews";
 import { createClient } from "@/lib/supabase/server";
 
@@ -16,103 +16,12 @@ export const newTrendingSeed = () => randomInt(0, 2 ** 47);
 // The posts that continue a post on its page, and the post's own place in that thread.
 export type Continuation = { kind: "none" } | { kind: "thread"; place: ThreadPlace; parts: PostRow[] };
 
-const savedRows = z.array(z.object({ saved_at: z.string(), post: z.unknown() }));
-const score = z.union([z.number(), z.string()]).transform(String);
-const trendingRows = z.array(z.object({ trending_score: score, post: z.unknown() }).transform((row) => ({ score: row.trending_score, post: row.post })));
-const searchRows = z.array(z.object({ search_score: score, post: z.unknown() }).transform((row) => ({ score: row.search_score, post: row.post })));
-
-// Lists page after the sort key and id of the last row shown, so rows that
-// share a key (scheduled posts published together) are never skipped.
-const cursorOf = (key: string, id: string) => `${key}:${id}`;
-const splitCursor = (cursor: string) => ({ key: cursor.slice(0, -37), id: cursor.slice(-36) });
-
-const timeCursor = z
-  .string()
-  .regex(/^.+:[0-9a-f-]{36}$/)
-  .transform(splitCursor)
-  .pipe(z.object({ key: z.iso.datetime({ offset: true }), id: z.uuid() }));
-
-// Trending and search page after a score.
-const scoreCursor = z
-  .string()
-  .regex(/^-?\d+(\.\d+)?:[0-9a-f-]{36}$/)
-  .transform(splitCursor)
-  .pipe(z.object({ key: z.string(), id: z.uuid() }));
-
-const parseTimeCursor = (cursor: string | null) => (cursor ? timeCursor.parse(cursor) : null);
-
-async function query(source: FeedSource, cursor: string | null) {
-  const supabase = await createClient();
-  const byTime = () => {
-    const after = parseTimeCursor(cursor);
-    return { p_before: after?.key ?? null, p_before_id: after?.id ?? null, p_limit: PAGE_SIZE };
-  };
-  const byScore = () => {
-    const after = cursor ? scoreCursor.parse(cursor) : null;
-    return { p_after_score: after?.key ?? null, p_after_id: after?.id ?? null, p_limit: PAGE_SIZE };
-  };
-  switch (source.kind) {
-    case "following":
-      return supabase.rpc("feed_following", byTime());
-    case "latest":
-      return supabase.rpc("feed_latest", byTime());
-    case "trending":
-      return supabase.rpc("feed_trending", { p_seed: source.seed, ...byScore() });
-    case "saved":
-      return supabase.rpc("feed_saved", byTime());
-    case "space":
-      return supabase.rpc("feed_space", { p_space_id: source.spaceId, ...byTime() });
-    case "topic":
-      return supabase.rpc("feed_topic", { p_topic: source.topic, ...byTime() });
-    case "profile":
-      return supabase.rpc("feed_profile", { p_profile_id: source.profileId, p_kind: source.tab, ...byTime() });
-    case "local":
-      return supabase.rpc("feed_local", { p_city_id: source.cityId, p_radius_km: source.radiusKm, ...byTime() });
-    case "search":
-      return supabase.rpc("search_posts", { p_query: source.query, ...byScore() });
-    default: {
-      const exhaustive: never = source;
-      return exhaustive;
-    }
-  }
-}
-
 async function readPage(source: FeedSource, cursor: string | null): Promise<Omit<FeedPage, "previews">> {
-  const { data, error } = await query(source, cursor);
+  const supabase = await createClient();
+  const { fn, args } = feedCall(source, cursor);
+  const { data, error } = await supabase.rpc(fn, args);
   if (error) throw new Error(`Feed ${source.kind} failed: ${error.message}`);
-
-  switch (source.kind) {
-    case "saved": {
-      const rows = savedRows.parse(data);
-      const posts = parsePosts(rows.map((row) => row.post));
-      const last = rows.at(-1);
-      const lastPost = posts.at(-1);
-      return { posts, next: rows.length === PAGE_SIZE && last && lastPost ? cursorOf(last.saved_at, lastPost.id) : null };
-    }
-    case "trending":
-    case "search": {
-      const rows = (source.kind === "trending" ? trendingRows : searchRows).parse(data);
-      const posts = parsePosts(rows.map((row) => row.post));
-      const last = rows.at(-1);
-      const lastPost = posts.at(-1);
-      return { posts, next: rows.length === PAGE_SIZE && last && lastPost ? cursorOf(last.score, lastPost.id) : null };
-    }
-    case "following":
-    case "latest":
-    case "space":
-    case "topic":
-    case "profile":
-    case "local": {
-      const posts = parsePosts(data);
-      const last = posts.at(-1);
-      if (posts.length < PAGE_SIZE || !last) return { posts, next: null };
-      return { posts, next: cursorOf(source.kind === "following" || source.kind === "latest" ? feedTime(last) : last.createdAt, last.id) };
-    }
-    default: {
-      const exhaustive: never = source;
-      return exhaustive;
-    }
-  }
+  return feedPage(source, data, parsePosts);
 }
 
 // The newest replies to every post on a page, in one query.

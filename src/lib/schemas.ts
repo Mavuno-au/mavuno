@@ -4,6 +4,12 @@ export const emailSchema = z.email("Enter a valid email address.").transform((va
 
 export const passwordSchema = z.string().min(8, "Use at least 8 characters.").max(72, "Use at most 72 characters.");
 
+export const signInSchema = z.object({ email: emailSchema, password: z.string().min(1, "Enter your password.") });
+
+// What a failed password sign-in tells the person, from Supabase Auth's error code.
+export const signInError = (code: string | undefined) =>
+  code === "email_not_confirmed" ? "Confirm your email first. Check your inbox for the link." : "That email and password don't match.";
+
 export const usernameSchema = z
   .string()
   .trim()

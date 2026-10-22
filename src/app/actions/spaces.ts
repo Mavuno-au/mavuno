@@ -1,27 +1,11 @@
 "use server";
 
 import { z } from "zod";
-import { formField, RESERVED_SPACE_SLUGS, spaceKindSchema } from "@/lib/data/community";
+import { newSpaceSchema } from "@/lib/community";
 import { done, fail, failFrom, ok, type Result } from "@/lib/result";
 import { firstIssue } from "@/lib/schemas";
 import { createClient } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/viewer";
-
-const newSpaceSchema = z
-  .object({
-    name: z.string().trim().min(2, "Give the space a name of at least 2 characters.").max(60, "Keep the name to 60 characters."),
-    slug: z
-      .string()
-      .trim()
-      .toLowerCase()
-      .regex(/^[a-z0-9-]{2,40}$/, "Use 2 to 40 lowercase letters, numbers or dashes for the address.")
-      .refine((slug) => !RESERVED_SPACE_SLUGS.some((reserved) => reserved === slug), "That address is taken."),
-    description: z.string().trim().max(500, "Keep the description to 500 characters."),
-    kind: spaceKindSchema,
-    cityId: formField.number(1, 32767, "Choose a city from the list."),
-    emoji: z.string().trim().max(16, "Use one emoji."),
-  })
-  .refine((space) => space.kind !== "city" || space.cityId !== null, { message: "Choose the city this space is for.", path: ["cityId"] });
 
 export async function createSpace(form: FormData): Promise<Result<string>> {
   const parsed = newSpaceSchema.safeParse(Object.fromEntries(form));

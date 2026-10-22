@@ -57,7 +57,8 @@ function seededRandom(seed: string) {
 function shuffle<T>(items: readonly T[], random: () => number) {
   return items
     .map((item) => ({ item, key: random() }))
-    .toSorted((a, b) => a.key - b.key)
+    // A fresh array already, so sort rather than toSorted, which the app's engine lacks.
+    .sort((a, b) => a.key - b.key)
     .map(({ item }) => item);
 }
 

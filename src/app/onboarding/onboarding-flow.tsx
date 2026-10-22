@@ -7,7 +7,7 @@ import { trackEvent } from "@/components/shell/analytics";
 import { Wordmark } from "@/components/shell/brand";
 import { PersonRow } from "@/components/people/person-row";
 import { ChoiceChips } from "@/components/settings/choice-chips";
-import { INTEREST_CHOICES, knownInterests, knownLanguages, LANGUAGE_CHOICES, type Interest } from "@/components/settings/choices";
+import { INTEREST_CHOICES, knownInterests, knownLanguages, LANGUAGE_CHOICES, type Interest } from "@/lib/choices";
 import { CitySelect } from "@/components/settings/city-select";
 import { useSave } from "@/components/settings/use-save";
 import { Button } from "@/components/ui/button";
@@ -20,34 +20,10 @@ import type { EditableProfile, SpaceChoice } from "@/lib/data/settings";
 import type { City } from "@/lib/data/shell";
 import { compact } from "@/lib/format";
 import { toUsername } from "@/lib/schemas";
+import { INTEREST_SPACES } from "@/lib/onboarding";
 
 const STEPS = ["About you", "Follow a few people", "Join spaces", "How Mavuno works"] as const;
 
-// Official interest spaces are broader than interests, so several interests lead to one space.
-const INTEREST_SPACES: Partial<Record<Interest, string>> = {
-  careers: "careers",
-  business: "business",
-  tech: "tech",
-  education: "students",
-  health: "health",
-  faith: "faith",
-  food: "food",
-  music: "arts",
-  arts: "arts",
-  fashion: "arts",
-  film: "arts",
-  writing: "arts",
-  photography: "arts",
-  football: "sport",
-  basketball: "sport",
-  running: "sport",
-  parenting: "parents",
-  housing: "housing",
-  politics: "advocacy",
-  volunteering: "advocacy",
-  languages: "heritage",
-  youth: "youth",
-};
 
 const SHORTCUTS = [
   ["c", "Write a post"],
@@ -191,7 +167,7 @@ function SpaceOption({ space, checked, joined, onChange }: { space: SpaceChoice;
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline justify-between gap-3">
           <span className="text-[15px] font-medium">{space.name}</span>
-          <span className="shrink-0 font-mono text-xs text-ink-muted">{joined ? "Joined" : `${compact(space.members)} members`}</span>
+          <span className="shrink-0 font-mono text-xs text-ink-muted">{joined ? "Joined" : `${compact(space.members)} ${space.members === 1 ? "member" : "members"}`}</span>
         </span>
         <span className="block text-sm text-ink-muted">{space.description}</span>
       </span>

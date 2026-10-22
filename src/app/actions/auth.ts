@@ -7,7 +7,7 @@ import { emailLink } from "@/lib/email-link";
 import { publicEnv } from "@/lib/env";
 import { done, fail, type Result } from "@/lib/result";
 import { onboardingPath, safeNext } from "@/lib/safe-redirect";
-import { emailSchema, firstIssue, passwordSchema, revealsEmail, usernameSchema } from "@/lib/schemas";
+import { emailSchema, firstIssue, passwordSchema, revealsEmail, signInError, signInSchema, usernameSchema } from "@/lib/schemas";
 import { createClient } from "@/lib/supabase/server";
 
 // Google sign-in returns here with a one-time code, and the inviter's
@@ -68,12 +68,12 @@ export async function signUp(_: Result | null, form: FormData): Promise<Result> 
 }
 
 export async function signIn(_: Result | null, form: FormData): Promise<Result> {
-  const parsed = z.object({ email: emailSchema, password: z.string().min(1, "Enter your password."), next: z.string().optional() }).safeParse(Object.fromEntries(form));
+  const parsed = signInSchema.extend({ next: z.string().optional() }).safeParse(Object.fromEntries(form));
   if (!parsed.success) return fail(firstIssue(parsed.error));
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email: parsed.data.email, password: parsed.data.password });
-  if (error) return fail(error.code === "email_not_confirmed" ? "Confirm your email first. Check your inbox for the link." : "That email and password don't match.");
+  if (error) return fail(signInError(error.code));
   redirect(safeNext(parsed.data.next));
 }
 

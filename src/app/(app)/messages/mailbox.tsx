@@ -9,46 +9,7 @@ import { cn } from "@/lib/cn";
 import { loadConversations, type Conversation } from "@/lib/data/messages";
 import { relativeTime } from "@/lib/format";
 import { requireViewer } from "@/lib/viewer";
-
-const BOXES = {
-  inbox: {
-    label: "Inbox",
-    href: "/messages",
-    empty: { title: "No conversations yet", body: "Message someone from their profile, or start a new conversation here." },
-  },
-  requests: {
-    label: "Requests",
-    href: "/messages/requests",
-    empty: { title: "No message requests", body: "When someone you don't follow messages you, it waits here until you accept. They won't know you've seen it." },
-  },
-  archived: {
-    label: "Archived",
-    href: "/messages/archived",
-    empty: { title: "Nothing archived", body: "Archived conversations come back to your inbox when someone sends a new message." },
-  },
-} as const;
-export type Box = keyof typeof BOXES;
-const BOX_KEYS = ["inbox", "requests", "archived"] as const satisfies Box[];
-
-function boxOf(conversation: Conversation): Box {
-  if (conversation.access.kind === "request") return "requests";
-  return conversation.archived ? "archived" : "inbox";
-}
-
-// A direct conversation nobody has written in yet only shows for the person who opened it.
-const isVisible = (conversation: Conversation, viewerId: string) => conversation.lastMessage !== null || conversation.kind === "group" || conversation.createdBy === viewerId;
-
-function preview(conversation: Conversation, viewerId: string) {
-  const last = conversation.lastMessage;
-  if (!last) return "No messages yet";
-  const text =
-    last.content.kind === "removed"
-      ? "Message removed by a moderator"
-      : last.content.body.replace(/\s+/g, " ") || (last.content.images === 1 ? "Sent a photo" : `Sent ${last.content.images} photos`);
-  if (last.senderId === viewerId) return `You: ${text}`;
-  const sender = conversation.kind === "group" ? conversation.members.find((member) => member.id === last.senderId) : undefined;
-  return sender ? `${sender.displayName.split(/\s+/)[0]}: ${text}` : text;
-}
+import { BOX_KEYS, BOXES, boxOf, isVisible, preview, type Box } from "@/lib/messages";
 
 export async function Mailbox({ box }: { box: Box }) {
   const viewer = await requireViewer(BOXES[box].href);

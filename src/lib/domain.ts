@@ -40,6 +40,41 @@ export const profileCardSchema = z
   }));
 export type ProfileCard = z.infer<typeof profileCardSchema>;
 
+export const PROFILE_COLUMNS =
+  "id, account_type, username, display_name, bio, avatar_url, banner_url, colour:effective_colour, heritage, pronouns, interests, languages, website, links, headline, occupation, company, industry, open_to, org_category, org_verified, pinned_post_id, followers_count, following_count, posts_count, created_at, city:cities(name, state, slug)";
+
+// A profile page's row, read with PROFILE_COLUMNS.
+export const profileRowSchema = z.object({
+  id,
+  account_type: accountTypeSchema,
+  username: z.string(),
+  display_name: z.string(),
+  bio: z.string(),
+  avatar_url: z.string().nullable(),
+  banner_url: z.string().nullable(),
+  colour: colourSchema,
+  heritage: z.string().nullable(),
+  pronouns: z.string().nullable(),
+  interests: z.array(z.string()),
+  languages: z.array(z.string()),
+  website: z.string().nullable(),
+  links: z.array(z.object({ label: z.string(), url: z.string() })).catch([]),
+  headline: z.string().nullable(),
+  occupation: z.string().nullable(),
+  company: z.string().nullable(),
+  industry: z.string().nullable(),
+  open_to: z.array(z.string()),
+  org_category: z.string().nullable(),
+  org_verified: z.boolean(),
+  pinned_post_id: id.nullable(),
+  followers_count: z.number(),
+  following_count: z.number(),
+  posts_count: z.number(),
+  created_at: timestamp,
+  city: z.object({ name: z.string(), state: z.string(), slug: z.string() }).nullable(),
+});
+export type ProfileRow = z.infer<typeof profileRowSchema>;
+
 const imageSchema = z.object({
   id,
   url: z.string(),
@@ -55,7 +90,8 @@ const pollSchema = z
     duration_hours: z.number(),
     votes_count: z.number(),
     my_vote: id.nullable(),
-    show_results: z.boolean(),
+    // public.post_poll answers null for signed-out visitors (auth.uid() is null), which means not shown.
+    show_results: z.boolean().nullable(),
     options: z.array(z.object({ id, label: z.string(), votes_count: z.number().nullable() })),
   })
   .transform((p) => ({
@@ -63,7 +99,7 @@ const pollSchema = z
     durationHours: p.duration_hours,
     votes: p.votes_count,
     myVote: p.my_vote,
-    showResults: p.show_results,
+    showResults: p.show_results ?? false,
     options: p.options.map((o) => ({ id: o.id, label: o.label, votes: o.votes_count })),
   }));
 export type Poll = z.infer<typeof pollSchema>;
@@ -238,12 +274,23 @@ export type Tombstone = Extract<PostRow, { kind: "tombstone" }>;
 
 export const parsePosts = (rows: unknown) => z.array(postRowSchema).parse(rows ?? []);
 
+// The app keeps every row that parses and drops the rest, so one post it
+// can't read yet (from a newer database) doesn't empty the whole feed.
+export const parsePostsLenient = (rows: unknown) =>
+  z
+    .array(z.unknown())
+    .parse(rows ?? [])
+    .flatMap((row) => {
+      const parsed = postRowSchema.safeParse(row);
+      return parsed.success ? [parsed.data] : [];
+    });
+
 // The newest replies under each post of a feed page, by the id of the post they answer.
 export type ReplyPreviews = Record<string, PostRow[]>;
 
-export function parseReplyPreviews(rows: unknown): ReplyPreviews {
+export function parseReplyPreviews(rows: unknown, parse: (rows: unknown) => PostRow[] = parsePosts): ReplyPreviews {
   const previews: ReplyPreviews = {};
-  for (const reply of parsePosts(rows)) {
+  for (const reply of parse(rows)) {
     if (!reply.parentId) continue;
     (previews[reply.parentId] ??= []).push(reply);
   }

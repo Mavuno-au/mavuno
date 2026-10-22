@@ -85,7 +85,7 @@ async function Overview() {
                 <span className="min-w-0">
                   <span className="block truncate text-[15px] font-medium">{space.name}</span>
                   <span className="block font-mono text-xs text-ink-muted">
-                    {compact(space.members)} members{space.lastPostAt ? ` · active ${relativeTime(space.lastPostAt)}` : ""}
+                    {compact(space.members)} {space.members === 1 ? "member" : "members"}{space.lastPostAt ? ` · active ${relativeTime(space.lastPostAt)}` : ""}
                   </span>
                 </span>
               </Link>

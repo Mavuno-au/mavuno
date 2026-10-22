@@ -1,5 +1,6 @@
 import type { Colour } from "@/lib/domain";
 import { cn } from "@/lib/cn";
+import { initials } from "@/lib/text";
 
 type Person = { displayName: string; avatarUrl: string | null; colour: Colour; accountType?: "person" | "organisation" };
 
@@ -25,11 +26,6 @@ export function Avatar({ person, size = "md", ring = false, className }: { perso
       {initials(person.displayName)}
     </span>
   );
-}
-
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? (parts.at(-1)?.[0] ?? "") : "")).toUpperCase() || "?";
 }
 
 export function ColourDot({ colour, className }: { colour: Colour; className?: string }) {

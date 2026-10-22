@@ -8,18 +8,8 @@ import { votePoll } from "@/app/actions/posts";
 import { useViewer } from "@/components/shell/viewer-context";
 import { cn } from "@/lib/cn";
 import type { Poll } from "@/lib/domain";
-import { count } from "@/lib/format";
+import { count, pollTimeLeft } from "@/lib/format";
 import { joinPath } from "@/lib/safe-redirect";
-
-function timeLeft(closesAt: string | null) {
-  if (!closesAt) return "Opens when published";
-  const ms = new Date(closesAt).getTime() - Date.now();
-  if (ms <= 0) return "Final results";
-  const hours = Math.floor(ms / 3_600_000);
-  if (hours >= 24) return `${Math.floor(hours / 24)}d left`;
-  if (hours >= 1) return `${hours}h left`;
-  return `${Math.max(1, Math.floor(ms / 60_000))}m left`;
-}
 
 export function PollView({ postId, poll: initial, own }: { postId: string; poll: Poll; own: boolean }) {
   const viewer = useViewer();
@@ -78,7 +68,7 @@ export function PollView({ postId, poll: initial, own }: { postId: string; poll:
         );
       })}
       <p className="font-mono text-xs text-ink-muted">
-        {count(poll.votes, "vote")} · {timeLeft(poll.closesAt)}
+        {count(poll.votes, "vote")} · {pollTimeLeft(poll.closesAt)}
         {!poll.showResults && !canVote && viewer ? " · results show when it closes" : ""}
         {!viewer && canVote ? " · sign in to vote" : ""}
       </p>

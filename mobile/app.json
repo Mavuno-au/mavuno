@@ -1,0 +1,78 @@
+{
+  "expo": {
+    "name": "Mavuno",
+    "slug": "mavuno",
+    "scheme": "mavuno",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "au.mavuno.app",
+      "buildNumber": "2",
+      "appleTeamId": "CUV78PLLP3",
+      "supportsTablet": false,
+      "icon": {
+        "light": "./assets/icon.png",
+        "dark": "./assets/icon-dark.png",
+        "tinted": "./assets/icon-tinted.png"
+      },
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "associatedDomains": [
+        "applinks:mavuno.au"
+      ]
+    },
+    "android": {
+      "package": "au.mavuno.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#f6f4ef",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-sqlite",
+      "expo-image",
+      "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "imageWidth": 64,
+          "backgroundColor": "#f6f4ef",
+          "dark": {
+            "image": "./assets/splash-dark.png",
+            "backgroundColor": "#121110"
+          }
+        }
+      ],
+      "expo-secure-store",
+      "@react-native-community/datetimepicker",
+      "expo-sharing",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Mavuno opens your photos only when you choose ones to add to a post, a message or your profile.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": false,
+          "remindersPermission": false,
+          "writeOnlyCalendarPermission": "Mavuno adds the events you choose to your calendar."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { updateProfile } from "@/app/actions/settings";
 import { ChoiceChips } from "@/components/settings/choice-chips";
-import { INTEREST_CHOICES, knownInterests, knownOpenTo, OPEN_TO_CHOICES } from "@/components/settings/choices";
+import { INTEREST_CHOICES, knownInterests, knownOpenTo, OPEN_TO_CHOICES } from "@/lib/choices";
 import { CitySelect } from "@/components/settings/city-select";
 import { ColourPicker } from "@/components/settings/colour-picker";
 import { SaveBar, SettingsGroup } from "@/components/settings/layout";
