@@ -66,6 +66,13 @@ export async function loadSpaces(tab: SpaceTab, viewerId: string): Promise<Space
   return lenient(spaceRow, data).map((space) => ({ ...space, joined: mine.has(space.id) }));
 }
 
+// Onboarding's choices, as the website's loadOfficialSpaces.
+export async function loadOfficialSpaces(viewerId: string): Promise<SpaceListItem[]> {
+  const [mine, { data, error }] = await Promise.all([memberships(viewerId), supabase.from("spaces").select(SPACE).eq("is_official", true).order("members_count", { ascending: false })]);
+  if (error) throw requestError("Spaces", error);
+  return lenient(spaceRow, data).map((space) => ({ ...space, joined: mine.has(space.id) }));
+}
+
 export async function loadSpace(slug: string, viewerId: string): Promise<{ space: Space; role: SpaceRole | null } | null> {
   if (!/^[a-z0-9-]{2,40}$/.test(slug)) return null;
   const { data, error } = await supabase.from("spaces").select(SPACE).eq("slug", slug).maybeSingle();

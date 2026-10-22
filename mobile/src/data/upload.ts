@@ -1,3 +1,4 @@
+import { File } from "expo-file-system";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { z } from "zod";
@@ -47,8 +48,9 @@ export async function uploadImage(image: PickedImage, destination: Destination):
   try {
     const file = await shrink(image);
     const form = new FormData();
-    // React Native's FormData takes a file as its address, type and name.
-    form.append("file", { uri: file.uri, type: "image/jpeg", name: "photo.jpg" });
+    // Expo's fetch sends a part only when it can read its bytes, which
+    // expo-file-system's File can; React Native's { uri, type, name } it can't.
+    form.append("file", new File(file.uri), "photo.jpg");
     form.append("bucket", destination.bucket);
     if (destination.bucket === "media") {
       form.append("folder", destination.folder);

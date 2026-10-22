@@ -3,13 +3,13 @@ import { useState } from "react";
 import { AccessibilityInfo, Keyboard, KeyboardAvoidingView, ScrollView, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { deleteAccount } from "@/data/account";
-import { siteLink } from "@/data/env";
 import { useSession } from "@/data/session";
+import { exportData } from "@/data/settings";
 import { Button } from "@/ui/controls";
 import { BackButton, Header } from "@/ui/header";
 import { font, Text, type } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
-import { openLink } from "@/util/links";
+import { toast } from "@/ui/toast";
 
 // The website's Settings › Account › Delete, in the app because the App
 // Store requires it there. Typing the username is the confirmation.
@@ -54,8 +54,17 @@ export default function DeleteAccount() {
           <Text variant="body">Organisations you own on your own are deleted too. Hand them over first if they should carry on.</Text>
           <Text variant="body" tone="muted">
             To keep a copy first,{" "}
-            <Text variant="body" tone="primary" accessibilityRole="link" onPress={() => openLink(siteLink("/settings/account"))}>
-              download your data on the website
+            <Text
+              variant="body"
+              tone="primary"
+              accessibilityRole="button"
+              onPress={() =>
+                void exportData().then((result) => {
+                  if (!result.ok) toast(result.error);
+                })
+              }
+            >
+              download your data
             </Text>
             .
           </Text>

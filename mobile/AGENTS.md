@@ -24,4 +24,7 @@ Expo ships breaking changes every SDK. Before writing code against an Expo or Re
 - Text goes through `Text` from `src/ui/text.tsx`, so it scales with the reader's text size. Don't give anything that holds text a fixed height: use `minHeight` and padding. Cap `maxFontSizeMultiplier` only on chrome such as segmented controls and header titles.
 - Touch targets are at least 44 points.
 - A post row isn't one accessibility element: its avatar, links and buttons are reachable one by one.
+- The app runs on Hermes. It has no `toSorted`, `toReversed` or `findLast`, and it leaves `match.groups` empty for named regex groups. The lint rule `no-restricted-syntax` catches them here and in `../src/lib`.
+- Photos go to `/api/upload` as an expo-file-system `File`: Expo's `fetch` refuses React Native's `{ uri, type, name }` form parts.
+- Fast typing from simulator tools can drop characters in single-line fields, because each key makes a round trip through React state. Type slowly or in chunks when testing; people typing on a phone don't hit it.
 - Run `npm run check` here and `pnpm check` at the root.

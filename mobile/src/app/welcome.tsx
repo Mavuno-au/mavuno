@@ -58,8 +58,7 @@ export default function Welcome() {
       </View>
 
       <View style={{ gap: 12 }}>
-        {/* Joining happens on the website for now; the account then signs in here. */}
-        <Button label="Join Mavuno" onPress={() => openLink(siteLink("/signup"))} />
+        <Button label="Join Mavuno" onPress={() => router.push("/join")} />
         <Button label="Sign in" variant="outline" onPress={() => router.push("/sign-in")} />
         <Text variant="small" tone="muted" style={{ textAlign: "center", marginTop: 6, marginHorizontal: 8 }}>
           Free to join. By joining you agree to the {legal("community rules", "/rules")}, {legal("terms", "/terms")} and {legal("privacy policy", "/privacy")}.

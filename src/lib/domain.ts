@@ -90,7 +90,8 @@ const pollSchema = z
     duration_hours: z.number(),
     votes_count: z.number(),
     my_vote: id.nullable(),
-    show_results: z.boolean(),
+    // public.post_poll answers null for signed-out visitors (auth.uid() is null), which means not shown.
+    show_results: z.boolean().nullable(),
     options: z.array(z.object({ id, label: z.string(), votes_count: z.number().nullable() })),
   })
   .transform((p) => ({
@@ -98,7 +99,7 @@ const pollSchema = z
     durationHours: p.duration_hours,
     votes: p.votes_count,
     myVote: p.my_vote,
-    showResults: p.show_results,
+    showResults: p.show_results ?? false,
     options: p.options.map((o) => ({ id: o.id, label: o.label, votes: o.votes_count })),
   }));
 export type Poll = z.infer<typeof pollSchema>;

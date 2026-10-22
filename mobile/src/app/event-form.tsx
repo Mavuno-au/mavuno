@@ -14,7 +14,7 @@ import { pickImages, uploadImage } from "@/data/upload";
 import { useRulesGate } from "@/post/rules-sheet";
 import { Segmented } from "@/ui/controls";
 import { DateField } from "@/ui/date-field";
-import { FieldError, Group, SelectRow, SheetHeader, TextField, ToggleRow } from "@/ui/form";
+import { FieldError, Group, SelectRow, SheetHeader, TextField, ToggleRow, useErrorScroll } from "@/ui/form";
 import { Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
@@ -95,6 +95,7 @@ export default function EventForm() {
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const scroll = useErrorScroll(error);
   const viewerId = viewer?.id ?? null;
 
   useEffect(() => {
@@ -171,7 +172,7 @@ export default function EventForm() {
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: palette.shell }}>
       <SheetHeader title={editing ? "Edit event" : "Host an event"} onCancel={() => router.back()} action={{ label: editing ? "Save" : "Publish", onPress: () => void save(), disabled: form.title.trim().length < 3 || !form.startsAt, busy }} />
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 18, paddingBottom: 48 }}>
+      <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 18, paddingBottom: 48 }}>
         {error ? <FieldError>{error}</FieldError> : null}
         <Pressable accessibilityRole="button" accessibilityLabel={form.coverUrl ? "Change cover photo" : "Add a cover photo"} onPress={() => void addCover()} style={{ height: 160, borderRadius: 14, overflow: "hidden", backgroundColor: palette.wash, alignItems: "center", justifyContent: "center", gap: 6 }}>
           {form.coverUrl ? <Image source={form.coverUrl} style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }} contentFit="cover" /> : null}

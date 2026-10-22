@@ -1,16 +1,19 @@
 import { router } from "expo-router";
 import { Ban } from "lucide-react-native";
+import { useState } from "react";
 import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { calendarDate } from "@/lib/format";
 import { CONTACT_EMAIL } from "@/lib/site";
 import { siteLink } from "@/data/env";
 import { signOut, useSession } from "@/data/session";
+import { exportData } from "@/data/settings";
 import { Wordmark } from "@/ui/brand";
 import { Button } from "@/ui/controls";
 import { Header } from "@/ui/header";
 import { Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
+import { toast } from "@/ui/toast";
 import { openLink } from "@/util/links";
 import { timeZone } from "@/util/time";
 
@@ -20,6 +23,7 @@ export default function StandingScreen() {
   const palette = usePalette();
   const insets = useSafeAreaInsets();
   const session = useSession();
+  const [exporting, setExporting] = useState(false);
   if (session.kind !== "signed-in" || session.standing.kind === "active") return null;
   const { standing, viewer } = session;
   const handle = viewer ? `@${viewer.username}` : "your username";
@@ -60,10 +64,22 @@ export default function StandingScreen() {
           </Text>
         </View>
         <Text variant="body" tone="muted">
-          The full notice, how appeals work and a download of your data are on the website.
+          You can download everything you shared before deciding what to do. The full notice and how appeals work are on the website.
         </Text>
         <View style={{ gap: 10, paddingTop: 6 }}>
           <Button label="Email us" onPress={() => openLink(`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}`)} />
+          <Button
+            label="Download your data"
+            variant="outline"
+            busy={exporting}
+            onPress={() => {
+              setExporting(true);
+              void exportData().then((result) => {
+                setExporting(false);
+                if (!result.ok) toast(result.error);
+              });
+            }}
+          />
           <Button label="Read the notice on the website" variant="outline" onPress={() => openLink(siteLink(banned ? "/banned" : "/deactivated"))} />
           <Button label="Sign out" variant="outline" onPress={() => void signOut()} />
           <Button label="Delete my account" variant="plain" onPress={() => router.push("/delete-account")} />

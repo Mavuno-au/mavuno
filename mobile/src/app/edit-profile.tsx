@@ -12,7 +12,7 @@ import { MEDIA_URL } from "@/data/posts";
 import { reloadViewer } from "@/data/session";
 import { pickImages, uploadImage } from "@/data/upload";
 import { Avatar } from "@/ui/avatar";
-import { ChipPicker, FieldError, Group, SelectRow, SheetHeader, TextField } from "@/ui/form";
+import { ChipPicker, FieldError, Group, SelectRow, SheetHeader, TextField, useErrorScroll } from "@/ui/form";
 import { ActionSheet } from "@/ui/sheet";
 import { font, Text } from "@/ui/text";
 import { identityColour, usePalette } from "@/ui/theme";
@@ -105,6 +105,7 @@ function Editor({ profile, cities, initial }: { profile: EditableProfile; cities
   const [form, setForm] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const scroll = useErrorScroll(error);
   const [images, setImages] = useState({ avatar: profile.avatarUrl, banner: profile.bannerUrl });
   const [uploading, setUploading] = useState<"avatar" | "banner" | null>(null);
   const [photoMenu, setPhotoMenu] = useState<"avatar" | "banner" | null>(null);
@@ -165,7 +166,7 @@ function Editor({ profile, cities, initial }: { profile: EditableProfile; cities
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: palette.shell }}>
       <SheetHeader title={organisation ? `Edit ${profile.displayName}` : "Edit profile"} onCancel={cancel} action={{ label: "Save", onPress: () => void save(), disabled: !changed, busy }} />
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 48, gap: 22 }}>
+      <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 48, gap: 22 }}>
         <View>
           <Pressable accessibilityRole="button" accessibilityLabel="Change banner" onPress={() => setPhotoMenu("banner")} style={{ height: 120, backgroundColor: palette.wash, alignItems: "center", justifyContent: "center" }}>
             {images.banner ? <Image source={images.banner} style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }} contentFit="cover" /> : null}

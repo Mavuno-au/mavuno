@@ -5,7 +5,7 @@ import { toUsername } from "@/lib/schemas";
 import { loadCities, type City } from "@/data/profiles";
 import { reloadViewer } from "@/data/session";
 import { createOrganisation } from "@/data/settings";
-import { FieldError, Group, SelectRow, SheetHeader, TextField } from "@/ui/form";
+import { FieldError, Group, SelectRow, SheetHeader, TextField, useErrorScroll } from "@/ui/form";
 import { Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
@@ -23,6 +23,7 @@ export default function OrganisationForm() {
   const [website, setWebsite] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const scroll = useErrorScroll(error);
 
   useEffect(() => {
     void loadCities()
@@ -46,7 +47,7 @@ export default function OrganisationForm() {
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: palette.shell }}>
       <SheetHeader title="New organisation" onCancel={() => router.back()} action={{ label: "Create", onPress: () => void save(), disabled: name.trim().length < 2 || !handle, busy }} />
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 18 }}>
+      <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 18 }}>
         {error ? <FieldError>{error}</FieldError> : null}
         <TextField label="Name" value={name} onChangeText={setName} maxLength={60} placeholder="Logan African Community Church" />
         <TextField label="Username" value={handle} onChangeText={(text) => setUsername(text.toLowerCase())} autoCapitalize="none" autoCorrect={false} mono maxLength={30} hint={`mavuno.au/@${handle || "username"}`} />

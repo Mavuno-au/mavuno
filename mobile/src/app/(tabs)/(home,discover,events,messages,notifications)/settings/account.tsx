@@ -7,7 +7,7 @@ import { checkUsername, updateProfile } from "@/data/profiles";
 import { reloadViewer, useSession, useViewer } from "@/data/session";
 import { changeEmail, changePassword, exportData } from "@/data/settings";
 import { Button } from "@/ui/controls";
-import { FieldError, Group, Row, TextField } from "@/ui/form";
+import { FieldError, Group, PasswordField, Row, TextField } from "@/ui/form";
 import { BackButton, Header } from "@/ui/header";
 import { Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
@@ -134,8 +134,8 @@ export default function AccountSettings() {
         </View>
 
         <View style={{ gap: 10 }}>
-          <TextField label="New password" value={password} onChangeText={setPassword} secureTextEntry textContentType="newPassword" autoCapitalize="none" />
-          <TextField label="Type it again" value={confirm} onChangeText={setConfirm} secureTextEntry textContentType="newPassword" autoCapitalize="none" error={errors.password} />
+          <PasswordField label="New password" value={password} onChangeText={setPassword} textContentType="newPassword" />
+          <PasswordField label="Type it again" value={confirm} onChangeText={setConfirm} textContentType="newPassword" error={errors.password} />
           <Button label="Change password" variant="outline" size="medium" busy={busy === "password"} disabled={!password || !confirm} onPress={() => void savePassword()} style={{ alignSelf: "flex-start" }} />
         </View>
 

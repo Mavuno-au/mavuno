@@ -12,7 +12,8 @@ import { useLargeText, usePalette } from "@/ui/theme";
 
 // One person or organisation in a list: who to follow, likers, search
 // results, followers. Tapping opens the profile; Follow sits on the right.
-export function PersonRow({ person, detail, action, follow = true }: { person: PersonSummary; detail?: string | null; action?: ReactNode; follow?: boolean }) {
+// Onboarding passes open={false}: profiles aren't reachable until it's done.
+export function PersonRow({ person, detail, action, follow = true, open = true }: { person: PersonSummary; detail?: string | null; action?: ReactNode; follow?: boolean; open?: boolean }) {
   const palette = usePalette();
   const viewer = useViewer();
   const large = useLargeText();
@@ -22,7 +23,8 @@ export function PersonRow({ person, detail, action, follow = true }: { person: P
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${person.displayName}, @${person.username}${line ? `. ${line}` : ""}`}
-      accessibilityHint="Opens this profile"
+      accessibilityHint={open ? "Opens this profile" : undefined}
+      disabled={!open}
       onPress={() => router.push(`/profile/${person.username}`)}
       style={({ pressed }) => ({ flexDirection: large ? "column" : "row", alignItems: large ? "flex-start" : "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
     >

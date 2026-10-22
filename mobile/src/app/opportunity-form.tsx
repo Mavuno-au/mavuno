@@ -10,7 +10,7 @@ import { loadCities, type City } from "@/data/profiles";
 import { useViewer } from "@/data/session";
 import { useRulesGate } from "@/post/rules-sheet";
 import { DateField } from "@/ui/date-field";
-import { ChipPicker, FieldError, Group, SelectRow, SheetHeader, TextField, ToggleRow } from "@/ui/form";
+import { ChipPicker, FieldError, Group, SelectRow, SheetHeader, TextField, ToggleRow, useErrorScroll } from "@/ui/form";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
@@ -61,6 +61,7 @@ export default function OpportunityForm() {
   const [cities, setCities] = useState<City[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const scroll = useErrorScroll(error);
   const viewerId = viewer?.id ?? null;
 
   useEffect(() => {
@@ -121,7 +122,7 @@ export default function OpportunityForm() {
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: palette.shell }}>
       <SheetHeader title={editing ? "Edit opportunity" : "Post an opportunity"} onCancel={() => router.back()} action={{ label: editing ? "Save" : "Post", onPress: () => void save(), disabled: form.title.trim().length < 3, busy }} />
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 18, paddingBottom: 48 }}>
+      <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 18, paddingBottom: 48 }}>
         <View style={{ padding: 14, borderRadius: 12, backgroundColor: palette.primarySoft, gap: 4 }}>
           <Text variant="label" tone="primary">
             Rule 4: Fair jobs and opportunities

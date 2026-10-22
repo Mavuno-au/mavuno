@@ -92,6 +92,9 @@ function Navigator({ fontsReady }: { fontsReady: boolean }) {
               <Stack.Protected guard={signedIn} redirectTo="/welcome">
                 <Stack.Screen name="delete-account" />
               </Stack.Protected>
+              {/* Invite and email links open for everyone and send each person where they belong. */}
+              <Stack.Screen name="join/[username]" />
+              <Stack.Screen name="auth/confirm" />
               <Stack.Protected guard={!signedIn} redirectTo={home}>
                 <Stack.Screen name="welcome" />
                 <Stack.Screen name="sign-in" />

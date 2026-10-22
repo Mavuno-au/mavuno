@@ -127,7 +127,7 @@ export function Segmented<Key extends string>({ label, options, value, onChange 
               shadowOffset: { width: 0, height: 1 },
             }}
           >
-            <Text variant="label" tone={selected ? "ink" : "muted"} maxFontSizeMultiplier={1.6} numberOfLines={1} style={selected ? undefined : { fontFamily: font.medium }}>
+            <Text variant="label" tone={selected ? "ink" : "muted"} maxFontSizeMultiplier={1.6} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={selected ? undefined : { fontFamily: font.medium }}>
               {option.label}
             </Text>
           </Pressable>

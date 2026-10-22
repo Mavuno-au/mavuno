@@ -31,6 +31,8 @@ Multipart form fields:
 | `folder`, `ownerId` | For `media`: `posts`, `events`, `banners` or `avatars`, and the profile it belongs to (the member's own or an organisation's they help run). |
 | `conversationId` | For `message-media`. |
 
+Send `file` as an expo-file-system `File`, which Expo's `fetch` can read the bytes of. It refuses React Native's `{ uri, type, name }` parts with "Unsupported FormDataPart implementation".
+
 Answers `{ path, width, height }`. Errors are `{ error }` with a sentence to show: 401 signed out, 403 not allowed there, 413 too big, 415 not an image, 429 more than 30 a minute, 503 uploads paused or off. A public image's address is `supabase.storage.from("media").getPublicUrl(path)`; message images are read with signed URLs, as on the website.
 
 ### `POST /api/translate`
@@ -52,7 +54,7 @@ The website asks for a date of birth before anyone chooses email or Google, comp
 1. Ask for day, month and year (three fields, as on the website) and parse them with `birthDateSchema` from `src/lib/age.ts`.
 2. Call `supabase.rpc("meets_minimum_age", { p_birth_date })`. Guests may call it. The rule lives only in the database.
 3. **Under 16:** show the under-16 screen and keep a flag (no date, nothing personal) in `expo-secure-store` for 24 hours. While it is set the app shows that screen instead of the question, as the website's `mavuno-under-16` cookie does.
-4. **16 or older:** keep the date in component state only, never in AsyncStorage, SecureStore, logs or crash reports, and drop it as soon as the account exists. Native Google and Apple sign-in return in the same process, so nothing has to survive a round trip.
+4. **16 or older:** keep the date in memory only (`joining` in `mobile/src/data/auth.ts`), never in AsyncStorage, SecureStore, logs or crash reports, and drop it as soon as the account exists. Native Google and Apple sign-in return in the same process, so nothing has to survive a round trip.
 5. After sign-up:
    - **Email:** `supabase.auth.signUp` with `age_confirmed: true` in the metadata (below). Only the outcome goes with the account, never the date.
    - **Google or Apple:** straight after `signInWithIdToken`, call `supabase.rpc("confirm_age", { p_birth_date })`. `true`: go on. `false`: the database has deactivated the account and recorded the step; set the under-16 flag and show the deactivated screen.
@@ -86,7 +88,9 @@ Do what `signUp` in `src/app/actions/auth.ts` does:
 
 ### Email links
 
-Confirmation, magic-link, email-change and password-reset emails link to `https://mavuno.au/auth/confirm?token_hash=…&type=…&next=…`. Until the app claims that path as a universal link (iOS) and app link (Android), the link opens the website, which confirms the address and signs the person in there; they then sign in in the app. Once the app has a bundle ID and package name, serve `/.well-known/apple-app-site-association` and `/.well-known/assetlinks.json` for `/auth/confirm` and `/join/*`, and have the app call `supabase.auth.verifyOtp({ token_hash, type })` itself. Password resets keep working on the website either way.
+Confirmation, magic-link, email-change and password-reset emails link to `https://mavuno.au/auth/confirm?token_hash=…&type=…&next=…`. The website serves `/.well-known/apple-app-site-association` (`src/app/.well-known/apple-app-site-association/route.ts`), which hands `/auth/confirm` and `/join/*` to the app, and `app.json` claims `applinks:mavuno.au`. The app's `auth/confirm` screen calls `supabase.auth.verifyOtp({ token_hash, type })`; signing in remounts the app, so each link's answer is kept for the launch rather than spending the token twice. Password resets (`type=recovery`) and email changes stay on the website, which has those forms.
+
+This works once the website with that file is deployed and the build is signed with the Associated Domains capability, which Xcode's automatic signing adds to the App ID. Until then the links open the website, as before. Android's `assetlinks.json` comes with the Android build.
 
 ### Google
 
@@ -288,10 +292,10 @@ Moderators and admins; the website can stay the place for this at first. All exc
 
 ## Code the app can share
 
-The app in `mobile/` imports these modules from `src/lib` as `@/lib/*` (see `mobile/README.md`). They import nothing from Next.js or the server and import each other with the same alias: `domain.ts`, `schemas.ts`, `age.ts`, `result.ts`, `text.ts`, `notifications.ts`, `catalogue.ts`, `rules.ts`, `feeds.ts`, `format.ts`, `invites.ts`, `who-to-follow.ts`, `calendar.ts`, `personal-info.ts`, `schedule.ts`, `reply-previews.ts` and `brand-mark.ts`.
+The app in `mobile/` imports these modules from `src/lib` as `@/lib/*` (see `mobile/README.md`). They import nothing from Next.js or the server and import each other with the same alias: `domain.ts`, `schemas.ts`, `age.ts`, `result.ts`, `text.ts`, `notifications.ts`, `catalogue.ts`, `rules.ts`, `feeds.ts`, `format.ts`, `invites.ts`, `who-to-follow.ts`, `calendar.ts`, `personal-info.ts`, `schedule.ts`, `reply-previews.ts`, `brand-mark.ts`, `community.ts`, `post-form.ts`, `profile-form.ts`, `messages.ts`, `viewer-row.ts`, `scheduled-posts.ts`, `choices.ts` and `onboarding.ts`.
 
 - `feeds.ts` holds the time cursors the feeds page by (`cursorOf`, `parseTimeCursor`), and `domain.ts` the profile row and its columns (`profileRowSchema`, `PROFILE_COLUMNS`).
 - `schemas.ts` holds the sign-in form and its messages (`signInSchema`, `signInError`).
 - `format.ts` holds a poll's time left (`pollTimeLeft`), `text.ts` avatar initials, and `reply-previews.ts` how many replies show under a post by default.
-
-The form schemas for events, opportunities and spaces (`formField`, `fromZonedInput`, `RESERVED_SPACE_SLUGS`) and most row parsers in `src/lib/data/*` sit in server-only modules, and the event, opportunity and profile edit schemas are inside the action files. Move each to a plain module when the app first needs it, as was done for the feeds and profiles.
+- `community.ts` holds the space, event and opportunity columns, rows and form schemas; `post-form.ts` the post and scheduled-post schemas; `profile-form.ts` the profile, privacy and language schemas; `messages.ts` the conversation and message rows and the inbox rules; `viewer-row.ts` the signed-in member's row. The website's loaders and actions import them from there, so both sides keep one copy of each rule.
+- The app runs on Hermes, which lacks `Array.prototype.toSorted`, `toReversed` and `findLast` and doesn't fill in `match.groups` for named regex groups. A lint rule flags them in these modules; use `[...array].sort()` and numbered groups.

@@ -2,17 +2,20 @@
 
 An Expo app in TypeScript (Expo SDK 58, React Native 0.88, Expo Router). It signs in with Supabase Auth and reads straight from the database with `supabase-js`, like the website's browser code, so row level security, mutes and blocks hold here too. `../docs/MOBILE_API.md` says what the app does and which website routes it calls. The screens follow the iPhone designs on the design canvas.
 
-## What it does so far
+## What it does
 
-- **Sign in** with email and password. Joining, password resets and the legal pages open on the website.
-- **Home:** Following and Latest, paged as you scroll, with pull to refresh and the newest replies under each post. A pill offers the posts published since the top of the feed when you come back to it; tapping the feed you are on, or the wordmark, scrolls to the top and refreshes.
-- **A post** with what it answers above it, the rest of its author's thread, and its replies.
-- **A profile:** the header the website shows, with Follow, Follow back and Following, then Posts, Replies and Media, with the pinned post first.
-- **Likes and follows** change on screen the moment you tap and are sent one at a time; if the server says no, the screen goes back.
-- **Safety:** mute, block and report from any post or profile, as the App Store requires of an app that shows what members write. Reports use the website's reasons and go to the same moderators.
-- **Settings:** help and contact, the rules and policies, sign out and account deletion. Editing a profile still happens on the website.
-- A banned or age-deactivated account sees the notice and a way to appeal, nothing else, as on the website.
-- Replying and posting come next. Events, opportunities, spaces and topics open on the website.
+Every member screen in the iPhone designs. Moderation and operations stay on the website, for staff; push notifications aren't built yet.
+
+- **Joining:** date of birth first (under 16 sees a support screen for a day and nothing is kept), then name, a username checked as you type with free ones offered, email and password. Invite links (`mavuno.au/join/<username>`) show who invited you. Then the website's four onboarding steps: about you, people to follow, spaces to join and how Mavuno works.
+- **Signing in** with a password or an emailed link, and password resets by email. Email-only for now; Apple and Google sign-in come later.
+- **Home:** Following, Latest and Trending, with the newest replies under each post and a pill for posts published since you looked.
+- **Posting:** the full composer, posting as yourself or an organisation you help run, with mentions, up to four photos with descriptions, polls, link cards, scheduling, a language and kept drafts. Replies, quotes, saves, pins, delete with Undo, translations and a photo viewer.
+- **Messages:** inbox, requests and archived, direct and group conversations with photos, replies, reactions, typing and read receipts, all live.
+- **Notifications** grouped as on the website, with filters and the badge on the tab.
+- **Profiles:** follow, message, followers you know, team, followers and following, edit profile with photo and banner, and Invite friends.
+- **Discover:** search, people, organisations, topics, spaces, Nearby, events with RSVP and Add to calendar, and opportunities with saving. Members can start a space, host an event and post an opportunity.
+- **Settings:** account (username, email, password, download your data, delete account), privacy, languages, appearance, muted and blocked, and organisations with their teams.
+- **Safety:** mute, block and report from any post, message or profile, as the App Store requires. A banned or age-deactivated account sees the notice, its appeal, a data download and account deletion, nothing else.
 
 Links open only when they are web or email addresses, and a link whose label names one site while it goes to another says so before it opens.
 

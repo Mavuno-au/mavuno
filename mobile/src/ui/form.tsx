@@ -1,6 +1,6 @@
-import { ChevronRight, CircleAlert } from "lucide-react-native";
-import { useState, type ComponentRef, type ReactNode, type Ref } from "react";
-import { ActivityIndicator, Pressable, Switch, TextInput, View, type TextInputProps } from "react-native";
+import { ChevronRight, CircleAlert, Eye, EyeOff } from "lucide-react-native";
+import { useEffect, useRef, useState, type ComponentRef, type ReactNode, type Ref } from "react";
+import { AccessibilityInfo, ActivityIndicator, Pressable, Switch, TextInput, View, type ScrollView, type TextInputProps } from "react-native";
 import { ActionSheet } from "@/ui/sheet";
 import { font, Text, type } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
@@ -16,9 +16,10 @@ type FieldProps = Omit<TextInputProps, "style"> & {
   mono?: boolean;
   hideLabel?: boolean;
   ref?: Ref<ComponentRef<typeof TextInput>>;
+  trailing?: ReactNode;
 };
 
-export function TextField({ label, hint, error, limit, mono = false, hideLabel = false, multiline, value, ref, ...props }: FieldProps) {
+export function TextField({ label, hint, error, limit, mono = false, hideLabel = false, multiline, value, ref, trailing, ...props }: FieldProps) {
   const palette = usePalette();
   const [focused, setFocused] = useState(false);
   const left = limit !== undefined && value !== undefined ? limit - value.length : null;
@@ -36,40 +37,51 @@ export function TextField({ label, hint, error, limit, mono = false, hideLabel =
           ) : null}
         </View>
       )}
-      <TextInput
-        ref={ref}
-        {...props}
-        value={value}
-        multiline={multiline}
-        accessibilityLabel={label}
-        accessibilityHint={hint}
-        placeholderTextColor={palette.inkMuted}
-        onFocus={(event) => {
-          setFocused(true);
-          props.onFocus?.(event);
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: multiline ? "stretch" : "center",
+          borderRadius: 12,
+          borderWidth: focused ? 2 : 1,
+          borderColor: error ? palette.destructive : focused ? palette.primary : palette.rail,
+          backgroundColor: palette.surface,
+          paddingRight: trailing ? 3 : 0,
         }}
-        onBlur={(event) => {
-          setFocused(false);
-          props.onBlur?.(event);
-        }}
-        style={[
-          mono ? type.meta : type.body,
-          {
-            fontSize: 16,
-            lineHeight: multiline ? 22 : undefined,
-            minHeight: multiline ? 96 : 48,
-            paddingHorizontal: 14,
-            paddingTop: multiline ? 12 : 0,
-            paddingBottom: multiline ? 12 : 0,
-            borderRadius: 12,
-            borderWidth: focused ? 2 : 1,
-            borderColor: error ? palette.destructive : focused ? palette.primary : palette.rail,
-            backgroundColor: palette.surface,
-            color: palette.ink,
-            textAlignVertical: multiline ? "top" : "center",
-          },
-        ]}
-      />
+      >
+        <TextInput
+          ref={ref}
+          {...props}
+          value={value}
+          multiline={multiline}
+          accessibilityLabel={label}
+          accessibilityHint={hint}
+          placeholderTextColor={palette.inkMuted}
+          onFocus={(event) => {
+            setFocused(true);
+            props.onFocus?.(event);
+          }}
+          onBlur={(event) => {
+            setFocused(false);
+            props.onBlur?.(event);
+          }}
+          style={[
+            mono ? type.meta : type.body,
+            {
+              flex: 1,
+              fontSize: 16,
+              lineHeight: multiline ? 22 : undefined,
+              // The border thickens on focus; the inner height makes up for it so nothing below moves.
+              minHeight: (multiline ? 96 : 48) - (focused ? 4 : 2),
+              paddingHorizontal: focused ? 13 : 14,
+              paddingTop: multiline ? 12 : 0,
+              paddingBottom: multiline ? 12 : 0,
+              color: palette.ink,
+              textAlignVertical: multiline ? "top" : "center",
+            },
+          ]}
+        />
+        {trailing}
+      </View>
       {hint && !error ? (
         <Text variant="small" tone="muted">
           {hint}
@@ -78,6 +90,43 @@ export function TextField({ label, hint, error, limit, mono = false, hideLabel =
       {error ? <FieldError>{error}</FieldError> : null}
     </View>
   );
+}
+
+// A password with Show and Hide, as on the sign-in screen, so people can check
+// what they typed on a phone keyboard.
+export function PasswordField(props: Omit<FieldProps, "secureTextEntry" | "trailing">) {
+  const palette = usePalette();
+  const [shown, setShown] = useState(false);
+  return (
+    <TextField
+      {...props}
+      secureTextEntry={!shown}
+      autoCapitalize="none"
+      autoCorrect={false}
+      trailing={
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={shown ? "Hide password" : "Show password"}
+          onPress={() => setShown((value) => !value)}
+          style={{ width: 44, alignSelf: "stretch", alignItems: "center", justifyContent: "center" }}
+        >
+          {shown ? <EyeOff size={20} color={palette.inkMuted} /> : <Eye size={20} color={palette.inkMuted} />}
+        </Pressable>
+      }
+    />
+  );
+}
+
+// A sheet's error sits above its fields and Save is in the header, so the
+// form scrolls back up to show it, and VoiceOver reads it out.
+export function useErrorScroll(error: string | null) {
+  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  useEffect(() => {
+    if (!error) return;
+    scroll.current?.scrollTo({ y: 0, animated: true });
+    AccessibilityInfo.announceForAccessibility(error);
+  }, [error]);
+  return scroll;
 }
 
 // Red with an icon, so it doesn't rely on colour alone.

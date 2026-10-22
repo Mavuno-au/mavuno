@@ -9,6 +9,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "au.mavuno.app",
+      "appleTeamId": "CUV78PLLP3",
       "supportsTablet": false,
       "icon": {
         "light": "./assets/icon.png",
@@ -17,7 +18,10 @@
       },
       "config": {
         "usesNonExemptEncryption": false
-      }
+      },
+      "associatedDomains": [
+        "applinks:mavuno.au"
+      ]
     },
     "android": {
       "package": "au.mavuno.app",

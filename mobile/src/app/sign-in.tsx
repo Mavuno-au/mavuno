@@ -3,13 +3,14 @@ import { useRef, useState, type ComponentRef, type ReactNode, type Ref } from "r
 import { AccessibilityInfo, Keyboard, KeyboardAvoidingView, Pressable, ScrollView, TextInput, View, type TextInputProps } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { signInError, signInSchema } from "@/lib/schemas";
-import { siteLink } from "@/data/env";
+import { router } from "expo-router";
+import { sendMagicLink } from "@/data/auth";
 import { supabase } from "@/data/supabase";
 import { Button } from "@/ui/controls";
 import { BackButton } from "@/ui/header";
 import { font, Text, type } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
-import { openLink } from "@/util/links";
+import { toast } from "@/ui/toast";
 
 type Problem = { field: "email" | "password"; message: string } | null;
 
@@ -45,6 +46,18 @@ export default function SignIn() {
     // A request that never reached the server has no status.
     if (!error.status) fail({ field: "password", message: "Couldn't reach Mavuno. Check your connection and try again." });
     else fail({ field: "password", message: signInError(error.code) });
+  }
+
+  // A link to sign in without a password, sent to the address typed above.
+  async function emailLink() {
+    const parsed = signInSchema.shape.email.safeParse(email);
+    if (!parsed.success) return fail({ field: "email", message: parsed.error.issues[0]?.message ?? "Enter your email address." });
+    setBusy(true);
+    const result = await sendMagicLink(parsed.data);
+    setBusy(false);
+    if (!result.ok) return fail({ field: "email", message: result.error });
+    setProblem(null);
+    toast("If that email has an account, a sign-in link is on its way.", { duration: 6000 });
   }
 
   return (
@@ -111,7 +124,7 @@ export default function SignIn() {
                 </Pressable>
               }
             />
-            <Pressable accessibilityRole="link" onPress={() => openLink(siteLink("/forgot-password"))} hitSlop={6} style={{ alignSelf: "flex-start", minHeight: 36, justifyContent: "center" }}>
+            <Pressable accessibilityRole="link" onPress={() => router.push({ pathname: "/forgot-password", params: { email } })} hitSlop={6} style={{ alignSelf: "flex-start", minHeight: 36, justifyContent: "center" }}>
               <Text variant="callout" tone="primary" style={{ fontFamily: font.medium }}>
                 Forgot your password?
               </Text>
@@ -121,9 +134,10 @@ export default function SignIn() {
 
         <View style={{ paddingHorizontal: 24, paddingTop: 24, gap: 10 }}>
           <Button label={busy ? "Signing in…" : "Sign in"} busy={busy} onPress={() => void submit()} />
+          <Button label="Email me a sign-in link instead" variant="plain" disabled={busy} onPress={() => void emailLink()} />
           <Text variant="callout" tone="muted" style={{ textAlign: "center" }}>
             New here?{" "}
-            <Text variant="callout" tone="primary" accessibilityRole="link" style={{ fontFamily: font.semibold }} onPress={() => openLink(siteLink("/signup"))}>
+            <Text variant="callout" tone="primary" accessibilityRole="link" style={{ fontFamily: font.semibold }} onPress={() => router.replace("/join")}>
               Create an account
             </Text>
           </Text>
