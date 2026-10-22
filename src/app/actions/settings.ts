@@ -219,5 +219,5 @@ export async function deleteAccount(_: Result | null, form: FormData): Promise<R
   const { error } = await supabase.rpc("delete_my_account");
   if (error) return failFrom(error);
   await supabase.auth.signOut({ scope: "local" });
-  redirect("/?deleted=1");
+  redirect("/deleted");
 }
