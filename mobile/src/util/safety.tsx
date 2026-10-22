@@ -3,6 +3,7 @@ import { ExternalLink, Flag, UserX, Volume2, VolumeX } from "lucide-react-native
 import { Alert } from "react-native";
 import { setRelation } from "@/data/relations";
 import { useSession } from "@/data/session";
+import { useShadowWriter } from "@/data/shadow";
 import type { SheetAction } from "@/ui/sheet";
 import { usePalette } from "@/ui/theme";
 import { openLink } from "@/util/links";
@@ -16,6 +17,7 @@ export function useSafetyActions(person: Person) {
   const palette = usePalette();
   const session = useSession();
   const viewerId = session.kind === "signed-in" ? session.session.user.id : null;
+  const { setFollowing } = useShadowWriter();
   const handle = `@${person.username}`;
 
   async function mute(on: boolean) {
@@ -37,7 +39,9 @@ export function useSafetyActions(person: Person) {
           onPress: () => {
             if (!viewerId) return;
             void setRelation("block", viewerId, person.id, true).then((result) => {
-              if (!result.ok) Alert.alert("Couldn't block", result.error);
+              if (!result.ok) return Alert.alert("Couldn't block", result.error);
+              // The database ends both follows, so a Follow tapped earlier mustn't linger.
+              setFollowing(person.id, false);
             });
           },
         },

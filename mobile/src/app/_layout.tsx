@@ -5,6 +5,7 @@ import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
 import { useEffect } from "react";
 import { SessionProvider, useSession } from "@/data/session";
+import { ShadowProvider } from "@/data/shadow";
 import { FONTS } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
 import { NowProvider } from "@/util/time";
@@ -44,27 +45,29 @@ function Navigator({ fontsReady }: { fontsReady: boolean }) {
   return (
     <>
       <StatusBar style="auto" />
-      {/* Keyed on the member, so nothing one person opened stays on the stack for the next. */}
-      <Stack key={signedIn ? session.session.user.id : "signed-out"} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.surface } }}>
-        {/* Each group says where a member who may not see it goes instead. */}
-        <Stack.Protected guard={active} redirectTo={signedIn ? "/standing" : "/welcome"}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="post/[id]" />
-          <Stack.Screen name="profile/[username]" />
-          <Stack.Screen name="settings" />
-          <Stack.Screen name="report" options={{ presentation: "modal" }} />
-        </Stack.Protected>
-        <Stack.Protected guard={signedIn && !active} redirectTo={signedIn ? "/" : "/welcome"}>
-          <Stack.Screen name="standing" />
-        </Stack.Protected>
-        <Stack.Protected guard={signedIn} redirectTo="/welcome">
-          <Stack.Screen name="delete-account" />
-        </Stack.Protected>
-        <Stack.Protected guard={!signedIn} redirectTo="/">
-          <Stack.Screen name="welcome" />
-          <Stack.Screen name="sign-in" />
-        </Stack.Protected>
-      </Stack>
+      {/* Keyed on the member, so nothing one person opened, liked or followed stays for the next. */}
+      <ShadowProvider key={signedIn ? session.session.user.id : "signed-out"}>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.surface } }}>
+          {/* Each group says where a member who may not see it goes instead. */}
+          <Stack.Protected guard={active} redirectTo={signedIn ? "/standing" : "/welcome"}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="post/[id]" />
+            <Stack.Screen name="profile/[username]" />
+            <Stack.Screen name="settings" />
+            <Stack.Screen name="report" options={{ presentation: "modal" }} />
+          </Stack.Protected>
+          <Stack.Protected guard={signedIn && !active} redirectTo={signedIn ? "/" : "/welcome"}>
+            <Stack.Screen name="standing" />
+          </Stack.Protected>
+          <Stack.Protected guard={signedIn} redirectTo="/welcome">
+            <Stack.Screen name="delete-account" />
+          </Stack.Protected>
+          <Stack.Protected guard={!signedIn} redirectTo="/">
+            <Stack.Screen name="welcome" />
+            <Stack.Screen name="sign-in" />
+          </Stack.Protected>
+        </Stack>
+      </ShadowProvider>
     </>
   );
 }

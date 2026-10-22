@@ -8,6 +8,7 @@ import { usePalette } from "@/ui/theme";
 
 export function Button({
   label,
+  hint,
   onPress,
   variant = "primary",
   size = "large",
@@ -17,6 +18,7 @@ export function Button({
   style,
 }: {
   label: string;
+  hint?: string;
   onPress: () => void;
   variant?: "primary" | "outline" | "plain" | "destructive";
   size?: "large" | "medium";
@@ -37,6 +39,7 @@ export function Button({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityHint={hint}
       accessibilityState={{ disabled: disabled || busy, busy }}
       disabled={disabled || busy}
       onPress={onPress}

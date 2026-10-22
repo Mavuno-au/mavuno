@@ -6,6 +6,8 @@ import type { ProfileRow } from "@/lib/domain";
 import { displayUrl } from "@/lib/text";
 import { siteLink } from "@/data/env";
 import type { Relationship } from "@/data/profiles";
+import { useProfileShadow } from "@/data/shadow";
+import { FollowButton } from "@/people/follow-button";
 import { RichText } from "@/post/rich-text";
 import { Avatar, ColourDot } from "@/ui/avatar";
 import { Chip } from "@/ui/controls";
@@ -18,6 +20,7 @@ import { timeZone } from "@/util/time";
 // laid out as the iPhone design has it.
 export function ProfileHeader({ profile, relationship }: { profile: ProfileRow; relationship: Relationship }) {
   const palette = usePalette();
+  const social = useProfileShadow(profile.id, { following: relationship.following, followers: profile.followers_count });
   const person = { displayName: profile.display_name, avatarUrl: profile.avatar_url, colour: profile.colour, accountType: profile.account_type };
   const work = [profile.occupation, profile.company && `at ${profile.company}`].filter(Boolean).join(" ");
   const openTo = OPEN_TO.filter((option) => profile.open_to.includes(option.value));
@@ -43,8 +46,9 @@ export function ProfileHeader({ profile, relationship }: { profile: ProfileRow; 
     <View style={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: 14, gap: 12 }}>
       <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12 }}>
         <Avatar person={person} size={relationship.self ? 64 : 76} ring />
-        {chips.length > 0 ? <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: 6, flexShrink: 1 }}>{chips}</View> : null}
+        {relationship.self ? null : <FollowButton profileId={profile.id} following={social.following} followsYou={relationship.followsYou} />}
       </View>
+      {chips.length > 0 ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{chips}</View> : null}
 
       <View style={{ gap: 3 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
@@ -110,7 +114,7 @@ export function ProfileHeader({ profile, relationship }: { profile: ProfileRow; 
       <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 18, rowGap: 4 }}>
         <Count value={profile.posts_count} label={profile.posts_count === 1 ? "post" : "posts"} />
         <Count value={profile.following_count} label="following" />
-        <Count value={profile.followers_count} label={profile.followers_count === 1 ? "follower" : "followers"} />
+        <Count value={social.followers} label={social.followers === 1 ? "follower" : "followers"} />
       </View>
     </View>
   );

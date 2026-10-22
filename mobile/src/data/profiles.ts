@@ -1,12 +1,14 @@
 import { z } from "zod";
 import { PROFILE_COLUMNS, profileRowSchema, type ProfileRow } from "@/lib/domain";
 import { requestError } from "@/data/errors";
+import { done, failFrom, type Result } from "@/lib/result";
 import { supabase } from "@/data/supabase";
 
 // What the profile header says about the viewer and this profile, as the
 // website's loadProfile (src/lib/data/profiles.ts) works it out.
 export type Relationship = {
   self: boolean;
+  following: boolean;
   followsYou: boolean;
   muted: boolean;
   // Who invited whom is shown only to the two people (invites' row level security).
@@ -25,9 +27,10 @@ export async function loadProfile(username: string, viewerId: string): Promise<P
   if (error) throw requestError("Profile", error);
   if (!data) return { kind: "missing" };
   const profile = profileRowSchema.parse(data);
-  if (profile.id === viewerId) return { kind: "profile", profile, relationship: { self: true, followsYou: false, muted: false, invite: null } };
+  if (profile.id === viewerId) return { kind: "profile", profile, relationship: { self: true, following: false, followsYou: false, muted: false, invite: null } };
 
-  const [followsYou, muted, blockedByViewer, blockedEitherWay, invites] = await Promise.all([
+  const [following, followsYou, muted, blockedByViewer, blockedEitherWay, invites] = await Promise.all([
+    supabase.from("follows").select("follower_id").match({ follower_id: viewerId, followee_id: profile.id }).maybeSingle(),
     supabase.from("follows").select("follower_id").match({ follower_id: profile.id, followee_id: viewerId }).maybeSingle(),
     supabase.from("mutes").select("muter_id").match({ muter_id: viewerId, muted_id: profile.id }).maybeSingle(),
     supabase.from("blocks").select("blocker_id").match({ blocker_id: viewerId, blocked_id: profile.id }).maybeSingle(),
@@ -43,5 +46,16 @@ export async function loadProfile(username: string, viewerId: string): Promise<P
     : between.some((entry) => entry.member_id === profile.id && entry.invited_by === viewerId)
       ? "you_invited"
       : null;
-  return { kind: "profile", profile, relationship: { self: false, followsYou: Boolean(followsYou.data), muted: Boolean(muted.data), invite } };
+  return { kind: "profile", profile, relationship: { self: false, following: Boolean(following.data), followsYou: Boolean(followsYou.data), muted: Boolean(muted.data), invite } };
+}
+
+// The follow half of the website's setRelation (src/app/actions/social.ts):
+// one row the viewer owns, which row level security lets only them write.
+// Mutes and blocks will be written the same way.
+export async function setFollow(viewerId: string, profileId: string, on: boolean): Promise<Result> {
+  const row = { follower_id: viewerId, followee_id: z.uuid().parse(profileId) };
+  const { error } = on
+    ? await supabase.from("follows").upsert(row, { onConflict: "follower_id,followee_id", ignoreDuplicates: true })
+    : await supabase.from("follows").delete().match(row);
+  return error ? failFrom(error) : done;
 }

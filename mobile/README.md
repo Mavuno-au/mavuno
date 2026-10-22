@@ -5,13 +5,14 @@ An Expo app in TypeScript (Expo SDK 58, React Native 0.88, Expo Router). It sign
 ## What it does so far
 
 - **Sign in** with email and password. Joining, password resets and the legal pages open on the website.
-- **Home:** Following and Latest, paged as you scroll, with pull to refresh and the newest replies under each post.
+- **Home:** Following and Latest, paged as you scroll, with pull to refresh and the newest replies under each post. A pill offers the posts published since the top of the feed when you come back to it; tapping the feed you are on, or the wordmark, scrolls to the top and refreshes.
 - **A post** with what it answers above it, the rest of its author's thread, and its replies.
-- **A profile:** the header the website shows, then Posts, Replies and Media, with the pinned post first.
+- **A profile:** the header the website shows, with Follow, Follow back and Following, then Posts, Replies and Media, with the pinned post first.
+- **Likes and follows** change on screen the moment you tap and are sent one at a time; if the server says no, the screen goes back.
 - **Safety:** mute, block and report from any post or profile, as the App Store requires of an app that shows what members write. Reports use the website's reasons and go to the same moderators.
 - **Settings:** help and contact, the rules and policies, sign out and account deletion. Editing a profile still happens on the website.
 - A banned or age-deactivated account sees the notice and a way to appeal, nothing else, as on the website.
-- Reading only. Liking, replying, posting and following come next. Events, opportunities, spaces and topics open on the website.
+- Replying and posting come next. Events, opportunities, spaces and topics open on the website.
 
 Links open only when they are web or email addresses, and a link whose label names one site while it goes to another says so before it opens.
 

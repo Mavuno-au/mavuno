@@ -3,6 +3,7 @@ import { postRowSchema, type Post, type PostRow, type ReplyPreviews, type Thread
 import { cursorOf, feedTime, PAGE_SIZE, parseTimeCursor, THREAD_MAX_LENGTH, THREAD_PAGE_SIZE } from "@/lib/feeds";
 import { DEFAULT_REPLY_PREVIEWS } from "@/lib/reply-previews";
 import { requestError } from "@/data/errors";
+import { done, failFrom, type Result } from "@/lib/result";
 import { supabase } from "@/data/supabase";
 
 // The website's feed queries (src/lib/data/posts.ts), against the same
@@ -124,4 +125,14 @@ export async function loadPinnedPost(postId: string | null) {
   const { data } = await supabase.from("post_details").select("*").eq("id", postId).maybeSingle();
   const post = postRowSchema.safeParse(data).data;
   return post?.kind === "post" && post.status === "published" ? post : null;
+}
+
+// The website's setLike (src/app/actions/posts.ts): one row the viewer owns.
+// Liking twice is not an error, and neither is unliking what was never liked.
+export async function setLike(viewerId: string, postId: string, liked: boolean): Promise<Result> {
+  const row = { user_id: viewerId, post_id: z.uuid().parse(postId) };
+  const { error } = liked
+    ? await supabase.from("likes").upsert(row, { onConflict: "user_id,post_id", ignoreDuplicates: true })
+    : await supabase.from("likes").delete().match(row);
+  return error ? failFrom(error) : done;
 }
