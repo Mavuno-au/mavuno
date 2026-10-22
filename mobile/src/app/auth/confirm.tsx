@@ -35,7 +35,7 @@ export default function ConfirmLink() {
   if (state !== "failed") {
     return (
       <JoinFrame top={<></>} title="Signing you in">
-        <ActivityIndicator color={palette.inkMuted} />
+        <ActivityIndicator color={palette.inkMuted} accessibilityLabel="Signing you in" />
       </JoinFrame>
     );
   }

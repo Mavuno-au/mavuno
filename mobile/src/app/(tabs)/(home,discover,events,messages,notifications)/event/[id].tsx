@@ -10,13 +10,14 @@ import { eventPlace, type CommunityEvent, type RsvpStatus } from "@/lib/communit
 import type { ProfileCard } from "@/lib/domain";
 import { eventDate } from "@/lib/format";
 import { displayUrl } from "@/lib/text";
+import { reasonOf, type Reason } from "@/data/errors";
 import { siteLink } from "@/data/env";
 import { cancelEvent, loadEvent, setRsvp } from "@/data/community";
 import { useViewer } from "@/data/session";
 import { DateBlock } from "@/community/event-row";
 import { RichText } from "@/post/rich-text";
 import { Avatar } from "@/ui/avatar";
-import { Button, Chip, EmptyState, FeedSkeleton, IconButton } from "@/ui/controls";
+import { Button, Chip, EmptyState, FeedSkeleton, IconButton, LoadFailed } from "@/ui/controls";
 import { BackButton, Header } from "@/ui/header";
 import { ActionSheet, type SheetAction } from "@/ui/sheet";
 import { font, Text } from "@/ui/text";
@@ -24,7 +25,7 @@ import { usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
 import { openLink, shareLink } from "@/util/links";
 
-type Loaded = { event: CommunityEvent; attendees: ProfileCard[]; myRsvp: RsvpStatus | null };
+type State = { kind: "missing" } | { kind: "failed"; reason: Reason } | { kind: "ready"; event: CommunityEvent; attendees: ProfileCard[]; myRsvp: RsvpStatus | null };
 
 const SIX_HOURS = 6 * 60 * 60 * 1000;
 // Events without an end time count as running for six hours, as in the database.
@@ -38,7 +39,7 @@ export default function EventScreen() {
   const insets = useSafeAreaInsets();
   const viewer = useViewer();
   const eventId = String(useLocalSearchParams().id ?? "");
-  const [loaded, setLoaded] = useState<{ id: string; state: Loaded | null | "failed" } | null>(null);
+  const [loaded, setLoaded] = useState<{ id: string; state: State } | null>(null);
   const [mine, setMine] = useState<{ id: string; status: RsvpStatus | null } | null>(null);
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -47,20 +48,20 @@ export default function EventScreen() {
   const read = useCallback(() => {
     if (!viewerId) return;
     void loadEvent(eventId, viewerId)
-      .then((found) => setLoaded({ id: eventId, state: found }))
-      .catch(() => setLoaded({ id: eventId, state: "failed" }));
+      .then((found) => setLoaded({ id: eventId, state: found ? { kind: "ready", ...found } : { kind: "missing" } }))
+      .catch((error: unknown) => setLoaded({ id: eventId, state: { kind: "failed", reason: reasonOf(error) } }));
   }, [eventId, viewerId]);
 
   useEffect(read, [read]);
 
   const state = loaded?.id === eventId ? loaded.state : undefined;
-  if (state === undefined || state === null || state === "failed" || !viewer) {
+  if (state?.kind !== "ready" || !viewer) {
     return (
       <View style={{ flex: 1, backgroundColor: palette.surface }}>
         <Header title="Event" left={<BackButton fallback="/events" />} />
         {state === undefined ? <FeedSkeleton rows={2} /> : null}
-        {state === null ? <EmptyState title="We couldn't find that event">It may have been removed.</EmptyState> : null}
-        {state === "failed" ? <EmptyState title="This event didn't load" action={<Button label="Try again" size="medium" onPress={read} />} /> : null}
+        {state?.kind === "missing" ? <EmptyState title="We couldn't find that event">It may have been removed.</EmptyState> : null}
+        {state?.kind === "failed" ? <LoadFailed title="This event didn't load" reason={state.reason} onRetry={read} /> : null}
       </View>
     );
   }

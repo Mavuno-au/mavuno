@@ -117,6 +117,30 @@ export function PasswordField(props: Omit<FieldProps, "secureTextEntry" | "trail
   );
 }
 
+type Input = ComponentRef<typeof TextInput>;
+
+// Return in one field moves to the next, as on sign in. The last one's Return
+// does the form's one action when it has one (Join, Change password) and
+// otherwise puts the keyboard away. A multiline field takes Return for new
+// lines, so Return there is left alone: it can be moved to but not from.
+export function useReturnChain<Key extends string>(keys: readonly Key[], onDone?: () => void) {
+  const inputs = useRef(new Map<Key, Input>());
+  return (key: Key, { multiline = false } = {}) => {
+    const next = keys[keys.indexOf(key) + 1];
+    const ref = (input: Input | null) => {
+      if (input) inputs.current.set(key, input);
+      else inputs.current.delete(key);
+    };
+    if (multiline) return { ref };
+    return {
+      ref,
+      returnKeyType: next ? ("next" as const) : onDone ? ("go" as const) : ("done" as const),
+      submitBehavior: next || onDone ? ("submit" as const) : ("blurAndSubmit" as const),
+      onSubmitEditing: () => (next ? inputs.current.get(next)?.focus() : onDone?.()),
+    };
+  };
+}
+
 // A sheet's error sits above its fields and Save is in the header, so the
 // form scrolls back up to show it, and VoiceOver reads it out.
 export function useErrorScroll(error: string | null) {

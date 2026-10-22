@@ -52,7 +52,7 @@ export default function Search() {
 
   const peopleBlock = (
     <View>
-      {query && found === null ? <ActivityIndicator style={{ paddingVertical: 16 }} color={palette.inkMuted} /> : null}
+      {query && found === null ? <ActivityIndicator style={{ paddingVertical: 16 }} color={palette.inkMuted} accessibilityLabel="Loading" /> : null}
       {found && found.length === 0 && tab === "people" ? <EmptyState title={`No people match “${query}”`}>Try their name or username.</EmptyState> : null}
       {shownPeople.map((person) => (
         <PersonRow key={person.id} person={person} />
@@ -93,7 +93,7 @@ export default function Search() {
               style={[type.body, { flex: 1, minHeight: 44, color: palette.ink }]}
             />
             {text ? (
-              <Pressable accessibilityRole="button" accessibilityLabel="Clear search" onPress={() => setText("")} hitSlop={8}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Clear search" onPress={() => setText("")} style={{ width: 44, height: 44, marginRight: -12, alignItems: "center", justifyContent: "center" }}>
                 <X size={16} color={palette.inkMuted} />
               </Pressable>
             ) : null}

@@ -5,12 +5,12 @@ import { RefreshControl, SectionList, View } from "react-native";
 import { EVENT_CATEGORIES, type EventCategory } from "@/lib/catalogue";
 import type { CommunityEvent, EventScope, RsvpStatus } from "@/lib/community";
 import { dayLabel } from "@/lib/format";
-import { PROBLEM, reasonOf, type Reason } from "@/data/errors";
+import { reasonOf, type Reason } from "@/data/errors";
 import { loadMyRsvps, loadNearbyCityIds, loadUpcomingEvents } from "@/data/community";
 import { loadCities, type City } from "@/data/profiles";
 import { useViewer } from "@/data/session";
 import { EventRow } from "@/community/event-row";
-import { Button, EmptyState, FeedSkeleton, IconButton } from "@/ui/controls";
+import { Button, EmptyState, FeedSkeleton, IconButton, LoadFailed } from "@/ui/controls";
 import { Group, SelectRow } from "@/ui/form";
 import { Header } from "@/ui/header";
 import { font, Text } from "@/ui/text";
@@ -107,9 +107,7 @@ export default function Events() {
           shown.kind === "loading" ? (
             <FeedSkeleton rows={3} />
           ) : shown.kind === "failed" ? (
-            <EmptyState title="Events didn't load" action={<Button label="Try again" size="medium" onPress={() => read(key)} />}>
-              {PROBLEM[shown.reason]}
-            </EmptyState>
+            <LoadFailed title="Events didn't load" reason={shown.reason} onRetry={() => read(key)} />
           ) : (
             <EmptyState icon={<CalendarDays size={26} color={palette.inkMuted} />} title="No events coming up" action={<Button label="Host an event" size="medium" onPress={() => router.push("/event-form")} />}>
               {where === "anywhere" ? "Be the first to share one with the community." : "Try anywhere, or another kind of event."}

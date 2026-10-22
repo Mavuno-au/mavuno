@@ -5,11 +5,12 @@ import { Text, type TypeStyle } from "@/ui/text";
 
 // A post body or bio with its links, mentions and topics, tokenized exactly as
 // the website does. Nested texts stay inside one paragraph, so the reader's
-// text size and line wrapping apply to the whole of it.
-export function RichText({ body, variant = "body", numberOfLines }: { body: string; variant?: TypeStyle; numberOfLines?: number }) {
+// text size and line wrapping apply to the whole of it. `selectable` is for
+// text that isn't inside something pressable, such as the post a page is about.
+export function RichText({ body, variant = "body", numberOfLines, selectable }: { body: string; variant?: TypeStyle; numberOfLines?: number; selectable?: boolean }) {
   return (
     // Direction follows the first strong character, so Arabic and Tigrinya run right to left.
-    <Text variant={variant} numberOfLines={numberOfLines} style={{ writingDirection: "auto", textAlign: "auto" }}>
+    <Text variant={variant} numberOfLines={numberOfLines} selectable={selectable} style={{ writingDirection: "auto", textAlign: "auto" }}>
       {tokenize(body).map((segment, index) => {
         switch (segment.kind) {
           case "text":

@@ -2,15 +2,15 @@ import { useIsFocused } from "expo-router";
 import { ArrowUp, CloudOff } from "lucide-react-native";
 import { useCallback, useEffect, useRef, type ReactElement, type ReactNode } from "react";
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, useWindowDimensions, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { PostRow as Row } from "@/lib/domain";
-import { PROBLEM } from "@/data/errors";
 import { count } from "@/lib/format";
 import type { FeedState } from "@/data/use-feed";
 import { PostRow } from "@/post/post-row";
-import { Button, EmptyState, EndOfList, FeedSkeleton } from "@/ui/controls";
+import { EndOfList, FeedSkeleton, LoadFailed } from "@/ui/controls";
+import { usePullToRefresh } from "@/ui/list";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
+import { useToastFloor } from "@/ui/toast";
 import { onSoftReset } from "@/util/events";
 
 type Props = {
@@ -32,7 +32,6 @@ type Props = {
 export function FeedList({ feed, empty, end = "You're all caught up.", header, leading = [], active = true, showPreviews = true, fresh = 0, pinnedId }: Props) {
   const { state, loadMore, refresh, retry } = feed;
   const palette = usePalette();
-  const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const list = useRef<FlatList<Row>>(null);
   const ready = state.kind === "ready" ? state : null;
@@ -47,6 +46,7 @@ export function FeedList({ feed, empty, end = "You're all caught up.", header, l
   // Only the list on screen in the tab you're in answers.
   const focused = useIsFocused();
   useEffect(() => (active && focused ? onSoftReset(toTop) : undefined), [active, focused, toTop]);
+  const pull = usePullToRefresh(ready?.refreshing ?? false, refresh);
 
   return (
     <View style={{ flex: 1 }}>
@@ -60,9 +60,7 @@ export function FeedList({ feed, empty, end = "You're all caught up.", header, l
           state.kind === "loading" ? (
             <FeedSkeleton />
           ) : state.kind === "failed" ? (
-            <EmptyState icon={<CloudOff size={26} color={palette.inkMuted} />} title="Couldn't load posts" action={<Button label="Try again" size="medium" onPress={retry} />}>
-              {PROBLEM[state.reason]}
-            </EmptyState>
+            <LoadFailed title="Couldn't load posts" reason={state.reason} onRetry={retry} />
           ) : (
             <>{empty}</>
           )
@@ -70,21 +68,22 @@ export function FeedList({ feed, empty, end = "You're all caught up.", header, l
         ListFooterComponent={ready && rows.length > 0 ? <Footer more={ready.more} next={ready.next} end={end} onRetry={loadMore} /> : undefined}
         onEndReached={loadMore}
         onEndReachedThreshold={2}
-        refreshControl={state.kind === "ready" ? <RefreshControl refreshing={state.refreshing} onRefresh={refresh} tintColor={palette.inkMuted} /> : undefined}
+        refreshControl={ready ? <RefreshControl {...pull} tintColor={palette.inkMuted} /> : undefined}
         scrollsToTop={active && focused}
         indicatorStyle={palette.dark ? "white" : "black"}
         // Bluesky's settings: enough rows rendered to fill the screen at
         // about 100 points each, a short render batch so scrolling stays
         // smooth, and a list at least half again as tall as the window so
-        // pull to refresh works when there are only a few posts.
+        // pull to refresh works when there are only a few posts. The tab
+        // bar already sits above the home indicator, so no inset is added.
         initialNumToRender={Math.ceil(height / 100)}
         maxToRenderPerBatch={5}
         windowSize={9}
-        contentContainerStyle={{ flexGrow: 1, minHeight: height * 1.5, paddingBottom: insets.bottom + (ready?.stale ? 80 : 0) }}
+        contentContainerStyle={{ flexGrow: 1, minHeight: height * 1.5, paddingBottom: ready?.stale ? 80 : 0 }}
         style={{ backgroundColor: palette.surface }}
       />
       {fresh > 0 ? <NewPostsPill count={fresh} onPress={toTop} /> : null}
-      {ready?.stale ? <OfflineNotice onRetry={refresh} /> : null}
+      {ready?.stale ? <OfflineNotice onRetry={refresh} active={active} /> : null}
     </View>
   );
 }
@@ -144,17 +143,19 @@ function NewPostsPill({ count: total, onPress }: { count: number; onPress: () =>
 }
 
 // A refresh that couldn't reach the server keeps the posts already shown.
-function OfflineNotice({ onRetry }: { onRetry: () => void }) {
+// Toasts rise above it rather than covering it.
+function OfflineNotice({ onRetry, active }: { onRetry: () => void; active: boolean }) {
   const palette = usePalette();
-  const insets = useSafeAreaInsets();
+  const floor = useToastFloor(active);
   return (
     <View
+      {...floor}
       accessibilityRole="alert"
       style={{
         position: "absolute",
         left: 12,
         right: 12,
-        bottom: insets.bottom + 12,
+        bottom: 12,
         flexDirection: "row",
         alignItems: "center",
         gap: 10,

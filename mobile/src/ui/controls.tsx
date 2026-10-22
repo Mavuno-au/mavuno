@@ -1,5 +1,7 @@
+import { CloudOff } from "lucide-react-native";
 import type { ReactNode } from "react";
 import { ActivityIndicator, Pressable, View, type DimensionValue, type PressableProps, type StyleProp, type ViewStyle } from "react-native";
+import { PROBLEM, type Reason } from "@/data/errors";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
 
@@ -155,6 +157,16 @@ export function EmptyState({ icon, title, children, action }: { icon?: ReactNode
       ) : null}
       {action ? <View style={{ marginTop: 6 }}>{action}</View> : null}
     </View>
+  );
+}
+
+// What didn't load and why, the reader's connection or Mavuno, with Try again.
+export function LoadFailed({ title, reason, onRetry }: { title: string; reason: Reason; onRetry: () => void }) {
+  const palette = usePalette();
+  return (
+    <EmptyState icon={<CloudOff size={26} color={palette.inkMuted} />} title={title} action={<Button label="Try again" size="medium" onPress={onRetry} />}>
+      {PROBLEM[reason]}
+    </EmptyState>
   );
 }
 

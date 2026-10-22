@@ -1,23 +1,24 @@
 import { useLocalSearchParams } from "expo-router";
-import { CloudOff, Ellipsis, SearchX } from "lucide-react-native";
+import { Ellipsis, SearchX } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, useWindowDimensions, View } from "react-native";
 import { z } from "zod";
 import type { Post, PostRow as Row, ThreadPlace } from "@/lib/domain";
 import { THREAD_MAX_LENGTH } from "@/lib/feeds";
-import { PROBLEM, reasonOf, type Reason } from "@/data/errors";
+import { reasonOf, type Reason } from "@/data/errors";
 import { loadContinuation, loadPost, loadReplies, loadThread, type Thread } from "@/data/posts";
 import { useViewer } from "@/data/session";
 import { usePostDeleted } from "@/data/shadow";
 import { onPostCreated, onRelationChanged } from "@/util/events";
 import { usePostMenu } from "@/post/post-actions";
-import { compose, FocusedPost, PostRow } from "@/post/post-row";
+import { compose, FocusedPost, PostRow, UnavailableAncestor } from "@/post/post-row";
 import { Avatar } from "@/ui/avatar";
-import { Button, EmptyState, EndOfList, FeedSkeleton, IconButton } from "@/ui/controls";
+import { EmptyState, EndOfList, FeedSkeleton, IconButton, LoadFailed } from "@/ui/controls";
 import { ActionSheet } from "@/ui/sheet";
 import { BackButton, Header } from "@/ui/header";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
+import { useToastFloor } from "@/ui/toast";
 
 type Loaded = Extract<Thread, { kind: "thread" }>;
 type More = "idle" | "loading" | "failed";
@@ -28,6 +29,7 @@ type State =
   | { kind: "ready"; thread: Loaded; parts: Row[]; partsMore: More; replies: Row[]; next: string | null; more: More };
 
 type Item =
+  | { kind: "unavailable" }
   | { kind: "ancestor"; row: Row; place?: ThreadPlace }
   | { kind: "focus" }
   | { kind: "part"; row: Row; place: ThreadPlace }
@@ -170,9 +172,7 @@ export default function PostScreen() {
         {header}
         {state.kind === "loading" ? <FeedSkeleton rows={3} /> : null}
         {state.kind === "failed" ? (
-          <EmptyState icon={<CloudOff size={26} color={palette.inkMuted} />} title="This post didn't load" action={<Button label="Try again" size="medium" onPress={retry} />}>
-            {PROBLEM[state.reason]}
-          </EmptyState>
+          <LoadFailed title="This post didn't load" reason={state.reason} onRetry={retry} />
         ) : null}
         {state.kind === "missing" ? (
           <EmptyState icon={<SearchX size={26} color={palette.inkMuted} />} title="We couldn't find that">
@@ -189,7 +189,15 @@ export default function PostScreen() {
   const lastPart = parts.at(-1);
   const partsContinue = lastPart?.kind === "post" && lastPart.continuation > 0 && parts.length < THREAD_MAX_LENGTH;
 
+  // The chain of ancestors stops at a post the viewer can't see, such as one
+  // by someone blocked; its place is kept so the thread doesn't read as complete.
+  const unreachable = (thread.ancestors[0] ?? thread.post).parentId !== null;
+  // Replies from people the viewer muted or blocked are counted but not shown.
+  const visibleReplies = replies.filter((row) => row.kind === "post" && row.parentId === thread.post.id && row.status === "published").length;
+  const hiddenReplies = !state.next && visibleReplies < thread.post.replies;
+
   const items: Item[] = [
+    ...(ancestorsShown && unreachable ? [{ kind: "unavailable" } as const] : []),
     ...(ancestorsShown ? thread.ancestors.map((row, index): Item => ({ kind: "ancestor", row, place: placeAbove(thread.ancestors.length - index) })) : []),
     { kind: "focus" },
     ...(place ? parts.map((row, index): Item => ({ kind: "part", row, place: { ...place, position: place.position + index + 1 } })) : []),
@@ -200,6 +208,8 @@ export default function PostScreen() {
 
   const render = ({ item }: { item: Item }) => {
     switch (item.kind) {
+      case "unavailable":
+        return <UnavailableAncestor />;
       case "ancestor":
         return <PostRow row={item.row} variant="ancestor" place={item.place} />;
       case "focus":
@@ -254,7 +264,7 @@ export default function PostScreen() {
                 </Text>
               </Pressable>
             ) : null}
-            {!state.next ? <EndOfList>{replies.length === 0 ? "No replies yet." : "That's the whole conversation."}</EndOfList> : null}
+            {!state.next ? <EndOfList>{hiddenReplies ? "Some replies are hidden from you." : replies.length === 0 ? "No replies yet." : "That's the whole conversation."}</EndOfList> : null}
           </View>
         }
         style={{ backgroundColor: palette.surface }}
@@ -275,8 +285,9 @@ function ReplyBar({ post }: { post: Post }) {
   const palette = usePalette();
   const viewer = useViewer();
   const first = post.author.displayName.split(/\s+/)[0] ?? post.author.displayName;
+  const floor = useToastFloor();
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 8, borderTopWidth: 1, borderTopColor: palette.hairline, backgroundColor: palette.surface }}>
+    <View {...floor} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 8, borderTopWidth: 1, borderTopColor: palette.hairline, backgroundColor: palette.surface }}>
       {viewer ? <Avatar person={viewer} size={32} /> : null}
       <Pressable
         accessibilityRole="button"

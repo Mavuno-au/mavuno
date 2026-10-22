@@ -75,7 +75,7 @@ export default function Onboarding() {
     return (
       <Frame top={skip}>
         {loaded === "loading" ? (
-          <ActivityIndicator style={{ marginTop: 40 }} color={palette.inkMuted} />
+          <ActivityIndicator style={{ marginTop: 40 }} color={palette.inkMuted} accessibilityLabel="Loading" />
         ) : (
           <View style={{ gap: 16, paddingTop: 24 }}>
             <Text variant="callout">Your profile couldn't be loaded. Check your connection and try again.</Text>

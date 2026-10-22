@@ -53,7 +53,7 @@ export default function GroupSettings() {
     return (
       <View style={{ flex: 1, backgroundColor: palette.surface }}>
         <Header title="Group settings" left={<BackButton />} />
-        <ActivityIndicator style={{ marginTop: 40 }} color={palette.inkMuted} />
+        <ActivityIndicator style={{ marginTop: 40 }} color={palette.inkMuted} accessibilityLabel="Loading" />
       </View>
     );
   }

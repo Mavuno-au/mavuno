@@ -8,7 +8,7 @@ import { siteLink } from "@/data/env";
 import { checkUsername } from "@/data/profiles";
 import { JoinFrame } from "@/join/join-frame";
 import { Button } from "@/ui/controls";
-import { FieldError, PasswordField, TextField } from "@/ui/form";
+import { FieldError, PasswordField, TextField, useReturnChain } from "@/ui/form";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
 import { openLink } from "@/util/links";
@@ -55,6 +55,11 @@ export default function JoinDetails() {
   // Too short to judge yet: an error on the first letter only gets in the way.
   const shown: Check | null = handle.length < 3 ? null : !parsed.success ? { kind: "invalid", message: parsed.error.issues[0]?.message ?? "Check the username." } : check?.name === handle ? check.check : { kind: "checking" };
 
+  const ready = shown?.kind === "available" && name.trim() !== "" && email.trim() !== "" && password !== "";
+  const field = useReturnChain(["name", "username", "email", "password"], () => {
+    if (ready && !busy) void join();
+  });
+
   async function join() {
     setBusy(true);
     setError(null);
@@ -77,16 +82,16 @@ export default function JoinDetails() {
       title="Your details"
       footer={
         <>
-          <Button label="Join Mavuno" busy={busy} disabled={shown?.kind !== "available" || !name.trim() || !email.trim() || !password} onPress={() => void join()} />
+          <Button label="Join Mavuno" busy={busy} disabled={!ready} onPress={() => void join()} />
           <Text variant="small" tone="muted" style={{ textAlign: "center" }}>
             By joining you agree to the {legal("community rules", "/rules")}, {legal("terms", "/terms")} and {legal("privacy policy", "/privacy")}.
           </Text>
         </>
       }
     >
-      <TextField label="Your name" value={name} onChangeText={setName} maxLength={60} textContentType="name" autoComplete="name" />
+      <TextField {...field("name")} label="Your name" value={name} onChangeText={setName} maxLength={60} textContentType="name" autoComplete="name" />
       <View style={{ gap: 6 }}>
-        <TextField label="Username" value={handle} onChangeText={(text) => setUsername(text.toLowerCase())} autoCapitalize="none" autoCorrect={false} mono maxLength={30} textContentType="none" />
+        <TextField {...field("username")} label="Username" value={handle} onChangeText={(text) => setUsername(text.toLowerCase())} autoCapitalize="none" autoCorrect={false} mono maxLength={30} textContentType="none" />
         {shown?.kind === "available" ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <CircleCheck size={16} color={palette.primary} />
@@ -113,8 +118,8 @@ export default function JoinDetails() {
           </View>
         ) : null}
       </View>
-      <TextField label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} textContentType="username" autoComplete="email" />
-      <PasswordField label="Password" hint="At least 8 characters." value={password} onChangeText={setPassword} textContentType="newPassword" autoComplete="new-password" />
+      <TextField {...field("email")} label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} textContentType="username" autoComplete="email" />
+      <PasswordField {...field("password")} label="Password" hint="At least 8 characters." value={password} onChangeText={setPassword} textContentType="newPassword" autoComplete="new-password" />
       {error ? <FieldError>{error}</FieldError> : null}
     </JoinFrame>
   );

@@ -54,7 +54,7 @@ export default function LanguageSettings() {
     <View style={{ flex: 1, backgroundColor: palette.shell }}>
       <Header title="Languages" left={<BackButton fallback="/settings" />} />
       {!form ? (
-        <ActivityIndicator style={{ marginTop: 40 }} color={palette.inkMuted} />
+        <ActivityIndicator style={{ marginTop: 40 }} color={palette.inkMuted} accessibilityLabel="Loading" />
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 24, paddingBottom: 48 }}>
           <View style={{ gap: 6 }}>

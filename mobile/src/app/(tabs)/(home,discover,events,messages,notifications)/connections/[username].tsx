@@ -62,7 +62,7 @@ export default function Connections() {
         </View>
       </View>
       {profileId === "" ? (
-        <ActivityIndicator style={{ marginTop: 32 }} color={palette.inkMuted} />
+        <ActivityIndicator style={{ marginTop: 32 }} color={palette.inkMuted} accessibilityLabel="Loading" />
       ) : (
         <PagedList
           list={shown}

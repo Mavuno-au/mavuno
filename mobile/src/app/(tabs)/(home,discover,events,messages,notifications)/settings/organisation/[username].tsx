@@ -120,7 +120,7 @@ export default function ManageOrganisation() {
         </Group>
         <Group title="Team">
           {team === null ? (
-            <ActivityIndicator style={{ padding: 16 }} color={palette.inkMuted} />
+            <ActivityIndicator style={{ padding: 16 }} color={palette.inkMuted} accessibilityLabel="Loading" />
           ) : (
             team.map((person, index) => (
               <Pressable

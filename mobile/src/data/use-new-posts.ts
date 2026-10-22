@@ -1,8 +1,9 @@
 import { useFocusEffect, useIsFocused } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { z } from "zod";
 import { supabase } from "@/data/supabase";
 import { useSignificantReturn } from "@/util/app-state";
+import { createEvent } from "@/util/events";
 
 // Only Following and Latest are asked, as on the website.
 export type FeedKind = "following" | "latest";
@@ -18,13 +19,14 @@ const CHECK_EVERY = 2 * 60 * 1000;
 // newest post shown; a count is kept with the page it was for, so a new page
 // starts from none. Nothing is asked while the feed is hidden, loading or
 // refreshing. `dismiss` clears the count: a refresh answers the question.
-export function useNewPosts({ feed, since, active, busy }: { feed: FeedKind; since: string | null; active: boolean; busy: boolean }): [count: number, dismiss: () => void] {
+// `away` keeps asking while another tab is in front, for the Home tab's dot.
+export function useNewPosts({ feed, since, active, busy, away = false }: { feed: FeedKind; since: string | null; active: boolean; busy: boolean; away?: boolean }): [count: number, dismiss: () => void] {
   const key = `${feed}|${since ?? ""}`;
   const [stored, setStored] = useState({ key, count: 0 });
   const count = stored.key === key ? stored.count : 0;
   const checked = useRef(0);
   const focused = useIsFocused();
-  const live = active && focused && !busy && since !== null;
+  const live = active && (focused || away) && !busy && since !== null;
   const latest = useRef({ feed, since, key, live });
 
   useEffect(() => {
@@ -63,3 +65,16 @@ export function useNewPosts({ feed, since, active, busy }: { feed: FeedKind; sin
   const dismiss = useCallback(() => setStored((previous) => ({ key: previous.key, count: 0 })), []);
   return [count, dismiss];
 }
+
+// Whether Following has posts newer than the ones on Home, for the dot on
+// the Home tab, as Bluesky's bottom bar shows.
+let followingFresh = false;
+const freshChanged = createEvent();
+
+export function setFollowingFresh(fresh: boolean) {
+  if (fresh === followingFresh) return;
+  followingFresh = fresh;
+  freshChanged.emit();
+}
+
+export const useFollowingFresh = () => useSyncExternalStore(freshChanged.on, () => followingFresh);

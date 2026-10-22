@@ -39,7 +39,7 @@ export default function Appeal() {
     return (
       <View style={{ flex: 1, backgroundColor: palette.surface }}>
         {header}
-        <ActivityIndicator style={{ marginTop: 40 }} color={palette.inkMuted} />
+        <ActivityIndicator style={{ marginTop: 40 }} color={palette.inkMuted} accessibilityLabel="Loading" />
       </View>
     );
   }

@@ -110,7 +110,7 @@ function Waiting({ missing }: { missing: boolean }) {
             The post may have been deleted, or it isn't available to you.
           </Text>
         ) : (
-          <ActivityIndicator color={palette.inkMuted} />
+          <ActivityIndicator color={palette.inkMuted} accessibilityLabel="Loading the post" />
         )}
       </View>
     </View>
@@ -126,13 +126,19 @@ function Composer({ mode, initialText, placeholder }: { mode: Mode; initialText:
   const input = useRef<ComponentRef<typeof TextInput>>(null);
 
   const [body, setBody] = useState(() => (viewer ? readDraft(viewer.id, scope) : "") || initialText);
-  const [caret, setCaret] = useState(body.length);
+  // The caret and the text as typed live in refs, so moving the caret redraws
+  // nothing; only the mention being typed at it is state. Whichever of the
+  // text and selection events comes second finds the mention.
+  const caret = useRef(body.length);
+  const typed = useRef(body);
+  const [typing, setTyping] = useState<ReturnType<typeof mentionAt>>(null);
   const [images, setImages] = useState<PickedImage[]>([]);
   const [activeImage, setActiveImage] = useState<string | null>(null);
   const [poll, setPoll] = useState<PollDraft | null>(null);
   const [schedule, setSchedule] = useState<Date | null>(null);
   const [scheduling, setScheduling] = useState(false);
-  const [language, setLanguage] = useState(viewer?.languages[0] ?? "en");
+  // A reply starts in the language of the post it answers, when the viewer speaks it.
+  const [language, setLanguage] = useState(() => (mode.kind === "reply" && viewer?.languages.includes(mode.parent.language) ? mode.parent.language : (viewer?.languages[0] ?? "en")));
   const [authorId, setAuthorId] = useState<string | null>(null);
   // undefined: the first link; null: no card; else the link chosen.
   const [cardChoice, setCardChoice] = useState<string | null | undefined>(undefined);
@@ -140,7 +146,15 @@ function Composer({ mode, initialText, placeholder }: { mode: Mode; initialText:
   const [busy, setBusy] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  const typing = mentionAt(body, caret);
+  const findMention = (text: string, at: number) => {
+    const found = mentionAt(text, at);
+    setTyping((current) => (current?.start === found?.start && current?.end === found?.end && current?.query === found?.query ? current : found));
+  };
+  const edit = (text: string) => {
+    typed.current = text;
+    setBody(text);
+    findMention(text, caret.current);
+  };
   const people = useMentionSuggestions(typing?.query ?? null, {
     replyTo: mode.kind === "reply" ? mode.parent.id : null,
     quoteOf: mode.kind === "quote" ? mode.quoted.id : null,
@@ -175,8 +189,8 @@ function Composer({ mode, initialText, placeholder }: { mode: Mode; initialText:
   const insertMention = (username: string) => {
     if (!typing) return;
     const next = `${body.slice(0, typing.start)}@${username} ${body.slice(typing.end)}`;
-    setBody(next);
-    setCaret(typing.start + username.length + 2);
+    caret.current = typing.start + username.length + 2;
+    edit(next);
   };
 
   async function addImages() {
@@ -356,8 +370,11 @@ function Composer({ mode, initialText, placeholder }: { mode: Mode; initialText:
             placeholder={hint}
             placeholderTextColor={palette.inkMuted}
             value={body}
-            onChangeText={setBody}
-            onSelectionChange={(event) => setCaret(event.nativeEvent.selection.end)}
+            onChangeText={edit}
+            onSelectionChange={(event) => {
+              caret.current = event.nativeEvent.selection.end;
+              findMention(typed.current, caret.current);
+            }}
             multiline
             autoFocus
             maxLength={LIMITS.postBody + 200}

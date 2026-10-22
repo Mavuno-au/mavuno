@@ -45,7 +45,7 @@ export function PeoplePicker({ viewerId, chosen, onToggle, exclude = [] }: { vie
           />
         </View>
         {chosen.length > 0 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+          <ScrollView horizontal scrollsToTop={false} showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
             {chosen.map((person) => (
               <Pressable
                 key={person.id}
@@ -70,7 +70,7 @@ export function PeoplePicker({ viewerId, chosen, onToggle, exclude = [] }: { vie
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={
           term && results === null ? (
-            <ActivityIndicator style={{ paddingVertical: 24 }} color={palette.inkMuted} />
+            <ActivityIndicator style={{ paddingVertical: 24 }} color={palette.inkMuted} accessibilityLabel="Loading" />
           ) : (
             <Text variant="subhead" tone="muted" style={{ textAlign: "center", padding: 24 }}>
               {term ? `No one matches "${term}".` : "Search by name or username."}

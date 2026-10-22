@@ -1,6 +1,6 @@
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import { BadgeCheck, Bookmark, Ellipsis, Heart, ListTree, MessageCircle, Pin, Quote, Share } from "lucide-react-native";
+import { BadgeCheck, Bookmark, Ellipsis, EyeOff, Heart, ListTree, MessageCircle, Pin, Quote, Share } from "lucide-react-native";
 import { useState, type ReactNode } from "react";
 import { Pressable, View } from "react-native";
 import type { Post, PostRow as Row, ThreadPlace, Tombstone } from "@/lib/domain";
@@ -65,6 +65,49 @@ export function TombstoneRow({ row }: { row: Tombstone }) {
   );
 }
 
+// Above the earliest post the viewer can see in a thread, when the one it
+// answers is hidden from them (blocked, or past how far back a thread reads).
+export function UnavailableAncestor() {
+  const palette = usePalette();
+  return (
+    <View style={{ flexDirection: "row", gap: 12, paddingHorizontal: 16, paddingTop: 14 }}>
+      <View style={{ alignItems: "center" }}>
+        <View style={{ width: 40, height: 40, borderRadius: 20, borderWidth: 1.5, borderStyle: "dashed", borderColor: palette.rail }} />
+        <View style={{ flex: 1, minHeight: 10, width: 2, marginTop: 4, borderRadius: 1, backgroundColor: palette.rail }} />
+      </View>
+      <Text variant="callout" tone="muted" style={{ flex: 1, paddingTop: 9 }}>
+        Earlier post unavailable
+      </Text>
+    </View>
+  );
+}
+
+// A post above the focused one by someone the viewer muted is covered until
+// they ask to see it, so a mute holds even inside a conversation.
+function MutedAncestor({ onShow }: { onShow: () => void }) {
+  const palette = usePalette();
+  return (
+    <View style={{ flexDirection: "row", gap: 12, paddingHorizontal: 16, paddingTop: 14 }}>
+      <View style={{ alignItems: "center" }}>
+        <View style={{ width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: palette.wash }}>
+          <EyeOff size={18} color={palette.inkMuted} />
+        </View>
+        <View style={{ flex: 1, minHeight: 10, width: 2, marginTop: 4, borderRadius: 1, backgroundColor: palette.rail }} />
+      </View>
+      <View style={{ flex: 1, flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+        <Text variant="callout" tone="muted" style={{ flex: 1, paddingTop: 9 }}>
+          Post by an account you muted
+        </Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Show the post by an account you muted" onPress={onShow} hitSlop={6} style={{ minHeight: 40, paddingHorizontal: 8, justifyContent: "center" }}>
+          <Text variant="subhead" tone="primary" style={{ fontFamily: font.medium }}>
+            Show
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 // The avatar opens the profile; everything else on the row opens the post.
 // The row itself isn't one accessibility element, so VoiceOver reaches the
 // avatar, the links in the text and the buttons one by one.
@@ -82,8 +125,10 @@ function LivePost({ post: read, variant, previews, place, pinnedHere }: { post: 
   const post = usePostShadow(read);
   const deleted = usePostDeleted(post.id);
   const [menu, setMenu] = useState(false);
+  const [uncovered, setUncovered] = useState(false);
   const actions = usePostMenu(post, { pinnedHere });
   if (deleted) return <DeletedHere post={post} />;
+  if (variant === "ancestor" && post.authorMuted && !uncovered) return <MutedAncestor onShow={() => setUncovered(true)} />;
 
   return (
     <View style={{ borderBottomWidth: variant === "ancestor" ? 0 : 1, borderBottomColor: palette.hairline }}>
@@ -96,6 +141,8 @@ function LivePost({ post: read, variant, previews, place, pinnedHere }: { post: 
           setMenu(true);
         }}
         delayLongPress={350}
+        // A touch that starts a scroll shouldn't flash the row, as on Bluesky.
+        unstable_pressDelay={100}
         style={({ pressed }) => ({ paddingHorizontal: 16, paddingTop: 14, paddingBottom: variant === "ancestor" ? 6 : 2, backgroundColor: pressed ? palette.wash : "transparent" })}
       >
         <View style={{ flexDirection: large ? "column" : "row", gap: large ? 10 : 12 }}>
@@ -261,7 +308,7 @@ function Body({ post, focus = false }: { post: Post; focus?: boolean }) {
           const folded = expanded ? null : foldBody(text);
           return (
             <>
-              <RichText body={folded?.folded ? folded.preview : text} variant={focus ? "focus" : "body"} />
+              <RichText body={folded?.folded ? folded.preview : text} variant={focus ? "focus" : "body"} selectable={focus} />
               {folded?.folded ? (
                 <Pressable accessibilityRole="button" onPress={() => setExpanded(true)} hitSlop={8} style={{ alignSelf: "flex-start", minHeight: 32, justifyContent: "center" }}>
                   <Text variant="subhead" tone="primary" style={{ fontFamily: font.medium }}>
@@ -277,10 +324,10 @@ function Body({ post, focus = false }: { post: Post; focus?: boolean }) {
   );
 }
 
-function Attachments({ post }: { post: Post }) {
+function Attachments({ post, focus = false }: { post: Post; focus?: boolean }) {
   return (
     <>
-      {post.images.length > 0 ? <ImageGrid images={post.images} /> : null}
+      {post.images.length > 0 ? <ImageGrid images={post.images} focus={focus} /> : null}
       {post.poll ? <PollView post={post} poll={post.poll} /> : null}
       {post.linkUrl && !post.quoted ? <LinkCard url={post.linkUrl} preview={post.linkPreview} /> : null}
       {post.quoted ? <QuotedBlock quoted={post.quoted} /> : null}
@@ -407,7 +454,7 @@ export function FocusedPost({ post: read, place, onLayout, onMore }: { post: Pos
       <StatusChips post={post} place={place} />
       <Notes post={post} showSpace showParent={false} />
       <Body post={post} focus />
-      <Attachments post={post} />
+      <Attachments post={post} focus />
       <Text variant="meta" tone="muted">
         {fullDate(post.createdAt, timeZone)}
       </Text>

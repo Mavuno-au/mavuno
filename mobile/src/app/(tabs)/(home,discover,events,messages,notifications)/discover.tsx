@@ -1,19 +1,27 @@
 import { router, useIsFocused } from "expo-router";
-import { Briefcase, Hash, MapPin, Search, Users, X } from "lucide-react-native";
+import { Briefcase, Hash, MapPin, Search, Users } from "lucide-react-native";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { Alert, Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import type { PersonSummary } from "@/lib/domain";
 import { dismissSuggestion, loadActiveSpaces, loadSuggestions, loadTrendingTopics, type SpaceListItem } from "@/data/community";
 import { useViewer } from "@/data/session";
 import { PersonRow } from "@/people/person-row";
-import { SpaceCard } from "@/community/space-card";
-import { EmptyState, FeedSkeleton, Segmented } from "@/ui/controls";
+import { SpaceRow } from "@/community/space-card";
+import { EmptyState, FeedSkeleton } from "@/ui/controls";
 import { Header } from "@/ui/header";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
+import { toast } from "@/ui/toast";
 import { onSoftReset } from "@/util/events";
 
 type Tab = "overview" | "people" | "organisations" | "topics";
+
+const TABS = [
+  { key: "overview", label: "Overview" },
+  { key: "people", label: "People" },
+  { key: "organisations", label: "Organisations" },
+  { key: "topics", label: "Topics" },
+] as const satisfies readonly { key: Tab; label: string }[];
 type Topic = { topic: string; posts: number; people: number };
 type Loaded = { topics: Topic[]; spaces: SpaceListItem[]; people: PersonSummary[]; organisations: PersonSummary[] };
 
@@ -52,25 +60,12 @@ export default function Discover() {
     void dismissSuggestion(viewerId, person.id, true).then((result) => {
       if (!result.ok) {
         setHidden((current) => new Set([...current].filter((other) => other !== person.id)));
-        Alert.alert("Couldn't hide them", result.error);
+        toast(`Couldn't hide them. ${result.error}`, { tone: "error" });
       }
     });
   };
 
-  const suggestion = (person: PersonSummary) => (
-    <View key={person.id}>
-      <PersonRow person={person} detail={person.reason ?? undefined} />
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Not for me: ${person.displayName}`}
-        onPress={() => notForMe(person)}
-        hitSlop={4}
-        style={{ position: "absolute", top: 4, right: 4, width: 32, height: 32, alignItems: "center", justifyContent: "center" }}
-      >
-        <X size={14} color={palette.inkMuted} />
-      </Pressable>
-    </View>
-  );
+  const suggestion = (person: PersonSummary) => <PersonRow key={person.id} person={person} detail={person.reason ?? undefined} onDismiss={() => notForMe(person)} />;
 
   const people = (loaded?.people ?? []).filter((person) => !hidden.has(person.id));
   const organisations = (loaded?.organisations ?? []).filter((person) => !hidden.has(person.id));
@@ -105,20 +100,32 @@ export default function Discover() {
             Search Mavuno
           </Text>
         </Pressable>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
-          <View style={{ flex: 1, minWidth: 360 }}>
-            <Segmented
-              label="Discover"
-              options={[
-                { key: "overview", label: "Overview" },
-                { key: "people", label: "People" },
-                { key: "organisations", label: "Organisations" },
-                { key: "topics", label: "Topics" },
-              ]}
-              value={tab}
-              onChange={setTab}
-            />
-          </View>
+        {/* Pills rather than a segmented control: four labels don't fit one at large text sizes. */}
+        <ScrollView horizontal scrollsToTop={false} showsHorizontalScrollIndicator={false} accessibilityRole="tablist" accessibilityLabel="Discover" style={{ marginHorizontal: -16 }} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
+          {TABS.map((option) => {
+            const selected = option.key === tab;
+            return (
+              <Pressable
+                key={option.key}
+                accessibilityRole="tab"
+                accessibilityState={{ selected }}
+                onPress={() => setTab(option.key)}
+                style={({ pressed }) => ({
+                  minHeight: 40,
+                  paddingHorizontal: 16,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor: selected ? palette.primary : palette.rail,
+                  backgroundColor: selected ? palette.primary : pressed ? palette.wash : palette.surface,
+                  justifyContent: "center",
+                })}
+              >
+                <Text variant="callout" tone={selected ? "primaryInk" : "ink"} style={{ fontFamily: font.medium }} maxFontSizeMultiplier={1.6}>
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </ScrollView>
       </View>
       <ScrollView
@@ -153,11 +160,9 @@ export default function Discover() {
             ) : null}
             {loaded.spaces.length > 0 ? (
               <Section title="Active spaces" more={{ label: "All spaces", onPress: () => router.push("/spaces") }}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingHorizontal: 16 }}>
-                  {loaded.spaces.map((space) => (
-                    <SpaceCard key={space.id} space={space} />
-                  ))}
-                </ScrollView>
+                {loaded.spaces.slice(0, 4).map((space) => (
+                  <SpaceRow key={space.id} space={space} brief />
+                ))}
               </Section>
             ) : null}
             {people.length > 0 ? <Section title="Who to follow">{people.slice(0, 5).map(suggestion)}</Section> : null}
@@ -213,9 +218,11 @@ function Section({ title, more, children }: { title: string; more?: { label: str
           {title}
         </Text>
         {more ? (
-          <Text variant="subhead" tone="primary" accessibilityRole="link" onPress={more.onPress} style={{ fontFamily: font.medium }}>
-            {more.label}
-          </Text>
+          <Pressable accessibilityRole="link" onPress={more.onPress} hitSlop={12}>
+            <Text variant="subhead" tone="primary" style={{ fontFamily: font.medium }}>
+              {more.label}
+            </Text>
+          </Pressable>
         ) : null}
       </View>
       <View>{children}</View>
