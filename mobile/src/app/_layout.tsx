@@ -1,13 +1,17 @@
 import { useFonts } from "expo-font";
-import { Stack } from "expo-router";
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
 import { useEffect } from "react";
+import { View } from "react-native";
+import { CountsProvider } from "@/data/counts";
+import "@/data/preferences";
 import { SessionProvider, useSession } from "@/data/session";
 import { ShadowProvider } from "@/data/shadow";
 import { FONTS } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
+import { ToastHost } from "@/ui/toast";
 import { NowProvider } from "@/util/time";
 
 // The launch screen stays up until the fonts and the stored session are ready,
@@ -41,33 +45,67 @@ function Navigator({ fontsReady }: { fontsReady: boolean }) {
 
   if (!ready) return null;
   const signedIn = session.kind === "signed-in";
+  const viewer = signedIn ? session.viewer : null;
   const active = signedIn && session.standing.kind === "active";
+  // The website's onboarding gate, in its order: the age question, then the
+  // four steps. Until the member's row has loaded they go straight in.
+  const needsAge = active && viewer?.age.kind === "unconfirmed";
+  const needsOnboarding = active && !needsAge && viewer !== null && !viewer.onboarded;
+  const member = active && !needsAge && !needsOnboarding;
+  const home = !signedIn ? "/welcome" : !active ? "/standing" : needsAge ? "/onboarding/age" : needsOnboarding ? "/onboarding" : "/";
+  const theme = palette.dark ? DarkTheme : DefaultTheme;
+
   return (
-    <>
+    <ThemeProvider value={{ ...theme, colors: { ...theme.colors, background: palette.surface, card: palette.surface, border: palette.hairline, primary: palette.primary, text: palette.ink } }}>
       <StatusBar style="auto" />
       {/* Keyed on the member, so nothing one person opened, liked or followed stays for the next. */}
       <ShadowProvider key={signedIn ? session.session.user.id : "signed-out"}>
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.surface } }}>
-          {/* Each group says where a member who may not see it goes instead. */}
-          <Stack.Protected guard={active} redirectTo={signedIn ? "/standing" : "/welcome"}>
-            <Stack.Screen name="index" />
-            <Stack.Screen name="post/[id]" />
-            <Stack.Screen name="profile/[username]" />
-            <Stack.Screen name="settings" />
-            <Stack.Screen name="report" options={{ presentation: "modal" }} />
-          </Stack.Protected>
-          <Stack.Protected guard={signedIn && !active} redirectTo={signedIn ? "/" : "/welcome"}>
-            <Stack.Screen name="standing" />
-          </Stack.Protected>
-          <Stack.Protected guard={signedIn} redirectTo="/welcome">
-            <Stack.Screen name="delete-account" />
-          </Stack.Protected>
-          <Stack.Protected guard={!signedIn} redirectTo="/">
-            <Stack.Screen name="welcome" />
-            <Stack.Screen name="sign-in" />
-          </Stack.Protected>
-        </Stack>
+        <CountsProvider viewerId={member ? session.session.user.id : null}>
+          <View style={{ flex: 1, backgroundColor: palette.surface }}>
+            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.surface } }}>
+              {/* Each group says where a member who may not see it goes instead. */}
+              <Stack.Protected guard={member} redirectTo={home}>
+                <Stack.Screen name="(tabs)" />
+                {/* A conversation covers the tab bar, so the keyboard and message field have room. */}
+                <Stack.Screen name="conversation/[id]" />
+                <Stack.Screen name="group/[id]" />
+                <Stack.Screen name="new-message" options={{ presentation: "modal" }} />
+                <Stack.Screen name="compose" options={{ presentation: "modal", gestureEnabled: false }} />
+                <Stack.Screen name="report" options={{ presentation: "modal" }} />
+                <Stack.Screen name="likers/[id]" options={{ presentation: "formSheet", sheetAllowedDetents: [0.5, 1], sheetGrabberVisible: true }} />
+                <Stack.Screen name="photos" options={{ presentation: "fullScreenModal", animation: "fade" }} />
+                <Stack.Screen name="edit-profile" options={{ presentation: "modal", gestureEnabled: false }} />
+                <Stack.Screen name="event-form" options={{ presentation: "modal", gestureEnabled: false }} />
+                <Stack.Screen name="opportunity-form" options={{ presentation: "modal", gestureEnabled: false }} />
+                <Stack.Screen name="space-form" options={{ presentation: "modal", gestureEnabled: false }} />
+                <Stack.Screen name="organisation-form" options={{ presentation: "modal", gestureEnabled: false }} />
+              </Stack.Protected>
+              <Stack.Protected guard={needsAge} redirectTo={home}>
+                <Stack.Screen name="onboarding/age" />
+              </Stack.Protected>
+              <Stack.Protected guard={needsOnboarding} redirectTo={home}>
+                <Stack.Screen name="onboarding/index" />
+              </Stack.Protected>
+              <Stack.Protected guard={signedIn && !active} redirectTo={home}>
+                <Stack.Screen name="standing" />
+              </Stack.Protected>
+              <Stack.Protected guard={signedIn} redirectTo="/welcome">
+                <Stack.Screen name="delete-account" />
+              </Stack.Protected>
+              <Stack.Protected guard={!signedIn} redirectTo={home}>
+                <Stack.Screen name="welcome" />
+                <Stack.Screen name="sign-in" />
+                <Stack.Screen name="forgot-password" />
+                <Stack.Screen name="join/index" />
+                <Stack.Screen name="join/details" />
+                <Stack.Screen name="join/check-email" />
+                <Stack.Screen name="join/under-16" />
+              </Stack.Protected>
+            </Stack>
+            <ToastHost />
+          </View>
+        </CountsProvider>
       </ShadowProvider>
-    </>
+    </ThemeProvider>
   );
 }

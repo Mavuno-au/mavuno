@@ -1,16 +1,20 @@
 import { useLocalSearchParams } from "expo-router";
-import { CloudOff, SearchX } from "lucide-react-native";
+import { CloudOff, Ellipsis, SearchX } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, useWindowDimensions, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { z } from "zod";
-import type { PostRow as Row, ThreadPlace } from "@/lib/domain";
+import type { Post, PostRow as Row, ThreadPlace } from "@/lib/domain";
 import { THREAD_MAX_LENGTH } from "@/lib/feeds";
 import { PROBLEM, reasonOf, type Reason } from "@/data/errors";
-import { loadContinuation, loadReplies, loadThread, type Thread } from "@/data/posts";
-import { onRelationChanged } from "@/util/events";
-import { FocusedPost, PostRow } from "@/post/post-row";
-import { Button, EmptyState, EndOfList, FeedSkeleton } from "@/ui/controls";
+import { loadContinuation, loadPost, loadReplies, loadThread, type Thread } from "@/data/posts";
+import { useViewer } from "@/data/session";
+import { usePostDeleted } from "@/data/shadow";
+import { onPostCreated, onRelationChanged } from "@/util/events";
+import { usePostMenu } from "@/post/post-actions";
+import { compose, FocusedPost, PostRow } from "@/post/post-row";
+import { Avatar } from "@/ui/avatar";
+import { Button, EmptyState, EndOfList, FeedSkeleton, IconButton } from "@/ui/controls";
+import { ActionSheet } from "@/ui/sheet";
 import { BackButton, Header } from "@/ui/header";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
@@ -31,11 +35,13 @@ type Item =
   | { kind: "replies-heading" }
   | { kind: "reply"; row: Row };
 
+// How often an open post checks it is still there, as the website's gone-cover.tsx does.
+const PRESENCE_EVERY = 30_000;
+
 const keyOf = (item: Item) => (item.kind === "ancestor" || item.kind === "part" || item.kind === "reply" ? `${item.kind}-${item.row.id}` : item.kind);
 
 export default function PostScreen() {
   const palette = usePalette();
-  const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const { id } = useLocalSearchParams<{ id: string }>();
   const postId = z.uuid().safeParse(id).data;
@@ -76,6 +82,32 @@ export default function PostScreen() {
     if (!postId) return;
     return onRelationChanged(() => fetchThread(postId));
   }, [postId, fetchThread]);
+
+  // A reply the member just wrote here joins the conversation.
+  useEffect(() => {
+    if (!postId) return;
+    return onPostCreated((created) => {
+      if (created.parentId === postId) fetchThread(postId);
+    });
+  }, [postId, fetchThread]);
+
+  // A post deleted or removed by someone else while it's open is covered;
+  // one the viewer deleted keeps its Undo placeholder instead.
+  const ready = state.kind === "ready";
+  const deletedHere = usePostDeleted(postId ?? "");
+  useEffect(() => {
+    if (!postId || !ready || deletedHere) return;
+    const timer = setInterval(() => {
+      void loadPost(postId)
+        .then((row) => {
+          if (row === null || (row.kind === "tombstone" && row.id === postId)) update(postId, (current) => (current.kind === "ready" ? { kind: "missing" } : current));
+        })
+        .catch(() => undefined);
+    }, PRESENCE_EVERY);
+    return () => clearInterval(timer);
+  }, [postId, ready, deletedHere, update]);
+
+  const [menu, setMenu] = useState(false);
 
   const retry = () => {
     if (!postId) return;
@@ -118,7 +150,19 @@ export default function PostScreen() {
   };
 
   const title = state.kind === "ready" && state.thread.post.parentId ? "Reply" : "Post";
-  const header = <Header title={title} left={<BackButton />} />;
+  const header = (
+    <Header
+      title={title}
+      left={<BackButton />}
+      right={
+        state.kind === "ready" ? (
+          <IconButton label="Post options" onPress={() => setMenu(true)}>
+            <Ellipsis size={19} color={palette.ink} />
+          </IconButton>
+        ) : undefined
+      }
+    />
+  );
 
   if (state.kind !== "ready") {
     return (
@@ -159,7 +203,7 @@ export default function PostScreen() {
       case "ancestor":
         return <PostRow row={item.row} variant="ancestor" place={item.place} />;
       case "focus":
-        return <FocusedPost post={thread.post} place={place} onLayout={() => setAncestorsFor(postId ?? null)} />;
+        return <FocusedPost post={thread.post} place={place} onLayout={() => setAncestorsFor(postId ?? null)} onMore={() => setMenu(true)} />;
       case "part":
         return <PostRow row={item.row} variant="reply" place={item.place} />;
       case "parts-more":
@@ -201,7 +245,7 @@ export default function PostScreen() {
         onEndReached={moreReplies}
         onEndReachedThreshold={2}
         ListFooterComponent={
-          <View style={{ paddingBottom: insets.bottom, minHeight: thread.ancestors.length > 0 ? Math.max(height - 360, 0) : 0 }}>
+          <View style={{ minHeight: thread.ancestors.length > 0 ? Math.max(height - 360, 0) : 0 }}>
             {state.more === "loading" ? <ActivityIndicator style={{ paddingVertical: 24 }} color={palette.inkMuted} accessibilityLabel="Loading more replies" /> : null}
             {state.more === "failed" ? (
               <Pressable accessibilityRole="button" onPress={moreReplies} style={{ minHeight: 48, alignItems: "center", justifyContent: "center" }}>
@@ -215,6 +259,35 @@ export default function PostScreen() {
         }
         style={{ backgroundColor: palette.surface }}
       />
+      <ReplyBar post={thread.post} />
+      <PostOptions post={thread.post} open={menu} onClose={() => setMenu(false)} />
+    </View>
+  );
+}
+
+function PostOptions({ post, open, onClose }: { post: Post; open: boolean; onClose: () => void }) {
+  const actions = usePostMenu(post);
+  return <ActionSheet title={`Post by @${post.author.username}`} actions={actions} open={open} onClose={onClose} />;
+}
+
+// The reply field sits above the tab bar, so replying never means leaving the post.
+function ReplyBar({ post }: { post: Post }) {
+  const palette = usePalette();
+  const viewer = useViewer();
+  const first = post.author.displayName.split(/\s+/)[0] ?? post.author.displayName;
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 8, borderTopWidth: 1, borderTopColor: palette.hairline, backgroundColor: palette.surface }}>
+      {viewer ? <Avatar person={viewer} size={32} /> : null}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Reply to ${first}`}
+        onPress={() => compose({ reply: post.id })}
+        style={({ pressed }) => ({ flex: 1, minHeight: 44, justifyContent: "center", paddingHorizontal: 16, borderRadius: 22, borderWidth: 1, borderColor: palette.rail, backgroundColor: pressed ? palette.wash : palette.surface })}
+      >
+        <Text variant="callout" tone="muted">
+          Write your reply
+        </Text>
+      </Pressable>
     </View>
   );
 }

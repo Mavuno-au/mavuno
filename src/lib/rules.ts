@@ -59,3 +59,12 @@ export type SuspensionLength = z.infer<typeof suspensionLengthSchema>;
 export const APPEAL_DAYS = 30;
 export const appealDeadline = (createdAt: string) => new Date(new Date(createdAt).getTime() + APPEAL_DAYS * 86_400_000).toISOString();
 export const appealIsOpen = (createdAt: string, now = Date.now()) => Date.parse(appealDeadline(createdAt)) > now;
+
+// One line per rule, in the order of /rules, which has the detail.
+export const RULE_LINES = [
+  { title: "Respect people", line: "Argue about ideas as hard as you like. No harassment, threats, or hate for who someone is.", href: "/rules#respect" },
+  { title: "Keep people safe", line: "No private details, intimate images, sexual content, or anything that encourages harm.", href: "/rules#safety" },
+  { title: "Be honest", line: "No scams, fake accounts or impersonation. Visa help only from registered agents.", href: "/rules#honesty" },
+  { title: "Fair jobs and opportunities", line: "Jobs pay at least the legal minimum and never ask applicants for money.", href: "/rules#opportunities" },
+  { title: "Use the right place", line: "Jobs under Opportunities, gatherings under Events, and space posts on the space's topic.", href: "/rules#right-place" },
+];

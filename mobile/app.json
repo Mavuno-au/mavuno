@@ -45,6 +45,25 @@
             "backgroundColor": "#121110"
           }
         }
+      ],
+      "expo-secure-store",
+      "@react-native-community/datetimepicker",
+      "expo-sharing",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Mavuno opens your photos only when you choose ones to add to a post, a message or your profile.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": false,
+          "remindersPermission": false,
+          "writeOnlyCalendarPermission": "Mavuno adds the events you choose to your calendar."
+        }
       ]
     ],
     "experiments": {

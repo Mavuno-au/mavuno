@@ -3,10 +3,9 @@
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { INTERESTS, LANGUAGES, OPEN_TO, type LanguageCode } from "@/lib/catalogue";
-import { colourSchema } from "@/lib/domain";
 import { done, fail, failFrom, ok, type Result } from "@/lib/result";
-import { emailSchema, firstIssue, httpsUrl, passwordSchema, usernameSchema } from "@/lib/schemas";
+import { emailSchema, firstIssue, usernameSchema } from "@/lib/schemas";
+import { languageSettingsSchema, passwordChangeSchema, privacySchema, profileSchema, type ProfileChanges } from "@/lib/profile-form";
 import { mediaPath, removeProfileMedia, soleOwnedOrganisations } from "@/lib/data/settings";
 import { createClient, type Supabase } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/viewer";
@@ -15,68 +14,7 @@ import { emailLink } from "@/lib/email-link";
 
 const id = z.uuid();
 
-const isLanguage = (value: unknown): value is LanguageCode => LANGUAGES.some((language) => language.code === value);
-const language = z.custom<LanguageCode>(isLanguage, "Choose a language from the list.");
-const optionalText = (max: number, label: string) =>
-  z
-    .string()
-    .trim()
-    .max(max, `${label} can be up to ${max} characters.`)
-    .transform((value) => value || null);
-
-const languagesSchema = z.array(language).min(1, "Choose at least one language.").max(12, "Choose up to 12 languages.");
-
-// Every field is optional so each form sends only what it edits; keys left
-// undefined are dropped when the update is serialised.
-const profileSchema = z
-  .object({
-    displayName: z.string().trim().min(1, "Add your name.").max(60, "Names can be up to 60 characters."),
-    username: usernameSchema,
-    bio: z.string().trim().max(300, "Your bio can be up to 300 characters."),
-    cityId: z.number().int().positive().nullable(),
-    heritage: optionalText(60, "Heritage"),
-    pronouns: optionalText(30, "Pronouns"),
-    interests: z.array(z.enum(INTERESTS)).max(15, "Choose up to 15 interests."),
-    languages: languagesSchema,
-    website: httpsUrl,
-    links: z
-      .array(
-        z.object({
-          label: z.string().trim().min(1, "Give each link a label.").max(40, "Link labels can be up to 40 characters."),
-          url: httpsUrl.pipe(z.string("Add the address for each link.")),
-        }),
-      )
-      .max(5, "Add up to 5 links."),
-    headline: optionalText(100, "Headline"),
-    occupation: optionalText(80, "Occupation"),
-    company: optionalText(80, "Company"),
-    industry: optionalText(60, "Industry"),
-    openTo: z.array(z.enum(OPEN_TO.map((option) => option.value))).max(6),
-    category: optionalText(60, "Category"),
-    colour: colourSchema.nullable(),
-  })
-  .partial()
-  .transform((c) => ({
-    display_name: c.displayName,
-    username: c.username,
-    bio: c.bio,
-    city_id: c.cityId,
-    heritage: c.heritage,
-    pronouns: c.pronouns,
-    interests: c.interests,
-    languages: c.languages,
-    website: c.website,
-    links: c.links,
-    headline: c.headline,
-    occupation: c.occupation,
-    company: c.company,
-    industry: c.industry,
-    open_to: c.openTo,
-    org_category: c.category,
-    colour: c.colour,
-  }));
-
-export type ProfileChanges = z.input<typeof profileSchema>;
+export type { ProfileChanges } from "@/lib/profile-form";
 
 // Works for the viewer's own profile and for organisations they help run;
 // row level security decides which.
@@ -122,14 +60,6 @@ export async function setProfileImage(input: z.input<typeof imageSchema>): Promi
   return done;
 }
 
-const privacySchema = z.object({ dmPolicy: z.enum(["everyone", "following", "nobody"]), discoverable: z.boolean(), readReceipts: z.boolean() });
-
-const languageSettingsSchema = z.object({
-  translationLanguage: language.nullable(),
-  feedLanguagesOnly: z.boolean(),
-  languages: languagesSchema,
-});
-
 async function updateSettings(supabase: Supabase, viewerId: string, changes: Record<string, unknown>) {
   const { error } = await supabase.from("profile_settings").update(changes).eq("id", viewerId);
   return error ? failFrom(error) : done;
@@ -173,10 +103,7 @@ export async function changeEmail(_: Result | null, form: FormData): Promise<Res
 }
 
 export async function changePassword(_: Result | null, form: FormData): Promise<Result> {
-  const parsed = z
-    .object({ password: passwordSchema, confirm: z.string() })
-    .refine((value) => value.password === value.confirm, "The two passwords don't match.")
-    .safeParse(Object.fromEntries(form));
+  const parsed = passwordChangeSchema.safeParse(Object.fromEntries(form));
   if (!parsed.success) return fail(firstIssue(parsed.error));
   const supabase = await createClient();
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });

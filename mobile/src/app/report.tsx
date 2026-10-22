@@ -15,7 +15,7 @@ import { openLink } from "@/util/links";
 
 // The website's report dialog (src/components/moderation/report-dialog.tsx)
 // as a sheet. Opened with the kind and id of what is being reported.
-const targetSchema = z.object({ type: z.enum(["post", "profile"]), id: z.uuid() });
+const targetSchema = z.object({ type: z.enum(["post", "profile", "message", "event", "opportunity", "space"]), id: z.uuid() });
 
 const ESAFETY_REPORT = "https://www.esafety.gov.au/report";
 

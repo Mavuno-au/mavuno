@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import type { PostRow, ReplyPreviews } from "@/lib/domain";
 import { reasonOf, type Reason } from "@/data/errors";
 import type { Page } from "@/data/posts";
-import { onRelationChanged } from "@/util/events";
+import { onPostCreated, onRelationChanged } from "@/util/events";
 
 export type FeedState =
   | { kind: "loading" }
@@ -22,7 +22,9 @@ const LOADING: FeedState = { kind: "loading" };
 
 // Pages of posts after a cursor. `key` names what is being read: what was
 // loaded for another key reads as loading, and late answers for it are dropped.
-export function useFeed(load: (cursor: string | null) => Promise<Page>, key: string, { enabled = true } = {}) {
+// `takesPosts` says the list shows new top-level posts, so it rereads itself
+// after the member posts one.
+export function useFeed(load: (cursor: string | null) => Promise<Page>, key: string, { enabled = true, takesPosts = false } = {}) {
   const [stored, setStored] = useState<{ key: string; state: FeedState }>({ key: "", state: LOADING });
   const state = stored.key === key ? stored.state : LOADING;
   const latest = useRef({ load, key, state });
@@ -104,6 +106,13 @@ export function useFeed(load: (cursor: string | null) => Promise<Page>, key: str
       else retry();
     });
   }, [enabled, refresh, retry]);
+
+  useEffect(() => {
+    if (!enabled || !takesPosts) return;
+    return onPostCreated((post) => {
+      if (post.parentId === null && latest.current.state.kind === "ready") refresh();
+    });
+  }, [enabled, takesPosts, refresh]);
 
   return { state, loadMore, refresh, retry };
 }

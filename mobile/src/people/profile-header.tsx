@@ -1,24 +1,38 @@
-import { BadgeCheck, Building2, CalendarDays, Globe, Languages, Link2, MapPin, Sprout } from "lucide-react-native";
-import type { ReactNode } from "react";
-import { View } from "react-native";
+import { router } from "expo-router";
+import { BadgeCheck, Building2, CalendarDays, Globe, Languages, Link2, MapPin, MessageCircle, Sprout } from "lucide-react-native";
+import { useState, type ReactNode } from "react";
+import { Alert, Pressable, View } from "react-native";
 import { languageName, OPEN_TO } from "@/lib/catalogue";
 import type { ProfileRow } from "@/lib/domain";
 import { displayUrl } from "@/lib/text";
-import { siteLink } from "@/data/env";
-import type { Relationship } from "@/data/profiles";
+import { startConversation } from "@/data/messages";
+import type { FollowersYouKnow, Relationship, TeamMember } from "@/data/profiles";
 import { useProfileShadow } from "@/data/shadow";
 import { FollowButton } from "@/people/follow-button";
 import { RichText } from "@/post/rich-text";
 import { Avatar, ColourDot } from "@/ui/avatar";
-import { Chip } from "@/ui/controls";
+import { Button, Chip } from "@/ui/controls";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
-import { openLabelledLink, openLink } from "@/util/links";
+import { openLabelledLink } from "@/util/links";
 import { timeZone } from "@/util/time";
 
 // What the website's profile header shows (src/app/(app)/u/[username]/profile-header.tsx),
 // laid out as the iPhone design has it.
-export function ProfileHeader({ profile, relationship }: { profile: ProfileRow; relationship: Relationship }) {
+export function ProfileHeader({
+  profile,
+  relationship,
+  manages = false,
+  known = null,
+  team = [],
+}: {
+  profile: ProfileRow;
+  relationship: Relationship;
+  // The viewer helps run this organisation, so they can edit it.
+  manages?: boolean;
+  known?: FollowersYouKnow | null;
+  team?: TeamMember[];
+}) {
   const palette = usePalette();
   const social = useProfileShadow(profile.id, { following: relationship.following, followers: profile.followers_count });
   const person = { displayName: profile.display_name, avatarUrl: profile.avatar_url, colour: profile.colour, accountType: profile.account_type };
@@ -46,7 +60,20 @@ export function ProfileHeader({ profile, relationship }: { profile: ProfileRow; 
     <View style={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: 14, gap: 12 }}>
       <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12 }}>
         <Avatar person={person} size={relationship.self ? 64 : 76} ring />
-        {relationship.self ? null : <FollowButton profileId={profile.id} following={social.following} followsYou={relationship.followsYou} />}
+        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", flexShrink: 1 }}>
+          {relationship.self ? (
+            <>
+              <Button label="Edit profile" variant="outline" size="medium" onPress={() => router.push({ pathname: "/edit-profile", params: { id: profile.id } })} />
+              <Button label="Invite friends" size="medium" onPress={() => router.push("/invite")} />
+            </>
+          ) : (
+            <>
+              {manages ? <Button label="Edit profile" variant="outline" size="medium" onPress={() => router.push({ pathname: "/edit-profile", params: { id: profile.id } })} /> : null}
+              {relationship.canMessage ? <MessageButton profileId={profile.id} /> : null}
+              <FollowButton profileId={profile.id} following={social.following} followsYou={relationship.followsYou} />
+            </>
+          )}
+        </View>
       </View>
       {chips.length > 0 ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{chips}</View> : null}
 
@@ -79,7 +106,7 @@ export function ProfileHeader({ profile, relationship }: { profile: ProfileRow; 
       <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 16, rowGap: 8 }}>
         {profile.city ? (
           <Fact icon={icon(MapPin)}>
-            <Text variant="callout" tone="primary" accessibilityRole="link" onPress={() => openLink(siteLink(`/spaces/${profile.city?.slug ?? ""}`))}>
+            <Text variant="callout" tone="primary" accessibilityRole="link" onPress={() => router.push(`/space/${profile.city?.slug ?? ""}`)}>
               {profile.city.name}, {profile.city.state}
             </Text>
           </Fact>
@@ -111,12 +138,81 @@ export function ProfileHeader({ profile, relationship }: { profile: ProfileRow; 
         </View>
       ) : null}
 
+      {team.length > 0 ? (
+        <View style={{ gap: 6 }}>
+          <Text variant="subhead" tone="muted">
+            Team
+          </Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {team
+              .filter((member) => !member.invited)
+              .map((member) => (
+                <Pressable
+                  key={member.id}
+                  accessibilityRole="link"
+                  accessibilityLabel={`${member.displayName}, ${member.role}`}
+                  onPress={() => router.push(`/profile/${member.username}`)}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: 36, paddingLeft: 4, paddingRight: 10, borderRadius: 18, backgroundColor: palette.wash }}
+                >
+                  <Avatar person={member} size={28} />
+                  <Text variant="subhead">{member.displayName.split(/\s+/)[0]}</Text>
+                </Pressable>
+              ))}
+          </View>
+        </View>
+      ) : null}
+
       <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 18, rowGap: 4 }}>
         <Count value={profile.posts_count} label={profile.posts_count === 1 ? "post" : "posts"} />
-        <Count value={profile.following_count} label="following" />
-        <Count value={social.followers} label={social.followers === 1 ? "follower" : "followers"} />
+        <Count value={profile.following_count} label="following" onPress={() => router.push({ pathname: "/connections/[username]", params: { username: profile.username, direction: "following" } })} />
+        <Count value={social.followers} label={social.followers === 1 ? "follower" : "followers"} onPress={() => router.push({ pathname: "/connections/[username]", params: { username: profile.username, direction: "followers" } })} />
       </View>
+      {known ? (
+        <Pressable accessibilityRole="link" onPress={() => router.push({ pathname: "/connections/[username]", params: { username: profile.username, direction: "followers" } })} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <View style={{ flexDirection: "row" }}>
+            {known.people.map((friend, index) => (
+              <View key={friend.id} style={{ marginLeft: index === 0 ? 0 : -8, borderRadius: 14, borderWidth: 2, borderColor: palette.surface }}>
+                <Avatar person={friend} size={24} />
+              </View>
+            ))}
+          </View>
+          <Text variant="subhead" tone="muted" style={{ flex: 1 }}>
+            Followed by {followedBy(known)}
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
+  );
+}
+
+// "Ama and Kofi", or "Ama, Kofi and 3 others you follow".
+function followedBy(known: FollowersYouKnow) {
+  const names = known.people.map((friend) => friend.displayName.split(/\s+/)[0] ?? friend.displayName);
+  const others = known.total - names.length;
+  if (others > 0) return `${names.join(", ")} and ${others} ${others === 1 ? "other" : "others"} you follow`;
+  return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : (names[0] ?? "");
+}
+
+// Opens the conversation, starting it if this is the first message.
+function MessageButton({ profileId }: { profileId: string }) {
+  const palette = usePalette();
+  const [busy, setBusy] = useState(false);
+  return (
+    <Button
+      label="Message"
+      variant="outline"
+      size="medium"
+      busy={busy}
+      icon={<MessageCircle size={16} color={palette.ink} />}
+      onPress={() => {
+        setBusy(true);
+        void startConversation(profileId).then((result) => {
+          setBusy(false);
+          if (!result.ok) return Alert.alert("Couldn't start a conversation", result.error);
+          router.push(`/conversation/${result.data.id}`);
+        });
+      }}
+    />
   );
 }
 
@@ -135,9 +231,9 @@ function Fact({ icon, children }: { icon?: ReactNode; children: ReactNode }) {
   );
 }
 
-function Count({ value, label }: { value: number; label: string }) {
+function Count({ value, label, onPress }: { value: number; label: string; onPress?: () => void }) {
   return (
-    <Text variant="callout">
+    <Text variant="callout" accessibilityRole={onPress ? "link" : undefined} onPress={onPress}>
       <Text variant="callout" style={{ fontFamily: font.monoMedium }}>
         {value}
       </Text>{" "}

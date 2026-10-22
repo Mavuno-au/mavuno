@@ -1,3 +1,4 @@
+import { useIsFocused } from "expo-router";
 import { ArrowUp, CloudOff } from "lucide-react-native";
 import { useCallback, useEffect, useRef, type ReactElement, type ReactNode } from "react";
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, useWindowDimensions, View } from "react-native";
@@ -24,9 +25,11 @@ type Props = {
   showPreviews?: boolean;
   // How many posts are newer than the top of the list, offered in a pill (use-new-posts.ts).
   fresh?: number;
+  // The profile's pinned post, whose menu offers Unpin.
+  pinnedId?: string;
 };
 
-export function FeedList({ feed, empty, end = "You're all caught up.", header, leading = [], active = true, showPreviews = true, fresh = 0 }: Props) {
+export function FeedList({ feed, empty, end = "You're all caught up.", header, leading = [], active = true, showPreviews = true, fresh = 0, pinnedId }: Props) {
   const { state, loadMore, refresh, retry } = feed;
   const palette = usePalette();
   const insets = useSafeAreaInsets();
@@ -41,7 +44,9 @@ export function FeedList({ feed, empty, end = "You're all caught up.", header, l
     refresh();
   }, [refresh]);
 
-  useEffect(() => (active ? onSoftReset(toTop) : undefined), [active, toTop]);
+  // Only the list on screen in the tab you're in answers.
+  const focused = useIsFocused();
+  useEffect(() => (active && focused ? onSoftReset(toTop) : undefined), [active, focused, toTop]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -49,7 +54,7 @@ export function FeedList({ feed, empty, end = "You're all caught up.", header, l
         ref={list}
         data={rows}
         keyExtractor={(row) => row.id}
-        renderItem={({ item }) => <PostRow row={item} previews={showPreviews ? ready?.previews[item.id] : undefined} />}
+        renderItem={({ item }) => <PostRow row={item} previews={showPreviews ? ready?.previews[item.id] : undefined} pinnedHere={item.id === pinnedId} />}
         ListHeaderComponent={header}
         ListEmptyComponent={
           state.kind === "loading" ? (
@@ -66,7 +71,7 @@ export function FeedList({ feed, empty, end = "You're all caught up.", header, l
         onEndReached={loadMore}
         onEndReachedThreshold={2}
         refreshControl={state.kind === "ready" ? <RefreshControl refreshing={state.refreshing} onRefresh={refresh} tintColor={palette.inkMuted} /> : undefined}
-        scrollsToTop={active}
+        scrollsToTop={active && focused}
         indicatorStyle={palette.dark ? "white" : "black"}
         // Bluesky's settings: enough rows rendered to fill the screen at
         // about 100 points each, a short render batch so scrolling stays

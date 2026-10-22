@@ -1,64 +1,12 @@
 import "server-only";
 import { z } from "zod";
-import { accountTypeSchema, colourSchema, parsePeople, profileCardSchema, CITY_PHOTO_COLUMNS, cityPhotoSchema } from "@/lib/domain";
+import { parsePeople, profileCardSchema, CITY_PHOTO_COLUMNS, cityPhotoSchema } from "@/lib/domain";
 import { publicEnv } from "@/lib/env";
 import { createClient, type Supabase } from "@/lib/supabase/server";
 import type { Viewer } from "@/lib/viewer";
+import { EDITABLE, editableRow, SETTINGS_COLUMNS, settingsRow } from "@/lib/profile-form";
 
-const editableRow = z
-  .object({
-    id: z.uuid(),
-    account_type: accountTypeSchema,
-    username: z.string(),
-    display_name: z.string(),
-    bio: z.string(),
-    avatar_url: z.string().nullable(),
-    banner_url: z.string().nullable(),
-    colour: colourSchema.nullable(),
-    effective_colour: colourSchema,
-    city_id: z.number().nullable(),
-    heritage: z.string().nullable(),
-    pronouns: z.string().nullable(),
-    interests: z.array(z.string()),
-    languages: z.array(z.string()),
-    website: z.string().nullable(),
-    links: z.array(z.object({ label: z.string(), url: z.string() })).catch([]),
-    headline: z.string().nullable(),
-    occupation: z.string().nullable(),
-    company: z.string().nullable(),
-    industry: z.string().nullable(),
-    open_to: z.array(z.string()),
-    org_category: z.string().nullable(),
-  })
-  .transform((p) => ({
-    id: p.id,
-    accountType: p.account_type,
-    username: p.username,
-    displayName: p.display_name,
-    bio: p.bio,
-    avatarUrl: p.avatar_url,
-    bannerUrl: p.banner_url,
-    colour: p.colour,
-    effectiveColour: p.effective_colour,
-    cityId: p.city_id,
-    heritage: p.heritage ?? "",
-    pronouns: p.pronouns ?? "",
-    interests: p.interests,
-    languages: p.languages,
-    website: p.website ?? "",
-    links: p.links,
-    headline: p.headline ?? "",
-    occupation: p.occupation ?? "",
-    company: p.company ?? "",
-    industry: p.industry ?? "",
-    openTo: p.open_to,
-    category: p.org_category ?? "",
-  }));
-
-export type EditableProfile = z.infer<typeof editableRow>;
-
-const EDITABLE =
-  "id, account_type, username, display_name, bio, avatar_url, banner_url, colour, effective_colour, city_id, heritage, pronouns, interests, languages, website, links, headline, occupation, company, industry, open_to, org_category";
+export type { DmPolicy, EditableProfile, PrivateSettings } from "@/lib/profile-form";
 
 export async function loadEditableProfile(match: { id: string } | { username: string }) {
   const supabase = await createClient();
@@ -66,30 +14,11 @@ export async function loadEditableProfile(match: { id: string } | { username: st
   return data ? editableRow.parse(data) : null;
 }
 
-const settingsRow = z
-  .object({
-    dm_policy: z.enum(["everyone", "following", "nobody"]),
-    read_receipts: z.boolean(),
-    discoverable: z.boolean(),
-    translation_language: z.string().nullable(),
-    feed_languages_only: z.boolean(),
-  })
-  .transform((s) => ({
-    dmPolicy: s.dm_policy,
-    readReceipts: s.read_receipts,
-    discoverable: s.discoverable,
-    translationLanguage: s.translation_language,
-    feedLanguagesOnly: s.feed_languages_only,
-  }));
-
-export type PrivateSettings = z.infer<typeof settingsRow>;
-export type DmPolicy = PrivateSettings["dmPolicy"];
-
 export async function loadPrivateSettings(viewer: Viewer) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("profile_settings")
-    .select("dm_policy, read_receipts, discoverable, translation_language, feed_languages_only")
+    .select(SETTINGS_COLUMNS)
     .eq("id", viewer.id)
     .single();
   return settingsRow.parse(data);

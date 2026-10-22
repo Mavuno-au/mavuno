@@ -1,23 +1,23 @@
+import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import { BadgeCheck, Ellipsis, ListTree, Share } from "lucide-react-native";
+import { BadgeCheck, Bookmark, Ellipsis, Heart, ListTree, MessageCircle, Pin, Quote, Share } from "lucide-react-native";
 import { useState, type ReactNode } from "react";
 import { Pressable, View } from "react-native";
 import type { Post, PostRow as Row, ThreadPlace, Tombstone } from "@/lib/domain";
 import { compact, count, fullDate, relativeTime } from "@/lib/format";
 import { foldBody } from "@/lib/text";
-import { siteLink } from "@/data/env";
-import { useViewer } from "@/data/session";
-import { usePostShadow } from "@/data/shadow";
+import { usePostDeleted, usePostShadow } from "@/data/shadow";
 import { EventAttachment, ImageGrid, LinkCard, OpportunityAttachment, PollView, QuotedBlock } from "@/post/attachments";
 import { LikeButton } from "@/post/like-button";
+import { useActsFor, usePostMenu, useSaveToggle } from "@/post/post-actions";
 import { RichText } from "@/post/rich-text";
+import { Translation } from "@/post/translation";
 import { Avatar, ColourDot } from "@/ui/avatar";
 import { Chip } from "@/ui/controls";
 import { ActionSheet } from "@/ui/sheet";
 import { font, Text } from "@/ui/text";
 import { useLargeText, usePalette } from "@/ui/theme";
-import { openLink, postLink, shareLink } from "@/util/links";
-import { useSafetyActions } from "@/util/safety";
+import { postLink, shareLink } from "@/util/links";
 import { timeZone, useNow } from "@/util/time";
 
 // Where a row is shown. A feed row shows the newest replies under it; a reply
@@ -26,10 +26,23 @@ export type Variant = "feed" | "reply" | "ancestor";
 
 const openPost = (post: { id: string }) => router.push(`/post/${post.id}`);
 const openProfile = (username: string) => router.push(`/profile/${username}`);
+export const compose = (params: { reply?: string; quote?: string }) => router.push({ pathname: "/compose", params });
 
-export function PostRow({ row, variant = "feed", previews = [], place }: { row: Row; variant?: Variant; previews?: Row[]; place?: ThreadPlace }) {
+export function PostRow({ row, variant = "feed", previews = [], place, pinnedHere }: { row: Row; variant?: Variant; previews?: Row[]; place?: ThreadPlace; pinnedHere?: boolean }) {
   if (row.kind === "tombstone") return <TombstoneRow row={row} />;
-  return <LivePost post={row} variant={variant} previews={previews} place={place} />;
+  return <LivePost post={row} variant={variant} previews={previews} place={place} pinnedHere={pinnedHere} />;
+}
+
+// What a post the viewer just deleted leaves until Undo runs out.
+function DeletedHere({ post }: { post: Post }) {
+  const palette = usePalette();
+  return (
+    <View accessibilityRole="alert" style={{ paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: palette.hairline, backgroundColor: palette.wash }}>
+      <Text variant="callout" tone="muted">
+        You deleted this post{post.replies > 0 ? `. Its ${count(post.replies, "reply", "replies")} stay under a placeholder.` : "."}
+      </Text>
+    </View>
+  );
 }
 
 // A deleted post keeps its place so the replies under it still read in order.
@@ -63,16 +76,26 @@ function ProfileAvatar({ post, size }: { post: Post; size: number }) {
   );
 }
 
-function LivePost({ post: read, variant, previews, place }: { post: Post; variant: Variant; previews: Row[]; place?: ThreadPlace }) {
+function LivePost({ post: read, variant, previews, place, pinnedHere }: { post: Post; variant: Variant; previews: Row[]; place?: ThreadPlace; pinnedHere?: boolean }) {
   const palette = usePalette();
   const large = useLargeText();
   const post = usePostShadow(read);
+  const deleted = usePostDeleted(post.id);
+  const [menu, setMenu] = useState(false);
+  const actions = usePostMenu(post, { pinnedHere });
+  if (deleted) return <DeletedHere post={post} />;
 
   return (
     <View style={{ borderBottomWidth: variant === "ancestor" ? 0 : 1, borderBottomColor: palette.hairline }}>
       <Pressable
         accessible={false}
         onPress={() => openPost(post)}
+        // Pressing and holding a post opens its menu, as on the ••• button.
+        onLongPress={() => {
+          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          setMenu(true);
+        }}
+        delayLongPress={350}
         style={({ pressed }) => ({ paddingHorizontal: 16, paddingTop: 14, paddingBottom: variant === "ancestor" ? 6 : 2, backgroundColor: pressed ? palette.wash : "transparent" })}
       >
         <View style={{ flexDirection: large ? "column" : "row", gap: large ? 10 : 12 }}>
@@ -100,11 +123,20 @@ function LivePost({ post: read, variant, previews, place }: { post: Post; varian
                 </Text>
               </Pressable>
             ) : null}
-            {variant === "ancestor" ? null : <Footer post={post} />}
+            {pinnedHere ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                <Pin size={13} color={palette.inkMuted} />
+                <Text variant="caption" tone="muted">
+                  Pinned
+                </Text>
+              </View>
+            ) : null}
+            {variant === "ancestor" ? null : <Footer post={post} onMore={() => setMenu(true)} />}
           </View>
         </View>
       </Pressable>
       {variant === "feed" && previews.length > 0 ? <Previews post={post} previews={previews} /> : null}
+      <ActionSheet title={`Post by @${post.author.username}`} actions={actions} open={menu} onClose={() => setMenu(false)} />
     </View>
   );
 }
@@ -196,7 +228,7 @@ function Notes({ post, showSpace, showParent }: { post: Post; showSpace: boolean
   return (
     <>
       {space && showSpace ? (
-        <Text variant="caption" tone="muted" accessibilityRole="link" onPress={() => openLink(siteLink(`/spaces/${space.slug}`))}>
+        <Text variant="caption" tone="muted" accessibilityRole="link" onPress={() => router.push(`/space/${space.slug}`)}>
           {space.emoji ? `${space.emoji} ` : ""}
           {space.name}
         </Text>
@@ -221,17 +253,26 @@ function Notes({ post, showSpace, showParent }: { post: Post; showSpace: boolean
 function Body({ post, focus = false }: { post: Post; focus?: boolean }) {
   const [expanded, setExpanded] = useState(focus);
   if (!post.body) return null;
-  const folded = expanded ? null : foldBody(post.body);
   return (
     <View style={{ gap: 4 }}>
-      <RichText body={folded?.folded ? folded.preview : post.body} variant={focus ? "focus" : "body"} />
-      {folded?.folded ? (
-        <Pressable accessibilityRole="button" onPress={() => setExpanded(true)} hitSlop={8} style={{ alignSelf: "flex-start", minHeight: 32, justifyContent: "center" }}>
-          <Text variant="subhead" tone="primary" style={{ fontFamily: font.medium }}>
-            Show more
-          </Text>
-        </Pressable>
-      ) : null}
+      <Translation
+        post={post}
+        render={(text) => {
+          const folded = expanded ? null : foldBody(text);
+          return (
+            <>
+              <RichText body={folded?.folded ? folded.preview : text} variant={focus ? "focus" : "body"} />
+              {folded?.folded ? (
+                <Pressable accessibilityRole="button" onPress={() => setExpanded(true)} hitSlop={8} style={{ alignSelf: "flex-start", minHeight: 32, justifyContent: "center" }}>
+                  <Text variant="subhead" tone="primary" style={{ fontFamily: font.medium }}>
+                    Show more
+                  </Text>
+                </Pressable>
+              ) : null}
+            </>
+          );
+        }}
+      />
     </View>
   );
 }
@@ -249,54 +290,52 @@ function Attachments({ post }: { post: Post }) {
   );
 }
 
-// The counts, a like for someone else's post (your own shows its count in
-// the text), the share sheet in place of Copy link, and the safety actions
-// the App Store expects on anything someone else wrote. Replying and quoting
-// come next.
-function Footer({ post, focus = false }: { post: Post; focus?: boolean }) {
+// Reply, Quote, Like, Save, Share and the menu, as in the iPhone design.
+// The author sees who liked their post instead of a heart; nobody else can.
+function Footer({ post, focus = false, onMore }: { post: Post; focus?: boolean; onMore: () => void }) {
   const palette = usePalette();
-  const own = useViewer()?.id === post.authorId;
-  const counts = [
-    post.replies > 0 ? count(post.replies, "reply", "replies") : null,
-    post.quotes > 0 ? count(post.quotes, "quote") : null,
-    own && post.likes > 0 ? count(post.likes, "like") : null,
-  ].filter(Boolean);
-  const button = (label: string, icon: ReactNode, onPress: () => void) => (
+  const own = useActsFor(post.authorId);
+  const save = useSaveToggle(post);
+  const size = focus ? 20 : 18;
+  const quotable = post.parentId === null && post.status === "published";
+  const button = (label: string, icon: ReactNode, onPress: () => void, value?: number, selected?: boolean) => (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={selected === undefined ? undefined : { selected }}
       onPress={onPress}
-      hitSlop={6}
-      style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: pressed ? palette.wash : "transparent" })}
+      hitSlop={4}
+      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 5, minWidth: 44, height: 44, paddingHorizontal: value ? 10 : 0, borderRadius: 22, justifyContent: "center", backgroundColor: pressed ? palette.wash : "transparent" })}
     >
       {icon}
+      {value ? (
+        <Text variant="meta" tone="muted">
+          {compact(value)}
+        </Text>
+      ) : null}
     </Pressable>
   );
-  const size = focus ? 20 : 18;
+  const muted = palette.inkMuted;
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 2, minHeight: focus ? 48 : 44, marginRight: -12, borderTopWidth: focus ? 1 : 0, borderTopColor: palette.hairline }}>
-      <Text variant="meta" tone="muted" style={{ flex: 1 }}>
-        {counts.join(" · ")}
-      </Text>
-      {own ? null : <LikeButton post={post} size={size} />}
-      {button("Share", <Share size={size} color={palette.inkMuted} strokeWidth={1.9} />, () => shareLink(postLink(post)))}
-      <PostMenu post={post} trigger={(open) => button("More", <Ellipsis size={size} color={palette.inkMuted} strokeWidth={1.9} />, open)} />
+    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: focus ? 48 : 44, marginLeft: -10, marginRight: -10, borderTopWidth: focus ? 1 : 0, borderTopColor: palette.hairline }}>
+      {button(post.replies > 0 ? `Reply, ${count(post.replies, "reply", "replies")}` : "Reply", <MessageCircle size={size} color={muted} strokeWidth={1.9} />, () => compose({ reply: post.id }), post.replies)}
+      {quotable ? button(post.quotes > 0 ? `Quote, ${count(post.quotes, "quote")}` : "Quote", <Quote size={size} color={muted} strokeWidth={1.9} />, () => compose({ quote: post.id }), post.quotes) : <View style={{ width: 44 }} />}
+      {own ? (
+        button(post.likes > 0 ? `${count(post.likes, "like")}. See who liked it` : "No likes yet", <LikedBy size={size} />, () => router.push(`/likers/${post.id}`), post.likes)
+      ) : (
+        <LikeButton post={post} size={size} />
+      )}
+      {button(post.saved ? "Remove from Saved" : "Save", <Bookmark size={size} color={post.saved ? palette.primary : muted} fill={post.saved ? palette.primary : "none"} strokeWidth={1.9} />, save, undefined, post.saved)}
+      {button("Share", <Share size={size} color={muted} strokeWidth={1.9} />, () => shareLink(postLink(post)))}
+      {button("More", <Ellipsis size={size} color={muted} strokeWidth={1.9} />, onMore)}
     </View>
   );
 }
 
-// Mute, block and report for someone else's post; the website for your own.
-function PostMenu({ post, trigger }: { post: Post; trigger: (open: () => void) => ReactNode }) {
-  const [open, setOpen] = useState(false);
-  const viewer = useViewer();
-  const safety = useSafetyActions({ id: post.authorId, username: post.author.username, muted: post.authorMuted });
-  const actions = [...(viewer?.id === post.authorId ? [] : safety.actions({ report: { type: "post", id: post.id } })), safety.website(postLink(post))];
-  return (
-    <>
-      {trigger(() => setOpen(true))}
-      <ActionSheet title={`Post by @${post.author.username}`} actions={actions} open={open} onClose={() => setOpen(false)} />
-    </>
-  );
+// The heart on your own post isn't a button to like it: it opens who did.
+function LikedBy({ size }: { size: number }) {
+  const palette = usePalette();
+  return <Heart size={size} color={palette.inkMuted} strokeWidth={1.9} />;
 }
 
 // The newest replies under a post in a feed, smaller, with a way to the rest.
@@ -340,10 +379,12 @@ function Previews({ post, previews }: { post: Post; previews: Row[] }) {
 }
 
 // The post a page is about: larger text, its full date, and its counts.
-export function FocusedPost({ post: read, place, onLayout }: { post: Post; place?: ThreadPlace; onLayout?: () => void }): ReactNode {
+export function FocusedPost({ post: read, place, onLayout, onMore }: { post: Post; place?: ThreadPlace; onLayout?: () => void; onMore: () => void }): ReactNode {
   const palette = usePalette();
   const large = useLargeText();
   const post = usePostShadow(read);
+  const deleted = usePostDeleted(post.id);
+  if (deleted) return <DeletedHere post={post} />;
   return (
     <View onLayout={onLayout} style={{ paddingHorizontal: 16, paddingTop: 12, gap: 12, borderBottomWidth: 1, borderBottomColor: palette.hairline }}>
       <View style={{ flexDirection: large ? "column" : "row", alignItems: large ? "flex-start" : "center", gap: 12 }}>
@@ -370,7 +411,7 @@ export function FocusedPost({ post: read, place, onLayout }: { post: Post; place
       <Text variant="meta" tone="muted">
         {fullDate(post.createdAt, timeZone)}
       </Text>
-      <Footer post={post} focus />
+      <Footer post={post} focus onMore={onMore} />
     </View>
   );
 }

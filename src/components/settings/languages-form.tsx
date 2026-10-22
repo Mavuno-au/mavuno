@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { updateLanguages } from "@/app/actions/settings";
 import { ChoiceChips } from "@/components/settings/choice-chips";
-import { knownLanguages, LANGUAGE_CHOICES } from "@/components/settings/choices";
+import { knownLanguages, LANGUAGE_CHOICES } from "@/lib/choices";
 import { SaveBar, SettingsGroup } from "@/components/settings/layout";
 import { useSave } from "@/components/settings/use-save";
 import { Checkbox, Field, Select } from "@/components/ui/field";

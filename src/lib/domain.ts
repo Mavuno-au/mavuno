@@ -273,12 +273,23 @@ export type Tombstone = Extract<PostRow, { kind: "tombstone" }>;
 
 export const parsePosts = (rows: unknown) => z.array(postRowSchema).parse(rows ?? []);
 
+// The app keeps every row that parses and drops the rest, so one post it
+// can't read yet (from a newer database) doesn't empty the whole feed.
+export const parsePostsLenient = (rows: unknown) =>
+  z
+    .array(z.unknown())
+    .parse(rows ?? [])
+    .flatMap((row) => {
+      const parsed = postRowSchema.safeParse(row);
+      return parsed.success ? [parsed.data] : [];
+    });
+
 // The newest replies under each post of a feed page, by the id of the post they answer.
 export type ReplyPreviews = Record<string, PostRow[]>;
 
-export function parseReplyPreviews(rows: unknown): ReplyPreviews {
+export function parseReplyPreviews(rows: unknown, parse: (rows: unknown) => PostRow[] = parsePosts): ReplyPreviews {
   const previews: ReplyPreviews = {};
-  for (const reply of parsePosts(rows)) {
+  for (const reply of parse(rows)) {
     if (!reply.parentId) continue;
     (previews[reply.parentId] ??= []).push(reply);
   }

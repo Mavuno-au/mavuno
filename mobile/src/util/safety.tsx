@@ -9,7 +9,7 @@ import { usePalette } from "@/ui/theme";
 import { openLink } from "@/util/links";
 
 type Person = { id: string; username: string; muted: boolean };
-type ReportTarget = { type: "post" | "profile"; id: string };
+export type ReportTarget = { type: "post" | "profile" | "message" | "event" | "opportunity" | "space"; id: string };
 
 // The same three actions wherever someone else's post or profile is shown,
 // with the website's wording (src/components/people/profile-actions.tsx).
@@ -24,7 +24,7 @@ export function useSafetyActions(person: Person) {
     if (!viewerId) return;
     const result = await setRelation("mute", viewerId, person.id, on);
     if (!result.ok) return Alert.alert(on ? "Couldn't mute" : "Couldn't unmute", result.error);
-    if (on) Alert.alert(`Muted ${handle}`, "Their posts won't show in your feeds. You can undo this here or in Settings on the website.");
+    if (on) Alert.alert(`Muted ${handle}`, "Their posts won't show in your feeds. You can undo this here or in Settings › Safety.");
   }
 
   function confirmBlock() {
@@ -61,7 +61,7 @@ export function useSafetyActions(person: Person) {
       : { label: `Mute ${handle}`, icon: <VolumeX size={20} color={palette.inkMuted} />, onPress: () => void mute(true) },
     { label: `Block ${handle}`, icon: <UserX size={20} color={palette.destructive} />, destructive: true, onPress: confirmBlock },
     {
-      label: report.type === "post" ? "Report post" : "Report profile",
+      label: `Report ${report.type}`,
       icon: <Flag size={20} color={palette.destructive} />,
       destructive: true,
       onPress: () => router.push({ pathname: "/report", params: report }),

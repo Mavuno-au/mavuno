@@ -7,51 +7,15 @@ import { loadContinuation, loadFeed, loadLikers, loadReplies, countNewPosts, typ
 import { linkPreviewSchema, postRowSchema, type LinkPreview, type PostRow } from "@/lib/domain";
 import { feedSourceSchema } from "@/lib/feeds";
 import { publicEnv } from "@/lib/env";
+import { cardLink, mediaBucketUrl, pollArgument, postSchemas, type NewPost, type NewScheduledPost } from "@/lib/post-form";
 import { done, fail, failFrom, ok, type Result } from "@/lib/result";
 import { createClient } from "@/lib/supabase/server";
-import { allUrls } from "@/lib/text";
 import { getViewer } from "@/lib/viewer";
 
 const id = z.uuid();
-const MEDIA_URL = `${new URL(publicEnv.supabaseUrl).origin}/storage/v1/object/public/media/`;
+const { newPost: newPostSchema, scheduled: scheduledPostSchema } = postSchemas(mediaBucketUrl(publicEnv.supabaseUrl));
 
-const newPostSchema = z.object({
-  body: z.string().max(4000),
-  language: z.string().regex(/^[a-z]{2,3}$/),
-  authorId: id.nullable(),
-  parentId: id.nullable(),
-  quoteId: id.nullable(),
-  spaceId: id.nullable(),
-  eventId: id.nullable(),
-  opportunityId: id.nullable(),
-  linkUrl: z.url().nullable(),
-  images: z
-    .array(
-      z
-        .object({ path: z.string().max(300), url: z.url(), width: z.number().int().positive(), height: z.number().int().positive(), alt: z.string().max(1000) })
-        // The database checks the path; only here is the project's own storage host known.
-        .refine((image) => image.url === `${MEDIA_URL}${image.path}`),
-    )
-    .max(4),
-  poll: z.object({ options: z.array(z.string().trim().min(1).max(50)).min(2).max(4), durationHours: z.union([z.literal(1), z.literal(24), z.literal(72), z.literal(168)]) }).nullable(),
-});
-
-export type NewPost = z.input<typeof newPostSchema>;
-
-// Scheduled posts are top-level posts, published later by the database.
-const scheduledPostSchema = newPostSchema
-  .pick({ body: true, language: true, authorId: true, spaceId: true, linkUrl: true, images: true, poll: true })
-  .extend({ scheduledAt: z.iso.datetime({ offset: true }) });
-
-export type NewScheduledPost = z.input<typeof scheduledPostSchema>;
-
-// Only a link that is in the post can become its card. The server fetches the
-// card after the post is created.
-function cardLink(body: string, linkUrl: string | null) {
-  return linkUrl && allUrls(body).includes(linkUrl) ? linkUrl : null;
-}
-
-const pollArgument = (poll: z.infer<typeof newPostSchema>["poll"]) => poll && { options: poll.options, duration_hours: poll.durationHours };
+export type { NewPost, NewScheduledPost } from "@/lib/post-form";
 
 export async function createPost(input: NewPost): Promise<Result<PostRow>> {
   const parsed = newPostSchema.safeParse(input);

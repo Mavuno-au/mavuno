@@ -2,6 +2,16 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
+// The phone app's JavaScript engine (Hermes) lacks the newest array methods
+// and doesn't fill in named regular expression groups, and src/lib runs there too.
+const HERMES_GAPS = [
+  ...["toSorted", "toReversed", "toSpliced", "findLast", "findLastIndex", "with"].map((name) => ({
+    selector: `CallExpression > MemberExpression.callee[property.name="${name}"]`,
+    message: `${name} isn't in the app's JavaScript engine. Copy and sort, or loop, instead.`,
+  })),
+  { selector: "MemberExpression[property.name='groups'][object.name=/^match/]", message: "Named regex groups aren't filled in on the app. Use numbered groups." },
+];
+
 export default defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -18,6 +28,11 @@ export default defineConfig([
       // Apostrophes in JSX text are safe; React escapes text.
       "react/no-unescaped-entities": "off",
     },
+  },
+  {
+    files: ["src/lib/**/*.ts"],
+    ignores: ["src/lib/data/**", "src/lib/**/*.test.ts"],
+    rules: { "no-restricted-syntax": ["error", ...HERMES_GAPS] },
   },
   {
     files: ["scripts/**"],

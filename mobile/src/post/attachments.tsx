@@ -1,17 +1,20 @@
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { Briefcase, CalendarDays, Check } from "lucide-react-native";
-import type { ReactNode } from "react";
-import { Pressable, View } from "react-native";
+import { useEffect, useState, type ReactNode } from "react";
+import { Alert, Pressable, StyleSheet, View } from "react-native";
 import { OPPORTUNITY_TYPES } from "@/lib/catalogue";
 import type { EventSummary, LinkPreview, OpportunitySummary, Poll, Post, PostImage, QuotedPost } from "@/lib/domain";
 import { count, eventDate, pollTimeLeft, relativeTime } from "@/lib/format";
 import { displayUrl } from "@/lib/text";
-import { siteLink } from "@/data/env";
+import { loadLinkPreview, loadPost, votePoll } from "@/data/posts";
+import { useViewer } from "@/data/session";
+import { useShadowWriter } from "@/data/shadow";
 import { Avatar } from "@/ui/avatar";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
-import { openLabelledLink, openLink, postLink } from "@/util/links";
+import { openLabelledLink } from "@/util/links";
+import { openPhotos } from "@/util/photos";
 import { timeZone, useNow } from "@/util/time";
 
 // Bordered blocks are only for things embedded in a post (DESIGN.md).
@@ -25,8 +28,16 @@ const imageLabel = (images: PostImage[], index: number) => images[index]?.alt ||
 export function ImageGrid({ images }: { images: PostImage[] }) {
   const palette = usePalette();
   const block = useBlock();
+  // Tapping a photo opens it full screen, with its description under ALT.
   const tile = (image: PostImage, index: number) => (
-    <View key={image.id} style={{ flex: 1, backgroundColor: palette.wash }} accessible accessibilityRole="image" accessibilityLabel={imageLabel(images, index)}>
+    <Pressable
+      key={image.id}
+      style={{ flex: 1, backgroundColor: palette.wash }}
+      accessibilityRole="imagebutton"
+      accessibilityLabel={imageLabel(images, index)}
+      accessibilityHint="Opens the photo full screen"
+      onPress={() => openPhotos(images, index)}
+    >
       <Image source={image.url} style={{ flex: 1 }} contentFit="cover" transition={150} accessible={false} accessibilityIgnoresInvertColors />
       {image.alt ? (
         <View style={{ position: "absolute", left: 6, bottom: 6, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, backgroundColor: "rgba(0, 0, 0, 0.7)" }}>
@@ -35,7 +46,7 @@ export function ImageGrid({ images }: { images: PostImage[] }) {
           </Text>
         </View>
       ) : null}
-    </View>
+    </Pressable>
   );
 
   const [first, second, third, fourth] = images;
@@ -60,9 +71,46 @@ export function ImageGrid({ images }: { images: PostImage[] }) {
   );
 }
 
-export function LinkCard({ url, preview }: { url: string; preview: LinkPreview | null }) {
+// A post just written may not have its card yet: the server fetches it after
+// the post is created. Its row asks a few times, as the website's awaitCard does.
+const CARD_DELAYS = [1000, 2000, 3000, 5000, 8000, 13000];
+const awaitedCards = new Map<string, string>();
+
+export function awaitCard(url: string, postId: string) {
+  awaitedCards.set(url, postId);
+}
+
+function useLateCard(url: string, preview: LinkPreview | null) {
+  const [postId] = useState(() => (preview ? undefined : awaitedCards.get(url)));
+  const [late, setLate] = useState<LinkPreview | null>(null);
+  useEffect(() => {
+    if (!postId) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let stopped = false;
+    const ask = async (attempt: number) => {
+      const found = await loadLinkPreview(postId).catch(() => null);
+      if (stopped) return;
+      const delay = CARD_DELAYS[attempt + 1];
+      if (found || delay === undefined) {
+        awaitedCards.delete(url);
+        if (found) setLate(found);
+        return;
+      }
+      timer = setTimeout(() => void ask(attempt + 1), delay);
+    };
+    timer = setTimeout(() => void ask(0), CARD_DELAYS[0]);
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [postId, url]);
+  return preview ?? late;
+}
+
+export function LinkCard({ url, preview: read }: { url: string; preview: LinkPreview | null }) {
   const palette = usePalette();
   const block = useBlock();
+  const preview = useLateCard(url, read);
   if (!preview) return null;
   return (
     <Pressable
@@ -159,7 +207,6 @@ function Summary({ icon, title, lines, onPress, label }: { icon: ReactNode; titl
   );
 }
 
-// Events and opportunities have their own pages on the website for now.
 export function EventAttachment({ event }: { event: EventSummary }) {
   const palette = usePalette();
   const when = event.cancelled ? "Cancelled" : eventDate(event.startsAt, event.timezone);
@@ -169,8 +216,8 @@ export function EventAttachment({ event }: { event: EventSummary }) {
       icon={<CalendarDays size={20} color={palette.primary} />}
       title={event.title}
       lines={[when, where].filter(Boolean)}
-      label={`Event: ${event.title}, ${when}, ${where}. Opens on the website.`}
-      onPress={() => openLink(siteLink(`/events/${event.id}`))}
+      label={`Event: ${event.title}, ${when}, ${where}`}
+      onPress={() => router.push(`/event/${event.id}`)}
     />
   );
 }
@@ -188,31 +235,47 @@ export function OpportunityAttachment({ opportunity }: { opportunity: Opportunit
       icon={<Briefcase size={20} color={palette.primary} />}
       title={opportunity.title}
       lines={[kind, status]}
-      label={`Opportunity: ${opportunity.title}, ${kind}, ${status}. Opens on the website.`}
-      onPress={() => openLink(siteLink(`/opportunities/${opportunity.id}`))}
+      label={`Opportunity: ${opportunity.title}, ${kind}, ${status}`}
+      onPress={() => router.push(`/opportunity/${opportunity.id}`)}
     />
   );
 }
 
-// Polls read here; voting is on the website until the app can vote.
+// Tap an option to vote; the results show once you have, or when the poll
+// closes. Authors can't vote in their own polls.
 export function PollView({ post, poll }: { post: Post; poll: Poll }) {
   const palette = usePalette();
+  const viewer = useViewer();
+  const { setPoll } = useShadowWriter();
+  const [voting, setVoting] = useState<string | null>(null);
   const closed = poll.closesAt !== null && new Date(poll.closesAt) < new Date();
-  const open = !closed && poll.myVote === null && poll.closesAt !== null;
-  const footer = [count(poll.votes, "vote"), pollTimeLeft(poll.closesAt), open ? "Vote on the website" : !poll.showResults ? "results show when it closes" : null].filter(Boolean).join(" · ");
-  const options = (
+  const own = viewer !== null && (viewer.id === post.authorId || viewer.organisations.some((organisation) => organisation.id === post.authorId));
+  const open = !closed && poll.myVote === null && poll.closesAt !== null && !own;
+  const footer = [count(poll.votes, "vote"), pollTimeLeft(poll.closesAt), !poll.showResults && !open ? "results show when it closes" : null].filter(Boolean).join(" · ");
+
+  async function vote(optionId: string) {
+    setVoting(optionId);
+    const result = await votePoll(post.id, optionId);
+    if (!result.ok) {
+      setVoting(null);
+      return Alert.alert("Couldn't vote", result.error);
+    }
+    const fresh = await loadPost(post.id).catch(() => null);
+    setVoting(null);
+    if (fresh?.kind === "post" && fresh.poll) setPoll(post.id, fresh.poll);
+  }
+
+  return (
     <View style={{ marginTop: 10, gap: 8 }}>
       {poll.options.map((option) => {
         const share = poll.showResults && poll.votes > 0 ? Math.round(((option.votes ?? 0) / poll.votes) * 100) : 0;
         const mine = poll.myVote === option.id;
-        return (
-          <View
-            key={option.id}
-            accessible
-            accessibilityLabel={`${option.label}${poll.showResults ? `, ${share}%` : ""}${mine ? ", your vote" : ""}`}
-            style={{ minHeight: 40, borderRadius: 8, backgroundColor: palette.wash, overflow: "hidden", flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 8 }}
-          >
-            <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${share}%`, backgroundColor: palette.primarySoft }} />
+        const content = (
+          <>
+            {/* The bar fills a layer the size of the whole option, so 100% reaches the edge. */}
+            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+              <View style={{ width: `${share}%`, height: "100%", backgroundColor: palette.primarySoft }} />
+            </View>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}>
               <Text variant="callout" style={{ fontFamily: font.medium, flexShrink: 1 }}>
                 {option.label}
@@ -220,18 +283,41 @@ export function PollView({ post, poll }: { post: Post; poll: Poll }) {
               {mine ? <Check size={16} color={palette.primary} /> : null}
             </View>
             {poll.showResults ? <Text variant="meta">{share}%</Text> : null}
-          </View>
+          </>
+        );
+        const style = {
+          minHeight: 44,
+          borderRadius: 10,
+          overflow: "hidden" as const,
+          flexDirection: "row" as const,
+          alignItems: "center" as const,
+          justifyContent: "space-between" as const,
+          paddingHorizontal: 12,
+          paddingVertical: 8,
+        };
+        if (!open) {
+          return (
+            <View key={option.id} accessible accessibilityLabel={`${option.label}${poll.showResults ? `, ${share}%` : ""}${mine ? ", your vote" : ""}`} style={[style, { backgroundColor: palette.wash }]}>
+              {content}
+            </View>
+          );
+        }
+        return (
+          <Pressable
+            key={option.id}
+            accessibilityRole="button"
+            accessibilityLabel={`Vote for ${option.label}`}
+            disabled={voting !== null}
+            onPress={() => void vote(option.id)}
+            style={({ pressed }) => [style, { borderWidth: 1, borderColor: palette.primary, backgroundColor: pressed || voting === option.id ? palette.primarySoft : palette.surface }]}
+          >
+            {content}
+          </Pressable>
         );
       })}
       <Text variant="caption" tone="muted">
         {footer}
       </Text>
     </View>
-  );
-  if (!open) return options;
-  return (
-    <Pressable accessibilityRole="link" accessibilityHint="Opens the poll on the website to vote" onPress={() => openLink(postLink(post))}>
-      {options}
-    </Pressable>
   );
 }

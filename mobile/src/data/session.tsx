@@ -2,10 +2,10 @@ import type { Session } from "@supabase/supabase-js";
 import { createContext, use, useEffect, useState, type ReactNode } from "react";
 import { AppState } from "react-native";
 import { z } from "zod";
-import { deletionDate } from "@/lib/age";
-import { profileCardSchema, type ProfileCard } from "@/lib/domain";
 import { DISPLAY_TIME_ZONE } from "@/lib/format";
+import { toViewer, VIEWER_SELECT, type Viewer } from "@/lib/viewer-row";
 import { supabase } from "@/data/supabase";
+import { createEvent } from "@/util/events";
 
 // Why a member is signed out when they didn't ask to be.
 export type Notice = "expired" | "deleted";
@@ -24,7 +24,7 @@ export type SessionState =
   | { kind: "loading" }
   | { kind: "signed-out"; notice: Notice | null }
   // `viewer` is null until the member's own profile has loaded.
-  | { kind: "signed-in"; session: Session; viewer: ProfileCard | null; standing: Standing };
+  | { kind: "signed-in"; session: Session; viewer: Viewer | null; standing: Standing };
 
 const SessionContext = createContext<SessionState>({ kind: "loading" });
 
@@ -35,25 +35,28 @@ export function useViewer() {
   return state.kind === "signed-in" ? state.viewer : null;
 }
 
-const VIEWER_COLUMNS = "id, username, display_name, avatar_url, colour:effective_colour, account_type, org_verified";
-
-const settingsRow = z.object({ banned_at: z.string().nullable(), age_deactivated_at: z.string().nullable() });
-
-function toStanding(settings: z.infer<typeof settingsRow>): Standing {
-  if (settings.banned_at) return { kind: "banned" };
-  if (settings.age_deactivated_at) return { kind: "deactivated", deletesAt: deletionDate(settings.age_deactivated_at) };
+function standingOf(viewer: Viewer): Standing {
+  if (viewer.banned) return { kind: "banned" };
+  if (viewer.age.kind === "deactivated") return { kind: "deactivated", deletesAt: viewer.age.deletesAt };
   return { kind: "active" };
 }
 
+// The website's getViewer (src/lib/viewer.ts), with the same select and parse.
 async function loadViewer(userId: string) {
-  const [profile, settings] = await Promise.all([
-    supabase.from("profiles").select(VIEWER_COLUMNS).eq("id", userId).maybeSingle(),
-    supabase.from("profile_settings").select("banned_at, age_deactivated_at").eq("id", userId).maybeSingle(),
-  ]);
-  const viewer = profile.data ? profileCardSchema.safeParse(profile.data).data ?? null : null;
-  const standing = settings.data ? toStanding(settingsRow.parse(settings.data)) : null;
-  return { viewer, standing };
+  const { data } = await supabase.from("profiles").select(VIEWER_SELECT).eq("id", userId).maybeSingle();
+  let viewer: Viewer | null = null;
+  try {
+    viewer = data ? toViewer(data) : null;
+  } catch {
+    // A row this build can't read leaves the last one shown.
+  }
+  return { viewer, standing: viewer ? standingOf(viewer) : null };
 }
+
+// After something changes the member's own row (accepting the rules, editing
+// the profile, joining a team), the session reads it again.
+const viewerChanged = createEvent();
+export const reloadViewer = viewerChanged.emit;
 
 // The last known standing is kept so a banned member's next launch opens on
 // the notice, not on a feed that then disappears.
@@ -122,20 +125,27 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!userId) return;
     let current = true;
-    void loadViewer(userId).then(({ viewer, standing }) => {
-      if (!current) return;
-      if (standing) localStorage.setItem(standingKey(userId), JSON.stringify(standing));
-      setState((state) => {
-        if (state.kind !== "signed-in" || state.session.user.id !== userId) return state;
-        return { ...state, viewer: viewer ?? state.viewer, standing: standing ?? state.standing };
+    const read = () =>
+      void loadViewer(userId).then(({ viewer, standing }) => {
+        if (!current) return;
+        if (standing) localStorage.setItem(standingKey(userId), JSON.stringify(standing));
+        setState((state) => {
+          if (state.kind !== "signed-in" || state.session.user.id !== userId) return state;
+          return { ...state, viewer: viewer ?? state.viewer, standing: standing ?? state.standing };
+        });
       });
-    });
+    read();
     markSeen(userId);
+    const stopListening = viewerChanged.on(read);
+    // A suspension can end, or a moderator act, while the app is away.
     const subscription = AppState.addEventListener("change", (appState) => {
-      if (appState === "active") markSeen(userId);
+      if (appState !== "active") return;
+      markSeen(userId);
+      read();
     });
     return () => {
       current = false;
+      stopListening();
       subscription.remove();
     };
   }, [userId]);

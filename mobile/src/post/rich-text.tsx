@@ -1,7 +1,6 @@
 import { router } from "expo-router";
 import { displayUrl, tokenize } from "@/lib/text";
 import { openLink } from "@/util/links";
-import { siteLink } from "@/data/env";
 import { Text, type TypeStyle } from "@/ui/text";
 
 // A post body or bio with its links, mentions and topics, tokenized exactly as
@@ -23,7 +22,7 @@ export function RichText({ body, variant = "body", numberOfLines }: { body: stri
             );
           case "topic":
             return (
-              <Text key={index} variant={variant} tone="primary" accessibilityRole="link" onPress={() => openLink(siteLink(`/topics/${segment.topic}`))}>
+              <Text key={index} variant={variant} tone="primary" accessibilityRole="link" onPress={() => router.push(`/topic/${segment.topic}`)}>
                 {segment.text}
               </Text>
             );

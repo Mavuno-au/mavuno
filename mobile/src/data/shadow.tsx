@@ -1,8 +1,8 @@
 import { createContext, use, useCallback, useState, useSyncExternalStore, type ReactNode } from "react";
-import type { Post } from "@/lib/domain";
+import type { Poll, Post } from "@/lib/domain";
 
 // What the viewer has changed since a post or profile was read: a like, a
-// follow. Rows are read once per list, and the same post can sit in several
+// save, a vote, a deletion, a follow. Rows are read once per list, and the same post can sit in several
 // lists, so the change is kept here and laid over every row that shows it,
 // as Bluesky's post shadow does. A count is worked out from the change rather
 // than stored, so a row read again after the change doesn't count it twice.
@@ -34,7 +34,9 @@ function createStore<T>(): Store<T> {
   };
 }
 
-type Shadows = { posts: Store<{ liked: boolean }>; profiles: Store<{ following: boolean }> };
+// `deleted` hides a post the viewer deleted, until Undo or for good.
+type PostShadow = { liked?: boolean; saved?: boolean; poll?: Poll; deleted?: boolean };
+type Shadows = { posts: Store<PostShadow>; profiles: Store<{ following: boolean }> };
 
 const createShadows = (): Shadows => ({ posts: createStore(), profiles: createStore() });
 
@@ -56,8 +58,14 @@ const adjusted = (total: number, was: boolean, now: boolean) => Math.max(total +
 
 export function usePostShadow(post: Post): Post {
   const shadow = useStored(use(ShadowContext).posts, post.id);
-  if (!shadow || shadow.liked === post.liked) return post;
-  return { ...post, liked: shadow.liked, likes: adjusted(post.likes, post.liked, shadow.liked) };
+  if (!shadow) return post;
+  const liked = shadow.liked ?? post.liked;
+  return { ...post, liked, likes: adjusted(post.likes, post.liked, liked), saved: shadow.saved ?? post.saved, poll: shadow.poll ?? post.poll };
+}
+
+// Whether the viewer deleted this post since it was read.
+export function usePostDeleted(postId: string) {
+  return useStored(use(ShadowContext).posts, postId)?.deleted === true;
 }
 
 export function useProfileShadow(id: string, read: { following: boolean; followers: number }) {
@@ -68,8 +76,12 @@ export function useProfileShadow(id: string, read: { following: boolean; followe
 
 export function useShadowWriter() {
   const { posts, profiles } = use(ShadowContext);
+  const change = (postId: string, value: PostShadow) => posts.set(postId, { ...posts.get(postId), ...value });
   return {
-    setLiked: (postId: string, liked: boolean) => posts.set(postId, { liked }),
+    setLiked: (postId: string, liked: boolean) => change(postId, { liked }),
+    setSaved: (postId: string, saved: boolean) => change(postId, { saved }),
+    setPoll: (postId: string, poll: Poll) => change(postId, { poll }),
+    setDeleted: (postId: string, deleted: boolean) => change(postId, { deleted }),
     setFollowing: (profileId: string, following: boolean) => profiles.set(profileId, { following }),
   };
 }

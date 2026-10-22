@@ -1,9 +1,11 @@
 import { useFocusEffect, useIsFocused } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
-import type { FeedKind } from "@/data/posts";
 import { supabase } from "@/data/supabase";
 import { useSignificantReturn } from "@/util/app-state";
+
+// Only Following and Latest are asked, as on the website.
+export type FeedKind = "following" | "latest";
 
 // How long a feed can sit before coming back to it asks whether anything new
 // was posted, and how often to ask while it stays on screen.

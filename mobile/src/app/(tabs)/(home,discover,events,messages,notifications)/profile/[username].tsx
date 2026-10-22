@@ -1,13 +1,14 @@
+import * as Clipboard from "expo-clipboard";
 import { router, useLocalSearchParams } from "expo-router";
-import { CloudOff, Ellipsis, Pin, SearchX, Settings, Share, UserX } from "lucide-react-native";
+import { CloudOff, Ellipsis, Link2, SearchX, Settings, Share, UserX } from "lucide-react-native";
 import { useCallback, useEffect, useState } from "react";
 import { View } from "react-native";
 import { usernameSchema } from "@/lib/schemas";
 import type { Post } from "@/lib/domain";
 import { PROBLEM, reasonOf, type Reason } from "@/data/errors";
-import { loadFeed, loadPinnedPost, type ProfileTab } from "@/data/posts";
-import { loadProfile, type ProfilePage } from "@/data/profiles";
-import { useSession } from "@/data/session";
+import { loadFeed, loadPinnedPost } from "@/data/posts";
+import { loadFollowersYouKnow, loadProfile, loadTeam, type FollowersYouKnow, type ProfilePage, type TeamMember } from "@/data/profiles";
+import { useSession, useViewer } from "@/data/session";
 import { useFeed } from "@/data/use-feed";
 import { ProfileHeader } from "@/people/profile-header";
 import { FeedList } from "@/post/feed-list";
@@ -16,9 +17,12 @@ import { BackButton, Header } from "@/ui/header";
 import { ActionSheet } from "@/ui/sheet";
 import { Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
-import { onRelationChanged } from "@/util/events";
+import { toast } from "@/ui/toast";
+import { onPostCreated, onRelationChanged } from "@/util/events";
 import { profileLink, shareLink } from "@/util/links";
 import { useSafetyActions } from "@/util/safety";
+
+type ProfileTab = "posts" | "replies" | "media";
 
 const TABS = [
   { key: "posts", label: "Posts" },
@@ -28,7 +32,8 @@ const TABS = [
 
 const EMPTY: Record<ProfileTab, string> = { posts: "No posts yet", replies: "No replies yet", media: "No photos yet" };
 
-type State = { kind: "loading" } | { kind: "failed"; reason: Reason } | { kind: "loaded"; page: ProfilePage; pinned: Post | null };
+type Extras = { pinned: Post | null; known: FollowersYouKnow | null; team: TeamMember[] };
+type State = { kind: "loading" } | { kind: "failed"; reason: Reason } | ({ kind: "loaded"; page: ProfilePage } & Extras);
 
 export default function ProfileScreen() {
   const palette = usePalette();
@@ -39,14 +44,24 @@ export default function ProfileScreen() {
   const [tab, setTab] = useState<ProfileTab>("posts");
   // Kept with the username it was loaded for, so another profile never shows while this one loads.
   const [stored, setStored] = useState<{ username: string; state: State }>({ username: "", state: { kind: "loading" } });
-  const state: State = !username ? { kind: "loaded", page: { kind: "missing" }, pinned: null } : stored.username === username ? stored.state : { kind: "loading" };
+  const state: State = !username ? { kind: "loaded", page: { kind: "missing" }, pinned: null, known: null, team: [] } : stored.username === username ? stored.state : { kind: "loading" };
+  const viewer = useViewer();
 
   const fetchProfile = useCallback(
     (forUsername: string) => {
       loadProfile(forUsername, viewerId)
-        .then(async (page) => ({ page, pinned: page.kind === "profile" ? await loadPinnedPost(page.profile.pinned_post_id) : null }))
+        .then(async (page): Promise<{ page: ProfilePage } & Extras> => {
+          if (page.kind !== "profile") return { page, pinned: null, known: null, team: [] };
+          const organisation = page.profile.account_type === "organisation";
+          const [pinned, known, team] = await Promise.all([
+            loadPinnedPost(page.profile.pinned_post_id),
+            page.relationship.self ? null : loadFollowersYouKnow(page.profile.id).catch(() => null),
+            organisation ? loadTeam(page.profile.id).catch(() => []) : [],
+          ]);
+          return { page, pinned, known, team };
+        })
         .then(
-          ({ page, pinned }) => setStored({ username: forUsername, state: { kind: "loaded", page, pinned } }),
+          (loaded) => setStored({ username: forUsername, state: { kind: "loaded", ...loaded } }),
           (error: unknown) => setStored({ username: forUsername, state: { kind: "failed", reason: reasonOf(error) } }),
         );
     },
@@ -63,6 +78,12 @@ export default function ProfileScreen() {
     return onRelationChanged(() => fetchProfile(username));
   }, [username, fetchProfile]);
 
+  // Pinning, editing and posting change what the profile shows.
+  useEffect(() => {
+    if (!username) return;
+    return onPostCreated(() => fetchProfile(username));
+  }, [username, fetchProfile]);
+
   const retry = () => {
     if (!username) return;
     setStored({ username, state: { kind: "loading" } });
@@ -71,11 +92,12 @@ export default function ProfileScreen() {
 
   const profile = state.kind === "loaded" && state.page.kind === "profile" ? state.page : null;
   const profileId = profile?.profile.id ?? "";
-  const feed = useFeed((cursor) => loadFeed({ kind: "profile", profileId, tab }, cursor), `${profileId}:${tab}`, { enabled: profileId !== "" });
+  const feed = useFeed((cursor) => loadFeed({ kind: "profile", profileId, tab }, cursor), `${profileId}:${tab}`, { enabled: profileId !== "", takesPosts: true });
+  const manages = profile !== null && (viewer?.organisations.some((organisation) => organisation.id === profile.profile.id && organisation.role !== "editor") ?? false);
 
   const share = profile ? (
     <IconButton label="Share profile" onPress={() => shareLink(profileLink(profile.profile.username))}>
-      <Share size={20} color={palette.ink} />
+      <Share size={19} color={palette.ink} />
     </IconButton>
   ) : null;
   const right = profile ? (
@@ -83,7 +105,7 @@ export default function ProfileScreen() {
       {share}
       {profile.relationship.self ? (
         <IconButton label="Settings" onPress={() => router.push("/settings")}>
-          <Settings size={20} color={palette.ink} />
+          <Settings size={19} color={palette.ink} />
         </IconButton>
       ) : (
         <ProfileMenu id={profile.profile.id} username={profile.profile.username} muted={profile.relationship.muted} />
@@ -121,20 +143,13 @@ export default function ProfileScreen() {
         showPreviews={false}
         end="That's everything."
         leading={pinned ? [pinned] : []}
+        pinnedId={pinned?.id}
         header={
           <View>
-            <ProfileHeader profile={profile.profile} relationship={profile.relationship} />
+            <ProfileHeader profile={profile.profile} relationship={profile.relationship} manages={manages} known={state.known} team={state.team} />
             <View style={{ paddingHorizontal: 16, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: palette.hairline }}>
               <Segmented label={`${profile.profile.display_name}'s posts`} options={TABS} value={tab} onChange={setTab} />
             </View>
-            {pinned && feed.state.kind === "ready" ? (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingTop: 12 }}>
-                <Pin size={14} color={palette.inkMuted} />
-                <Text variant="caption" tone="muted">
-                  Pinned
-                </Text>
-              </View>
-            ) : null}
           </View>
         }
         empty={<EmptyState title={EMPTY[tab]} />}
@@ -143,17 +158,21 @@ export default function ProfileScreen() {
   );
 }
 
-// Mute, block and report for someone else's profile.
+// Share profile, Copy link, Mute, Block and Report profile.
 function ProfileMenu({ id, username, muted }: { id: string; username: string; muted: boolean }) {
   const palette = usePalette();
   const [open, setOpen] = useState(false);
   const safety = useSafetyActions({ id, username, muted });
+  const actions = [
+    { label: "Copy link", icon: <Link2 size={20} color={palette.inkMuted} />, onPress: () => void Clipboard.setStringAsync(profileLink(username)).then(() => toast("Link copied")) },
+    ...safety.actions({ report: { type: "profile", id } }),
+  ];
   return (
     <>
       <IconButton label="More" onPress={() => setOpen(true)}>
-        <Ellipsis size={20} color={palette.ink} />
+        <Ellipsis size={19} color={palette.ink} />
       </IconButton>
-      <ActionSheet title={`@${username}`} actions={[...safety.actions({ report: { type: "profile", id } }), safety.website(profileLink(username))]} open={open} onClose={() => setOpen(false)} />
+      <ActionSheet title={`@${username}`} actions={actions} open={open} onClose={() => setOpen(false)} />
     </>
   );
 }

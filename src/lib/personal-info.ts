@@ -73,7 +73,8 @@ export function findPersonalInfo(body: string): PersonalInfo[] {
     const kind = classify(match[0]);
     if (kind && !found.some((item) => item.text.includes(match[0].trim()))) add(kind, match);
   }
-  return found.toSorted((a, b) => a.at - b.at).map(({ kind, text: shown }) => ({ kind, text: shown }));
+  // Sorted as a copy rather than with toSorted, which the app's JavaScript engine lacks.
+  return [...found].sort((a, b) => a.at - b.at).map(({ kind, text: shown }) => ({ kind, text: shown }));
 }
 
 const NAMES: Record<PersonalInfoKind, string> = {

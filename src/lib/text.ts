@@ -7,8 +7,10 @@ export type Segment =
 // Mirrors public.extract_mentions and public.extract_topics in the database:
 // no mentions inside email addresses or scoped package names like @scope/pkg.
 // Curly quotes and an ellipsis end a link: phones type them straight after one.
+// The groups are numbered (1 link, 2 mention, 3 topic) rather than named: the
+// app's JavaScript engine doesn't fill in named groups.
 const TOKEN =
-  /(?<url>\bhttps?:\/\/[^\s<>"'“”‘’…]+|\bwww\.[a-z0-9-]+\.[^\s<>"'“”‘’…]+)|(?<![A-Za-z0-9_.@/])@(?<mention>[A-Za-z0-9_]{3,30})(?![A-Za-z0-9_/.-]*[A-Za-z0-9])|(?<![A-Za-z0-9_&/])#(?<topic>[A-Za-z][A-Za-z0-9_]{1,39})/gi;
+  /(\bhttps?:\/\/[^\s<>"'“”‘’…]+|\bwww\.[a-z0-9-]+\.[^\s<>"'“”‘’…]+)|(?<![A-Za-z0-9_.@/])@([A-Za-z0-9_]{3,30})(?![A-Za-z0-9_/.-]*[A-Za-z0-9])|(?<![A-Za-z0-9_&/])#([A-Za-z][A-Za-z0-9_]{1,39})/gi;
 
 const TRAILING_PUNCTUATION = /[.,;:!?'"\]]+$/;
 
@@ -32,7 +34,7 @@ export function tokenize(body: string): Segment[] {
 
   for (const match of body.matchAll(TOKEN)) {
     const start = match.index;
-    const { url, mention, topic } = match.groups ?? {};
+    const [, url, mention, topic] = match;
     pushText(body.slice(cursor, start));
     if (url) {
       const text = trimUrl(url);

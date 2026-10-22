@@ -7,7 +7,7 @@ import { trackEvent } from "@/components/shell/analytics";
 import { Wordmark } from "@/components/shell/brand";
 import { PersonRow } from "@/components/people/person-row";
 import { ChoiceChips } from "@/components/settings/choice-chips";
-import { INTEREST_CHOICES, knownInterests, knownLanguages, LANGUAGE_CHOICES, type Interest } from "@/components/settings/choices";
+import { INTEREST_CHOICES, knownInterests, knownLanguages, LANGUAGE_CHOICES, type Interest } from "@/lib/choices";
 import { CitySelect } from "@/components/settings/city-select";
 import { useSave } from "@/components/settings/use-save";
 import { Button } from "@/components/ui/button";
