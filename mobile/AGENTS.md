@@ -14,7 +14,8 @@ Expo ships breaking changes every SDK. Before writing code against an Expo or Re
 
 - `src/app/` holds routes (Expo Router); every file there is a screen.
 - `src/data/` holds the Supabase client, the session and the queries. The queries follow the website's loaders in `../src/lib/data/` and use the same database functions.
-- `src/post/`, `src/people/` and `src/ui/` hold components; `src/util/` holds links, sharing and time.
+- `src/post/`, `src/people/` and `src/ui/` hold components; `src/util/` holds links, sharing, time, the event bus and the toggle queue.
+- A like or a follow is written to `src/data/shadow.tsx` first and laid over every row that shows the post or profile, then sent through `src/util/toggle-queue.ts`, which serialises taps and puts the server's answer back in the shadow. Add new toggles the same way rather than keeping state in a row.
 - `@/lib/*` is the website's `../src/lib`. Import shared types, schemas and helpers from it, and don't copy them. If what you need is in a server-only file, move it to a plain module on the website side first.
 
 ## Rules

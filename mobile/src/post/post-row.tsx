@@ -6,7 +6,10 @@ import type { Post, PostRow as Row, ThreadPlace, Tombstone } from "@/lib/domain"
 import { compact, count, fullDate, relativeTime } from "@/lib/format";
 import { foldBody } from "@/lib/text";
 import { siteLink } from "@/data/env";
+import { useViewer } from "@/data/session";
+import { usePostShadow } from "@/data/shadow";
 import { EventAttachment, ImageGrid, LinkCard, OpportunityAttachment, PollView, QuotedBlock } from "@/post/attachments";
+import { LikeButton } from "@/post/like-button";
 import { RichText } from "@/post/rich-text";
 import { Avatar, ColourDot } from "@/ui/avatar";
 import { Chip } from "@/ui/controls";
@@ -58,9 +61,10 @@ function ProfileAvatar({ post, size }: { post: Post; size: number }) {
   );
 }
 
-function LivePost({ post, variant, previews, place }: { post: Post; variant: Variant; previews: Row[]; place?: ThreadPlace }) {
+function LivePost({ post: read, variant, previews, place }: { post: Post; variant: Variant; previews: Row[]; place?: ThreadPlace }) {
   const palette = usePalette();
   const large = useLargeText();
+  const post = usePostShadow(read);
 
   return (
     <View style={{ borderBottomWidth: variant === "ancestor" ? 0 : 1, borderBottomColor: palette.hairline }}>
@@ -243,19 +247,23 @@ function Attachments({ post }: { post: Post }) {
   );
 }
 
-// Reading only, for now: the counts, and the share sheet in place of Copy link.
+// The counts, a like for someone else's post (your own shows its count in
+// the text), and the share sheet in place of Copy link. Replying and quoting
+// come next.
 function Footer({ post, focus = false }: { post: Post; focus?: boolean }) {
   const palette = usePalette();
+  const own = useViewer()?.id === post.authorId;
   const counts = [
     post.replies > 0 ? count(post.replies, "reply", "replies") : null,
     post.quotes > 0 ? count(post.quotes, "quote") : null,
-    post.likes > 0 ? count(post.likes, "like") : null,
+    own && post.likes > 0 ? count(post.likes, "like") : null,
   ].filter(Boolean);
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, minHeight: focus ? 48 : 44, borderTopWidth: focus ? 1 : 0, borderTopColor: palette.hairline }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 2, minHeight: focus ? 48 : 44, borderTopWidth: focus ? 1 : 0, borderTopColor: palette.hairline }}>
       <Text variant="meta" tone="muted" style={{ flex: 1 }}>
         {counts.join(" · ")}
       </Text>
+      {own ? null : <LikeButton post={post} size={focus ? 20 : 18} />}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Share"
@@ -310,9 +318,10 @@ function Previews({ post, previews }: { post: Post; previews: Row[] }) {
 }
 
 // The post a page is about: larger text, its full date, and its counts.
-export function FocusedPost({ post, place, onLayout }: { post: Post; place?: ThreadPlace; onLayout?: () => void }): ReactNode {
+export function FocusedPost({ post: read, place, onLayout }: { post: Post; place?: ThreadPlace; onLayout?: () => void }): ReactNode {
   const palette = usePalette();
   const large = useLargeText();
+  const post = usePostShadow(read);
   return (
     <View onLayout={onLayout} style={{ paddingHorizontal: 16, paddingTop: 12, gap: 12, borderBottomWidth: 1, borderBottomColor: palette.hairline }}>
       <View style={{ flexDirection: large ? "column" : "row", alignItems: large ? "flex-start" : "center", gap: 12 }}>

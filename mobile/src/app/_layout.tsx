@@ -5,6 +5,7 @@ import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
 import { useEffect } from "react";
 import { SessionProvider, useSession } from "@/data/session";
+import { ShadowProvider } from "@/data/shadow";
 import { FONTS } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
 import { NowProvider } from "@/util/time";
@@ -43,18 +44,21 @@ function Navigator({ fontsReady }: { fontsReady: boolean }) {
   return (
     <>
       <StatusBar style="auto" />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.surface } }}>
-        {/* index is Home or, signed out, a redirect to Welcome; signing in lands back on it. */}
-        <Stack.Screen name="index" />
-        <Stack.Protected guard={signedIn} redirectTo="/welcome">
-          <Stack.Screen name="post/[id]" />
-          <Stack.Screen name="profile/[username]" />
-        </Stack.Protected>
-        <Stack.Protected guard={!signedIn} redirectTo="/">
-          <Stack.Screen name="welcome" />
-          <Stack.Screen name="sign-in" />
-        </Stack.Protected>
-      </Stack>
+      {/* Keyed on the member, so nothing one person opened, liked or followed stays for the next. */}
+      <ShadowProvider key={signedIn ? session.session.user.id : "signed-out"}>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.surface } }}>
+          {/* index is Home or, signed out, a redirect to Welcome; signing in lands back on it. */}
+          <Stack.Screen name="index" />
+          <Stack.Protected guard={signedIn} redirectTo="/welcome">
+            <Stack.Screen name="post/[id]" />
+            <Stack.Screen name="profile/[username]" />
+          </Stack.Protected>
+          <Stack.Protected guard={!signedIn} redirectTo="/">
+            <Stack.Screen name="welcome" />
+            <Stack.Screen name="sign-in" />
+          </Stack.Protected>
+        </Stack>
+      </ShadowProvider>
     </>
   );
 }

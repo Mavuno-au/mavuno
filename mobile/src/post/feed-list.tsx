@@ -1,13 +1,15 @@
-import { CloudOff } from "lucide-react-native";
-import type { ReactElement, ReactNode } from "react";
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, View } from "react-native";
+import { ArrowUp, CloudOff } from "lucide-react-native";
+import { useCallback, useEffect, useRef, type ReactElement, type ReactNode } from "react";
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { PostRow as Row } from "@/lib/domain";
+import { count } from "@/lib/format";
 import type { FeedState } from "@/data/use-feed";
 import { PostRow } from "@/post/post-row";
 import { Button, EmptyState, EndOfList, FeedSkeleton } from "@/ui/controls";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
+import { onSoftReset } from "@/util/events";
 
 type Props = {
   feed: { state: FeedState; loadMore: () => void; refresh: () => void; retry: () => void };
@@ -16,22 +18,34 @@ type Props = {
   header?: ReactElement;
   // Pinned rows shown before the feed, such as a profile's pinned post.
   leading?: Row[];
-  // Only the list on screen answers a tap on the status bar.
+  // Only the list on screen answers a tap on the status bar or a soft reset.
   active?: boolean;
   showPreviews?: boolean;
+  // How many posts are newer than the top of the list, offered in a pill (use-new-posts.ts).
+  fresh?: number;
 };
 
-export function FeedList({ feed, empty, end = "You're all caught up.", header, leading = [], active = true, showPreviews = true }: Props) {
+export function FeedList({ feed, empty, end = "You're all caught up.", header, leading = [], active = true, showPreviews = true, fresh = 0 }: Props) {
   const { state, loadMore, refresh, retry } = feed;
   const palette = usePalette();
   const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
+  const list = useRef<FlatList<Row>>(null);
   const ready = state.kind === "ready" ? state : null;
   const leadingIds = new Set(leading.map((row) => row.id));
   const rows = ready ? [...leading, ...ready.posts.filter((row) => !leadingIds.has(row.id))] : [];
 
+  const toTop = useCallback(() => {
+    list.current?.scrollToOffset({ offset: 0, animated: true });
+    refresh();
+  }, [refresh]);
+
+  useEffect(() => (active ? onSoftReset(toTop) : undefined), [active, toTop]);
+
   return (
     <View style={{ flex: 1 }}>
       <FlatList
+        ref={list}
         data={rows}
         keyExtractor={(row) => row.id}
         renderItem={({ item }) => <PostRow row={item} previews={showPreviews ? ready?.previews[item.id] : undefined} />}
@@ -53,9 +67,17 @@ export function FeedList({ feed, empty, end = "You're all caught up.", header, l
         refreshControl={state.kind === "ready" ? <RefreshControl refreshing={state.refreshing} onRefresh={refresh} tintColor={palette.inkMuted} /> : undefined}
         scrollsToTop={active}
         indicatorStyle={palette.dark ? "white" : "black"}
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom + (ready?.stale ? 80 : 0) }}
+        // Bluesky's settings: enough rows rendered to fill the screen at
+        // about 100 points each, a short render batch so scrolling stays
+        // smooth, and a list at least half again as tall as the window so
+        // pull to refresh works when there are only a few posts.
+        initialNumToRender={Math.ceil(height / 100)}
+        maxToRenderPerBatch={5}
+        windowSize={9}
+        contentContainerStyle={{ flexGrow: 1, minHeight: height * 1.5, paddingBottom: insets.bottom + (ready?.stale ? 80 : 0) }}
         style={{ backgroundColor: palette.surface }}
       />
+      {fresh > 0 ? <NewPostsPill count={fresh} onPress={toTop} /> : null}
       {ready?.stale ? <OfflineNotice onRetry={refresh} /> : null}
     </View>
   );
@@ -79,6 +101,40 @@ function Footer({ more, next, end, onRetry }: { more: "idle" | "loading" | "fail
     );
   }
   return next ? null : <EndOfList>{end}</EndOfList>;
+}
+
+// Floats over the top of the list until it is tapped or the list refreshes.
+function NewPostsPill({ count: total, onPress }: { count: number; onPress: () => void }) {
+  const palette = usePalette();
+  return (
+    <View pointerEvents="box-none" style={{ position: "absolute", top: 10, left: 0, right: 0, alignItems: "center" }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${count(total, "new post")}. Show them`}
+        onPress={onPress}
+        style={({ pressed }) => ({
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 6,
+          minHeight: 40,
+          paddingLeft: 14,
+          paddingRight: 16,
+          borderRadius: 20,
+          backgroundColor: palette.primary,
+          opacity: pressed ? 0.85 : 1,
+          shadowColor: "#000",
+          shadowOpacity: 0.18,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 6 },
+        })}
+      >
+        <ArrowUp size={16} color={palette.primaryInk} strokeWidth={2.4} />
+        <Text variant="label" tone="primaryInk" maxFontSizeMultiplier={1.6}>
+          {count(total, "new post")}
+        </Text>
+      </Pressable>
+    </View>
+  );
 }
 
 // A refresh that couldn't reach the server keeps the posts already shown.
