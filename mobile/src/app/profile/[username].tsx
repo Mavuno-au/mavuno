@@ -1,21 +1,24 @@
-import { useLocalSearchParams } from "expo-router";
-import { CloudOff, LogOut, Pin, SearchX, Share, UserX } from "lucide-react-native";
+import { router, useLocalSearchParams } from "expo-router";
+import { CloudOff, Ellipsis, Pin, SearchX, Settings, Share, UserX } from "lucide-react-native";
 import { useCallback, useEffect, useState } from "react";
-import { Alert, View } from "react-native";
+import { View } from "react-native";
 import { usernameSchema } from "@/lib/schemas";
 import type { Post } from "@/lib/domain";
+import { PROBLEM, reasonOf, type Reason } from "@/data/errors";
 import { loadFeed, loadPinnedPost, type ProfileTab } from "@/data/posts";
 import { loadProfile, type ProfilePage } from "@/data/profiles";
 import { useSession } from "@/data/session";
-import { supabase } from "@/data/supabase";
 import { useFeed } from "@/data/use-feed";
 import { ProfileHeader } from "@/people/profile-header";
 import { FeedList } from "@/post/feed-list";
 import { Button, EmptyState, FeedSkeleton, IconButton, Segmented } from "@/ui/controls";
 import { BackButton, Header } from "@/ui/header";
+import { ActionSheet } from "@/ui/sheet";
 import { Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
+import { onRelationChanged } from "@/util/events";
 import { profileLink, shareLink } from "@/util/links";
+import { useSafetyActions } from "@/util/safety";
 
 const TABS = [
   { key: "posts", label: "Posts" },
@@ -25,14 +28,7 @@ const TABS = [
 
 const EMPTY: Record<ProfileTab, string> = { posts: "No posts yet", replies: "No replies yet", media: "No photos yet" };
 
-type State = { kind: "loading" } | { kind: "failed" } | { kind: "loaded"; page: ProfilePage; pinned: Post | null };
-
-function signOut() {
-  Alert.alert("Sign out of Mavuno?", undefined, [
-    { text: "Cancel", style: "cancel" },
-    { text: "Sign out", style: "destructive", onPress: () => void supabase.auth.signOut() },
-  ]);
-}
+type State = { kind: "loading" } | { kind: "failed"; reason: Reason } | { kind: "loaded"; page: ProfilePage; pinned: Post | null };
 
 export default function ProfileScreen() {
   const palette = usePalette();
@@ -51,7 +47,7 @@ export default function ProfileScreen() {
         .then(async (page) => ({ page, pinned: page.kind === "profile" ? await loadPinnedPost(page.profile.pinned_post_id) : null }))
         .then(
           ({ page, pinned }) => setStored({ username: forUsername, state: { kind: "loaded", page, pinned } }),
-          () => setStored({ username: forUsername, state: { kind: "failed" } }),
+          (error: unknown) => setStored({ username: forUsername, state: { kind: "failed", reason: reasonOf(error) } }),
         );
     },
     [viewerId],
@@ -59,6 +55,12 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     if (username) fetchProfile(username);
+  }, [username, fetchProfile]);
+
+  // A mute, block or unblock changes the chips and whether the profile shows at all.
+  useEffect(() => {
+    if (!username) return;
+    return onRelationChanged(() => fetchProfile(username));
   }, [username, fetchProfile]);
 
   const retry = () => {
@@ -76,16 +78,18 @@ export default function ProfileScreen() {
       <Share size={20} color={palette.ink} />
     </IconButton>
   ) : null;
-  const right = profile?.relationship.self ? (
+  const right = profile ? (
     <>
       {share}
-      <IconButton label="Sign out" onPress={signOut}>
-        <LogOut size={20} color={palette.ink} />
-      </IconButton>
+      {profile.relationship.self ? (
+        <IconButton label="Settings" onPress={() => router.push("/settings")}>
+          <Settings size={20} color={palette.ink} />
+        </IconButton>
+      ) : (
+        <ProfileMenu id={profile.profile.id} username={profile.profile.username} muted={profile.relationship.muted} />
+      )}
     </>
-  ) : (
-    share
-  );
+  ) : null;
   const header = <Header left={<BackButton />} right={right} />;
 
   if (state.kind !== "loaded" || state.page.kind !== "profile" || !profile) {
@@ -95,7 +99,7 @@ export default function ProfileScreen() {
         {state.kind === "loading" ? <FeedSkeleton rows={3} /> : null}
         {state.kind === "failed" ? (
           <EmptyState icon={<CloudOff size={26} color={palette.inkMuted} />} title="This profile didn't load" action={<Button label="Try again" size="medium" onPress={retry} />}>
-            Check your connection, then try again.
+            {PROBLEM[state.reason]}
           </EmptyState>
         ) : null}
         {state.kind === "loaded" && state.page.kind === "missing" ? (
@@ -103,16 +107,7 @@ export default function ProfileScreen() {
             This profile may have been deleted, or the username has changed.
           </EmptyState>
         ) : null}
-        {state.kind === "loaded" && state.page.kind === "unavailable" ? (
-          <>
-            <Text variant="meta" tone="muted" style={{ paddingHorizontal: 16, fontSize: 15 }}>
-              @{state.page.username}
-            </Text>
-            <EmptyState icon={<UserX size={26} color={palette.inkMuted} />} title="This profile isn't available">
-              {state.page.blockedByViewer ? "You blocked this account. Unblock it to see their posts again." : "You can't see this account's posts."}
-            </EmptyState>
-          </>
-        ) : null}
+        {state.kind === "loaded" && state.page.kind === "unavailable" ? <Unavailable page={state.page} /> : null}
       </View>
     );
   }
@@ -145,5 +140,53 @@ export default function ProfileScreen() {
         empty={<EmptyState title={EMPTY[tab]} />}
       />
     </View>
+  );
+}
+
+// Mute, block and report for someone else's profile.
+function ProfileMenu({ id, username, muted }: { id: string; username: string; muted: boolean }) {
+  const palette = usePalette();
+  const [open, setOpen] = useState(false);
+  const safety = useSafetyActions({ id, username, muted });
+  return (
+    <>
+      <IconButton label="More" onPress={() => setOpen(true)}>
+        <Ellipsis size={20} color={palette.ink} />
+      </IconButton>
+      <ActionSheet title={`@${username}`} actions={[...safety.actions({ report: { type: "profile", id } }), safety.website(profileLink(username))]} open={open} onClose={() => setOpen(false)} />
+    </>
+  );
+}
+
+function Unavailable({ page }: { page: Extract<ProfilePage, { kind: "unavailable" }> }) {
+  const palette = usePalette();
+  const [busy, setBusy] = useState(false);
+  const safety = useSafetyActions({ id: page.id, username: page.username, muted: false });
+  return (
+    <>
+      <Text variant="meta" tone="muted" style={{ paddingHorizontal: 16, fontSize: 15 }}>
+        @{page.username}
+      </Text>
+      <EmptyState
+        icon={<UserX size={26} color={palette.inkMuted} />}
+        title="This profile isn't available"
+        action={
+          page.blockedByViewer ? (
+            <Button
+              label={busy ? "Unblocking…" : "Unblock"}
+              variant="outline"
+              size="medium"
+              busy={busy}
+              onPress={() => {
+                setBusy(true);
+                void safety.unblock().finally(() => setBusy(false));
+              }}
+            />
+          ) : null
+        }
+      >
+        {page.blockedByViewer ? "You blocked this account. Unblock it to see their posts again." : "You can't see this account's posts."}
+      </EmptyState>
+    </>
   );
 }

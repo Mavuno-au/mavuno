@@ -11,7 +11,7 @@ import { Avatar, ColourDot } from "@/ui/avatar";
 import { Chip } from "@/ui/controls";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
-import { openLink } from "@/util/links";
+import { openLabelledLink, openLink } from "@/util/links";
 import { timeZone } from "@/util/time";
 
 // What the website's profile header shows (src/app/(app)/u/[username]/profile-header.tsx),
@@ -86,7 +86,7 @@ export function ProfileHeader({ profile, relationship }: { profile: ProfileRow; 
         {profile.languages.length > 0 ? <Fact icon={icon(Languages)}>{profile.languages.map(languageName).join(", ")}</Fact> : null}
         {links.map((link) => (
           <Fact key={link.url} icon={icon(link.url === profile.website ? Globe : Link2)}>
-            <Text variant="callout" tone="primary" accessibilityRole="link" numberOfLines={1} onPress={() => openLink(link.url)}>
+            <Text variant="callout" tone="primary" accessibilityRole="link" numberOfLines={1} onPress={() => openLabelledLink(link.url, link.label)}>
               {link.label}
             </Text>
           </Fact>

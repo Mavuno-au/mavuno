@@ -18,7 +18,7 @@ export function Button({
 }: {
   label: string;
   onPress: () => void;
-  variant?: "primary" | "outline" | "plain";
+  variant?: "primary" | "outline" | "plain" | "destructive";
   size?: "large" | "medium";
   busy?: boolean;
   disabled?: boolean;
@@ -31,6 +31,7 @@ export function Button({
     primary: { background: palette.primary, border: palette.primary, text: "primaryInk" as const },
     outline: { background: palette.surface, border: palette.rail, text: "ink" as const },
     plain: { background: "transparent", border: "transparent", text: "muted" as const },
+    destructive: { background: palette.destructive, border: palette.destructive, text: "primaryInk" as const },
   }[variant];
   return (
     <Pressable
@@ -57,7 +58,7 @@ export function Button({
         style,
       ]}
     >
-      {busy ? <ActivityIndicator color={variant === "primary" ? palette.primaryInk : palette.inkMuted} /> : icon}
+      {busy ? <ActivityIndicator color={colours.text === "primaryInk" ? palette.primaryInk : palette.inkMuted} /> : icon}
       <Text variant={variant === "plain" ? "callout" : size === "large" ? "headline" : "label"} tone={colours.text}>
         {label}
       </Text>

@@ -1,18 +1,21 @@
 import { router } from "expo-router";
-import { BadgeCheck, ListTree, Share } from "lucide-react-native";
+import { BadgeCheck, Ellipsis, ListTree, Share } from "lucide-react-native";
 import { useState, type ReactNode } from "react";
 import { Pressable, View } from "react-native";
 import type { Post, PostRow as Row, ThreadPlace, Tombstone } from "@/lib/domain";
 import { compact, count, fullDate, relativeTime } from "@/lib/format";
 import { foldBody } from "@/lib/text";
 import { siteLink } from "@/data/env";
+import { useViewer } from "@/data/session";
 import { EventAttachment, ImageGrid, LinkCard, OpportunityAttachment, PollView, QuotedBlock } from "@/post/attachments";
 import { RichText } from "@/post/rich-text";
 import { Avatar, ColourDot } from "@/ui/avatar";
 import { Chip } from "@/ui/controls";
+import { ActionSheet } from "@/ui/sheet";
 import { font, Text } from "@/ui/text";
 import { useLargeText, usePalette } from "@/ui/theme";
 import { openLink, postLink, shareLink } from "@/util/links";
+import { useSafetyActions } from "@/util/safety";
 import { timeZone, useNow } from "@/util/time";
 
 // Where a row is shown. A feed row shows the newest replies under it; a reply
@@ -243,7 +246,8 @@ function Attachments({ post }: { post: Post }) {
   );
 }
 
-// Reading only, for now: the counts, and the share sheet in place of Copy link.
+// Reading only, for now: the counts, the share sheet in place of Copy link,
+// and the safety actions the App Store expects on anything someone else wrote.
 function Footer({ post, focus = false }: { post: Post; focus?: boolean }) {
   const palette = usePalette();
   const counts = [
@@ -251,21 +255,40 @@ function Footer({ post, focus = false }: { post: Post; focus?: boolean }) {
     post.quotes > 0 ? count(post.quotes, "quote") : null,
     post.likes > 0 ? count(post.likes, "like") : null,
   ].filter(Boolean);
+  const button = (label: string, icon: ReactNode, onPress: () => void) => (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      hitSlop={6}
+      style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: pressed ? palette.wash : "transparent" })}
+    >
+      {icon}
+    </Pressable>
+  );
+  const size = focus ? 20 : 18;
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, minHeight: focus ? 48 : 44, borderTopWidth: focus ? 1 : 0, borderTopColor: palette.hairline }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 2, minHeight: focus ? 48 : 44, marginRight: -12, borderTopWidth: focus ? 1 : 0, borderTopColor: palette.hairline }}>
       <Text variant="meta" tone="muted" style={{ flex: 1 }}>
         {counts.join(" · ")}
       </Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Share"
-        onPress={() => shareLink(postLink(post))}
-        hitSlop={6}
-        style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", marginRight: -12, backgroundColor: pressed ? palette.wash : "transparent" })}
-      >
-        <Share size={focus ? 20 : 18} color={palette.inkMuted} strokeWidth={1.9} />
-      </Pressable>
+      {button("Share", <Share size={size} color={palette.inkMuted} strokeWidth={1.9} />, () => shareLink(postLink(post)))}
+      <PostMenu post={post} trigger={(open) => button("More", <Ellipsis size={size} color={palette.inkMuted} strokeWidth={1.9} />, open)} />
     </View>
+  );
+}
+
+// Mute, block and report for someone else's post; the website for your own.
+function PostMenu({ post, trigger }: { post: Post; trigger: (open: () => void) => ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const viewer = useViewer();
+  const safety = useSafetyActions({ id: post.authorId, username: post.author.username, muted: post.authorMuted });
+  const actions = [...(viewer?.id === post.authorId ? [] : safety.actions({ report: { type: "post", id: post.id } })), safety.website(postLink(post))];
+  return (
+    <>
+      {trigger(() => setOpen(true))}
+      <ActionSheet title={`Post by @${post.author.username}`} actions={actions} open={open} onClose={() => setOpen(false)} />
+    </>
   );
 }
 

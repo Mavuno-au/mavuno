@@ -3,6 +3,7 @@ import type { ReactElement, ReactNode } from "react";
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { PostRow as Row } from "@/lib/domain";
+import { PROBLEM } from "@/data/errors";
 import type { FeedState } from "@/data/use-feed";
 import { PostRow } from "@/post/post-row";
 import { Button, EmptyState, EndOfList, FeedSkeleton } from "@/ui/controls";
@@ -41,7 +42,7 @@ export function FeedList({ feed, empty, end = "You're all caught up.", header, l
             <FeedSkeleton />
           ) : state.kind === "failed" ? (
             <EmptyState icon={<CloudOff size={26} color={palette.inkMuted} />} title="Couldn't load posts" action={<Button label="Try again" size="medium" onPress={retry} />}>
-              Check your connection, then try again.
+              {PROBLEM[state.reason]}
             </EmptyState>
           ) : (
             <>{empty}</>

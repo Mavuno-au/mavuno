@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { PostRow, ReplyPreviews } from "@/lib/domain";
+import { reasonOf, type Reason } from "@/data/errors";
 import type { Page } from "@/data/posts";
+import { onRelationChanged } from "@/util/events";
 
 export type FeedState =
   | { kind: "loading" }
-  | { kind: "failed" }
+  | { kind: "failed"; reason: Reason }
   | {
       kind: "ready";
       posts: PostRow[];
@@ -38,10 +40,12 @@ export function useFeed(load: (cursor: string | null) => Promise<Page>, key: str
       (page) => {
         if (current === generation.current) setStored({ key: forKey, state: { kind: "ready", ...page, more: "idle", refreshing: false, stale: false } });
       },
-      () => {
+      (error: unknown) => {
         if (current !== generation.current) return;
         setStored((previous) =>
-          previous.key === forKey && previous.state.kind === "ready" ? { key: forKey, state: { ...previous.state, refreshing: false, stale: true } } : { key: forKey, state: { kind: "failed" } },
+          previous.key === forKey && previous.state.kind === "ready"
+            ? { key: forKey, state: { ...previous.state, refreshing: false, stale: true } }
+            : { key: forKey, state: { kind: "failed", reason: reasonOf(error) } },
         );
       },
     );
@@ -91,6 +95,15 @@ export function useFeed(load: (cursor: string | null) => Promise<Page>, key: str
     setStored({ key: forKey, state: LOADING });
     fetchFirst(forKey);
   }, [fetchFirst]);
+
+  // After a mute or block the posts already shown are reread, quietly.
+  useEffect(() => {
+    if (!enabled) return;
+    return onRelationChanged(() => {
+      if (latest.current.state.kind === "ready") refresh();
+      else retry();
+    });
+  }, [enabled, refresh, retry]);
 
   return { state, loadMore, refresh, retry };
 }

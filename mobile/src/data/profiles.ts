@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { PROFILE_COLUMNS, profileRowSchema, type ProfileRow } from "@/lib/domain";
+import { requestError } from "@/data/errors";
 import { supabase } from "@/data/supabase";
 
 // What the profile header says about the viewer and this profile, as the
@@ -14,14 +15,14 @@ export type Relationship = {
 
 export type ProfilePage =
   | { kind: "missing" }
-  | { kind: "unavailable"; username: string; blockedByViewer: boolean }
+  | { kind: "unavailable"; id: string; username: string; blockedByViewer: boolean }
   | { kind: "profile"; profile: ProfileRow; relationship: Relationship };
 
 const inviteRows = z.array(z.object({ member_id: z.uuid(), invited_by: z.uuid().nullable() }));
 
 export async function loadProfile(username: string, viewerId: string): Promise<ProfilePage> {
   const { data, error } = await supabase.from("profiles").select(PROFILE_COLUMNS).eq("username", username.toLowerCase()).maybeSingle();
-  if (error) throw new Error(`Profile failed: ${error.message}`);
+  if (error) throw requestError("Profile", error);
   if (!data) return { kind: "missing" };
   const profile = profileRowSchema.parse(data);
   if (profile.id === viewerId) return { kind: "profile", profile, relationship: { self: true, followsYou: false, muted: false, invite: null } };
@@ -33,7 +34,8 @@ export async function loadProfile(username: string, viewerId: string): Promise<P
     supabase.rpc("is_blocked_with_viewer", { p_profile_id: profile.id }),
     supabase.from("invites").select("member_id, invited_by").or(`member_id.eq.${profile.id},invited_by.eq.${profile.id}`),
   ]);
-  if (blockedEitherWay.data === true) return { kind: "unavailable", username: profile.username, blockedByViewer: Boolean(blockedByViewer.data) };
+  if (blockedEitherWay.error) throw requestError("Profile", blockedEitherWay.error);
+  if (blockedEitherWay.data === true) return { kind: "unavailable", id: profile.id, username: profile.username, blockedByViewer: Boolean(blockedByViewer.data) };
 
   const between = inviteRows.catch([]).parse(invites.data ?? []);
   const invite = between.some((entry) => entry.member_id === viewerId && entry.invited_by === profile.id)

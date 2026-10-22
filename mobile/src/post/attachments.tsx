@@ -11,7 +11,7 @@ import { siteLink } from "@/data/env";
 import { Avatar } from "@/ui/avatar";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
-import { openLink, postLink } from "@/util/links";
+import { openLabelledLink, openLink, postLink } from "@/util/links";
 import { timeZone, useNow } from "@/util/time";
 
 // Bordered blocks are only for things embedded in a post (DESIGN.md).
@@ -68,7 +68,8 @@ export function LinkCard({ url, preview }: { url: string; preview: LinkPreview |
     <Pressable
       accessibilityRole="link"
       accessibilityLabel={[preview.title, preview.siteName ?? displayUrl(url)].filter(Boolean).join(", ")}
-      onPress={() => openLink(url)}
+      // A page can name any site for itself; the reader is told if that isn't where the link goes.
+      onPress={() => openLabelledLink(url, preview.siteName ?? "")}
       style={({ pressed }) => [block, { marginTop: 10, backgroundColor: pressed ? palette.wash : "transparent" }]}
     >
       {preview.image ? <Image source={preview.image} style={{ aspectRatio: 1.91, backgroundColor: palette.wash }} contentFit="cover" accessible={false} /> : null}

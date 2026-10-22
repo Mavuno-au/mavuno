@@ -40,15 +40,25 @@ function Navigator({ fontsReady }: { fontsReady: boolean }) {
 
   if (!ready) return null;
   const signedIn = session.kind === "signed-in";
+  const active = signedIn && session.standing.kind === "active";
   return (
     <>
       <StatusBar style="auto" />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.surface } }}>
-        {/* index is Home or, signed out, a redirect to Welcome; signing in lands back on it. */}
-        <Stack.Screen name="index" />
-        <Stack.Protected guard={signedIn} redirectTo="/welcome">
+      {/* Keyed on the member, so nothing one person opened stays on the stack for the next. */}
+      <Stack key={signedIn ? session.session.user.id : "signed-out"} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.surface } }}>
+        {/* Each group says where a member who may not see it goes instead. */}
+        <Stack.Protected guard={active} redirectTo={signedIn ? "/standing" : "/welcome"}>
+          <Stack.Screen name="index" />
           <Stack.Screen name="post/[id]" />
           <Stack.Screen name="profile/[username]" />
+          <Stack.Screen name="settings" />
+          <Stack.Screen name="report" options={{ presentation: "modal" }} />
+        </Stack.Protected>
+        <Stack.Protected guard={signedIn && !active} redirectTo={signedIn ? "/" : "/welcome"}>
+          <Stack.Screen name="standing" />
+        </Stack.Protected>
+        <Stack.Protected guard={signedIn} redirectTo="/welcome">
+          <Stack.Screen name="delete-account" />
         </Stack.Protected>
         <Stack.Protected guard={!signedIn} redirectTo="/">
           <Stack.Screen name="welcome" />

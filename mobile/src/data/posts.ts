@@ -1,7 +1,8 @@
 import { z } from "zod";
-import { parsePosts, parseReplyPreviews, postRowSchema, type Post, type PostRow, type ReplyPreviews, type ThreadPlace } from "@/lib/domain";
+import { postRowSchema, type Post, type PostRow, type ReplyPreviews, type ThreadPlace } from "@/lib/domain";
 import { cursorOf, feedTime, PAGE_SIZE, parseTimeCursor, THREAD_MAX_LENGTH, THREAD_PAGE_SIZE } from "@/lib/feeds";
 import { DEFAULT_REPLY_PREVIEWS } from "@/lib/reply-previews";
+import { requestError } from "@/data/errors";
 import { supabase } from "@/data/supabase";
 
 // The website's feed queries (src/lib/data/posts.ts), against the same
@@ -12,6 +13,26 @@ export type ProfileTab = "posts" | "replies" | "media";
 export type Source = { kind: FeedKind } | { kind: "profile"; profileId: string; tab: ProfileTab };
 
 export type Page = { posts: PostRow[]; previews: ReplyPreviews; next: string | null };
+
+// A row this build can't read is left out rather than losing the page: an
+// older app meeting a newer column shouldn't blank the feed.
+const rows = z.array(z.unknown()).catch([]);
+
+export function parseRows(data: unknown): PostRow[] {
+  return rows.parse(data ?? []).flatMap((row) => {
+    const parsed = postRowSchema.safeParse(row);
+    return parsed.success ? [parsed.data] : [];
+  });
+}
+
+function parsePreviews(data: unknown): ReplyPreviews {
+  const previews: ReplyPreviews = {};
+  for (const reply of parseRows(data)) {
+    if (!reply.parentId) continue;
+    (previews[reply.parentId] ??= []).push(reply);
+  }
+  return previews;
+}
 
 function query(source: Source, cursor: string | null) {
   const after = parseTimeCursor(cursor);
@@ -37,14 +58,14 @@ async function loadReplyPreviews(posts: PostRow[]): Promise<ReplyPreviews> {
   const ids = posts.flatMap((post) => (post.kind === "post" && post.replies > 0 ? [post.id] : []));
   if (ids.length === 0) return {};
   const { data, error } = await supabase.rpc("reply_previews", { p_post_ids: ids, p_limit: DEFAULT_REPLY_PREVIEWS });
-  if (error) throw new Error(`Reply previews failed: ${error.message}`);
-  return parseReplyPreviews(data);
+  if (error) throw requestError("Reply previews", error);
+  return parsePreviews(data);
 }
 
 export async function loadFeed(source: Source, cursor: string | null): Promise<Page> {
   const { data, error } = await query(source, cursor);
-  if (error) throw new Error(`Feed ${source.kind} failed: ${error.message}`);
-  const posts = parsePosts(data);
+  if (error) throw requestError(`Feed ${source.kind}`, error);
+  const posts = parseRows(data);
   const last = posts.at(-1);
   const next = posts.length === PAGE_SIZE && last ? cursorOf(sortKey(source, last), last.id) : null;
   return { posts, previews: source.kind === "profile" ? {} : await loadReplyPreviews(posts), next };
@@ -53,21 +74,21 @@ export async function loadFeed(source: Source, cursor: string | null): Promise<P
 export async function loadReplies(postId: string, cursor: string | null) {
   const after = parseTimeCursor(cursor);
   const { data, error } = await supabase.rpc("post_replies", { p_post_id: postId, p_after: after?.key ?? null, p_after_id: after?.id ?? null, p_limit: PAGE_SIZE });
-  if (error) throw new Error(`Replies failed: ${error.message}`);
-  const replies = parsePosts(data);
+  if (error) throw requestError("Replies", error);
+  const replies = parseRows(data);
   const last = replies.at(-1);
   return { replies, next: replies.length === PAGE_SIZE && last ? cursorOf(last.createdAt, last.id) : null };
 }
 
 export async function loadContinuation(postId: string) {
   const { data, error } = await supabase.rpc("post_continuation", { p_post_id: postId, p_limit: THREAD_PAGE_SIZE });
-  if (error) throw new Error(`Thread failed: ${error.message}`);
-  return parsePosts(data);
+  if (error) throw requestError("Thread", error);
+  return parseRows(data);
 }
 
 async function threadPosition(postId: string) {
   const { data, error } = await supabase.rpc("thread_position", { p_post_id: postId });
-  if (error) throw new Error(`Thread position failed: ${error.message}`);
+  if (error) throw requestError("Thread position", error);
   return z.number().int().positive().nullable().parse(data) ?? 1;
 }
 
@@ -89,19 +110,18 @@ export async function loadThread(postId: string): Promise<Thread> {
     supabase.from("post_details").select("*").eq("id", postId).maybeSingle(),
     supabase.rpc("post_ancestors", { p_post_id: postId }),
   ]);
-  if (row.error) throw new Error(`Post failed: ${row.error.message}`);
-  if (ancestors.error) throw new Error(`Ancestors failed: ${ancestors.error.message}`);
+  if (row.error) throw requestError("Post", row.error);
+  if (ancestors.error) throw requestError("Ancestors", ancestors.error);
   if (!row.data) return { kind: "missing" };
   const post = postRowSchema.parse(row.data);
   if (post.kind === "tombstone") return { kind: "missing" };
   const [{ replies, next }, continuation] = await Promise.all([loadReplies(postId, null), loadContinuationOf(post)]);
-  return { kind: "thread", post, ancestors: parsePosts(ancestors.data), continuation, replies, next };
+  return { kind: "thread", post, ancestors: parseRows(ancestors.data), continuation, replies, next };
 }
 
 export async function loadPinnedPost(postId: string | null) {
   if (!postId) return null;
   const { data } = await supabase.from("post_details").select("*").eq("id", postId).maybeSingle();
-  if (!data) return null;
-  const post = postRowSchema.parse(data);
-  return post.kind === "post" && post.status === "published" ? post : null;
+  const post = postRowSchema.safeParse(data).data;
+  return post?.kind === "post" && post.status === "published" ? post : null;
 }

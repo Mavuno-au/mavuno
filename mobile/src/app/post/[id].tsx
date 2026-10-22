@@ -6,7 +6,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { z } from "zod";
 import type { PostRow as Row, ThreadPlace } from "@/lib/domain";
 import { THREAD_MAX_LENGTH } from "@/lib/feeds";
+import { PROBLEM, reasonOf, type Reason } from "@/data/errors";
 import { loadContinuation, loadReplies, loadThread, type Thread } from "@/data/posts";
+import { onRelationChanged } from "@/util/events";
 import { FocusedPost, PostRow } from "@/post/post-row";
 import { Button, EmptyState, EndOfList, FeedSkeleton } from "@/ui/controls";
 import { BackButton, Header } from "@/ui/header";
@@ -17,7 +19,7 @@ type Loaded = Extract<Thread, { kind: "thread" }>;
 type More = "idle" | "loading" | "failed";
 type State =
   | { kind: "loading" }
-  | { kind: "failed" }
+  | { kind: "failed"; reason: Reason }
   | { kind: "missing" }
   | { kind: "ready"; thread: Loaded; parts: Row[]; partsMore: More; replies: Row[]; next: string | null; more: More };
 
@@ -61,12 +63,18 @@ export default function PostScreen() {
               ? { kind: "missing" }
               : { kind: "ready", thread, parts: thread.continuation.kind === "thread" ? thread.continuation.parts : [], partsMore: "idle", replies: thread.replies, next: thread.next, more: "idle" },
         }),
-      () => setStored({ id: forId, state: { kind: "failed" } }),
+      (error: unknown) => setStored({ id: forId, state: { kind: "failed", reason: reasonOf(error) } }),
     );
   }, []);
 
   useEffect(() => {
     if (postId) fetchThread(postId);
+  }, [postId, fetchThread]);
+
+  // After a mute or block the conversation is reread; a blocked author's post is then missing.
+  useEffect(() => {
+    if (!postId) return;
+    return onRelationChanged(() => fetchThread(postId));
   }, [postId, fetchThread]);
 
   const retry = () => {
@@ -119,7 +127,7 @@ export default function PostScreen() {
         {state.kind === "loading" ? <FeedSkeleton rows={3} /> : null}
         {state.kind === "failed" ? (
           <EmptyState icon={<CloudOff size={26} color={palette.inkMuted} />} title="This post didn't load" action={<Button label="Try again" size="medium" onPress={retry} />}>
-            Check your connection, then try again.
+            {PROBLEM[state.reason]}
           </EmptyState>
         ) : null}
         {state.kind === "missing" ? (

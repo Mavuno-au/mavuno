@@ -8,7 +8,12 @@ An Expo app in TypeScript (Expo SDK 58, React Native 0.88, Expo Router). It sign
 - **Home:** Following and Latest, paged as you scroll, with pull to refresh and the newest replies under each post.
 - **A post** with what it answers above it, the rest of its author's thread, and its replies.
 - **A profile:** the header the website shows, then Posts, Replies and Media, with the pinned post first.
+- **Safety:** mute, block and report from any post or profile, as the App Store requires of an app that shows what members write. Reports use the website's reasons and go to the same moderators.
+- **Settings:** help and contact, the rules and policies, sign out and account deletion. Editing a profile still happens on the website.
+- A banned or age-deactivated account sees the notice and a way to appeal, nothing else, as on the website.
 - Reading only. Liking, replying, posting and following come next. Events, opportunities, spaces and topics open on the website.
+
+Links open only when they are web or email addresses, and a link whose label names one site while it goes to another says so before it opens.
 
 Light and dark follow the phone. Text follows the phone's text size, and at the largest sizes post rows stack.
 

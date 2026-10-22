@@ -1,16 +1,25 @@
 import { router } from "expo-router";
+import { Info } from "lucide-react-native";
 import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { siteLink } from "@/data/env";
+import { useSession, type Notice } from "@/data/session";
 import { BrandMark } from "@/ui/brand";
 import { Button } from "@/ui/controls";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
 import { openLink } from "@/util/links";
 
+const NOTICES: Record<Notice, string> = {
+  expired: "You were signed out. Sign in again to keep reading.",
+  deleted: "Your account is deleted. Your profile, posts and the messages you sent are gone. Thank you for being part of Mavuno.",
+};
+
 export default function Welcome() {
   const palette = usePalette();
   const insets = useSafeAreaInsets();
+  const session = useSession();
+  const notice = session.kind === "signed-out" ? session.notice : null;
   const legal = (label: string, path: string) => (
     <Text variant="small" tone="primary" accessibilityRole="link" onPress={() => openLink(siteLink(path))}>
       {label}
@@ -20,8 +29,16 @@ export default function Welcome() {
   return (
     <ScrollView
       style={{ backgroundColor: palette.surface }}
-      contentContainerStyle={{ flexGrow: 1, justifyContent: "space-between", paddingTop: insets.top + 90, paddingBottom: insets.bottom + 24, paddingHorizontal: 24, gap: 40 }}
+      contentContainerStyle={{ flexGrow: 1, justifyContent: "space-between", paddingTop: insets.top + (notice ? 24 : 90), paddingBottom: insets.bottom + 24, paddingHorizontal: 24, gap: 40 }}
     >
+      {notice ? (
+        <View accessibilityRole="alert" style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 14, borderRadius: 14, backgroundColor: palette.wash }}>
+          <Info size={18} color={palette.inkMuted} style={{ marginTop: 2 }} />
+          <Text variant="callout" style={{ flex: 1 }}>
+            {NOTICES[notice]}
+          </Text>
+        </View>
+      ) : null}
       <View style={{ gap: 22, paddingHorizontal: 4 }}>
         <BrandMark height={56} />
         <View style={{ gap: 14 }}>
