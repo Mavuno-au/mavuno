@@ -2221,12 +2221,31 @@ console.log("\nServer errors and switches");
   await service();
   await q("select public.record_server_error('abc123', '/u/[username]', 'render', 'Feed failed')");
   check("errors are forgotten after 14 days", (await q("select 1 from public.server_errors where digest = 'def456'")).length === 0);
+  // Logged in the same millisecond as the newest, which made the order a coin toss.
+  await superuser();
+  await q("update public.server_errors set last_seen = now() - interval '1 minute' where digest = 'unknown'");
   await as(lead);
   const errors = (await one("select public.admin_health() as h")).h.errors;
   check("health lists the last day's errors, newest first", errors.lastDay === 2 && errors.recent[0]?.digest === "abc123" && errors.recent[0].count === 3, errors);
   const tasks = (await one("select public.admin_health() as h")).h.tasks;
   check("health lists failed tasks with their last error", tasks.failed >= 1 && tasks.failures.length >= 1 && typeof tasks.failures[0].error === "string", tasks);
+  const bystander = await createUser("settle-bystander@example.com", { username: "settle_bystander" });
+  await as(bystander);
+  await fails("only admins retry or dismiss failed tasks", "select public.admin_settle_failed_tasks(true)", [], /Admins only/);
+  await as(lead);
+  const retried = (await one("select public.admin_settle_failed_tasks(true) as n")).n;
   await superuser();
+  const again = await q("select attempts, last_error, failed_at from public.background_tasks where failed_at is null and attempts = 0 and run_after <= now()");
+  check(
+    "admins try failed tasks again, from the first try",
+    retried === tasks.failed && (await one("select count(*)::int as n from public.background_tasks where failed_at is not null")).n === 0 && again.length >= retried,
+    { retried, again },
+  );
+  await q("update public.background_tasks set failed_at = now(), last_error = 'Gave up' where id = (select min(id) from public.background_tasks)");
+  await as(lead);
+  check("admins dismiss failed tasks", (await one("select public.admin_settle_failed_tasks(false) as n")).n === 1);
+  await superuser();
+  check("dismissed tasks are gone", (await one("select count(*)::int as n from public.background_tasks where failed_at is not null")).n === 0);
 }
 
 console.log("\nBans, suspensions and the rules");

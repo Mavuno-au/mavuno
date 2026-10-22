@@ -67,7 +67,7 @@ Refreshes every 15 seconds while it is on screen.
 | Publishing scheduled posts | A scheduled post is more than five minutes late |
 | Deleting under-16 accounts | A deactivated account is more than a day past its 30 days (the daily job has stopped) |
 | Scheduled jobs | A `pg_cron` job failed in the last day, is paused, or `pg_cron` can't be read |
-| Background tasks | A link card or automatic check has been due for over 15 minutes and not picked up (nothing is draining the queue), or a task gave up in the last week; held tasks, waiting on a switch, are listed too |
+| Background tasks | A link card or automatic check has been due for over 15 minutes and not picked up (nothing is draining the queue), or a task gave up in the last week; held tasks, waiting on a switch, are listed too. Admins can try the failed ones again or dismiss them |
 | Server errors | Any server error in the last day; the newest ten are listed by route pattern with their count, digest and a message with addresses, ids and numbers taken out |
 | Switches | The automatic check, link cards, photo uploads or translations are turned off; premoderation is noted too |
 | Suspended accounts | Informational |

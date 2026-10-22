@@ -34,7 +34,7 @@ export function MessageComposer({
   const fileInput = useRef<HTMLInputElement>(null);
   const hintId = useId();
   const touch = useTouchKeyboard();
-  const { body, setBody } = useDraft(`${draftPrefix(viewerId)}message:${conversationId}`);
+  const { body, setBody, hold, keep } = useDraft(`${draftPrefix(viewerId)}message:${conversationId}`);
   const [images, setImages] = useState<Attachment[]>([]);
   const [pending, startTransition] = useTransition();
   const remaining = LIMITS.messageBody - body.length;
@@ -74,11 +74,13 @@ export function MessageComposer({
 
   function send() {
     if (!canSend) return;
+    hold();
     startTransition(async () => {
       try {
         const imagePaths = await Promise.all(images.map((image) => uploadMessageImage({ conversationId, blob: image.blob })));
         const result = await sendMessage({ conversationId, body, imagePaths, imageAlts: images.map((image) => image.alt), replyToId: replyTo?.id ?? null });
         if (!result.ok) {
+          keep();
           toast.error(result.error);
           return;
         }
@@ -88,6 +90,7 @@ export function MessageComposer({
         onCancelReply();
         onSent(result.data);
       } catch (error) {
+        keep();
         toast.error(error instanceof Error ? error.message : "Couldn't send. Try again.");
       }
     });

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { AutoRefresh } from "@/components/operations/auto-refresh";
+import { FailedTaskActions } from "@/components/operations/failed-task-actions";
 import { Stat, StatGrid } from "@/components/operations/figures";
 import { LocalTime } from "@/components/ui/local-time";
 import { Chip, Section } from "@/components/ui/page";
@@ -104,6 +105,7 @@ function FailedTasks({ tasks }: { tasks: Health["tasks"] }) {
           ))}
         </ul>
       ) : null}
+      {tasks.failed > 0 ? <FailedTaskActions /> : null}
     </>
   );
 }

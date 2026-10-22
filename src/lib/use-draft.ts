@@ -31,5 +31,15 @@ export function useDraft(key: string | null) {
     setTyped(value);
     if (key) writeDraft(key, value);
   };
-  return { body: typed ?? stored, setBody, restored: typed === null && stored !== "" };
+  const body = typed ?? stored;
+  // While a post is on its way the stored copy is set aside, so a reload in
+  // the meantime (a redeploy, a phone closing the tab) can't bring back text
+  // that was posted. It goes back if posting fails.
+  const hold = () => {
+    if (key) writeDraft(key, "");
+  };
+  const keep = () => {
+    if (key) writeDraft(key, body);
+  };
+  return { body, setBody, hold, keep, restored: typed === null && stored !== "" };
 }

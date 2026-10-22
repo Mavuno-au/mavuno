@@ -85,7 +85,7 @@ export function Composer({
   const fileInput = useRef<HTMLInputElement>(null);
   const key = viewer ? draftKey(viewer.id, mode) : null;
 
-  const { body, setBody, restored } = useDraft(key);
+  const { body, setBody, hold, keep, restored } = useDraft(key);
   const [authorId, setAuthorId] = useState<string | null>(null);
   const [language, setLanguage] = useState(viewer?.languages[0] ?? "en");
   const [images, setImages] = useState<Attachment[]>([]);
@@ -213,6 +213,7 @@ export function Composer({
   }
 
   function send() {
+    hold();
     startTransition(async () => {
       const uploaded: { path: string }[] = [];
       try {
@@ -236,6 +237,7 @@ export function Composer({
           const scheduledAt = scheduledDate(schedule).toISOString();
           const result = await schedulePost({ ...post, scheduledAt });
           if (!result.ok) {
+            keep();
             await removeMedia(uploaded.map((file) => file.path));
             toast.error(result.error);
             return;
@@ -255,6 +257,7 @@ export function Composer({
           opportunityId: mode.kind === "post" ? (mode.opportunityId ?? null) : null,
         });
         if (!result.ok) {
+          keep();
           await removeMedia(uploaded.map((file) => file.path));
           toast.error(result.error);
           return;
@@ -266,6 +269,7 @@ export function Composer({
         toast(pendingReview ? "Sent for review. A moderator will check it, usually within a day." : mode.kind === "reply" ? "Reply posted" : "Posted");
         onPosted?.(result.data);
       } catch (error) {
+        keep();
         await removeMedia(uploaded.map((file) => file.path));
         toast.error(error instanceof Error ? error.message : "Couldn't post. Try again.");
       }
