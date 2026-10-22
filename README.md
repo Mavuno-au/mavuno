@@ -47,6 +47,8 @@ cp .env.example .env.local
 pnpm db:start
 ```
 
+With Podman instead of Docker, point the CLI at its socket first: `export DOCKER_HOST="$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"`. The phone app only needs the database, auth and the API gateway, so `pnpm supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor` keeps a small Mac comfortable.
+
 Copy the API URL and publishable key it prints into `.env.local`, then load the schema and the demo data:
 
 ```bash
