@@ -1,3 +1,4 @@
+import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { Rss, SquarePen, UserPlus } from "lucide-react-native";
 import { useEffect, useState } from "react";
@@ -91,7 +92,17 @@ export default function Home() {
           </>
         }
       >
-        <Pressable accessibilityRole="button" accessibilityLabel="Mavuno" accessibilityHint="Scrolls to the top" onPress={() => emitSoftReset()} hitSlop={8}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Mavuno"
+          accessibilityHint="Scrolls to the top"
+          onPress={() => {
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            emitSoftReset();
+          }}
+          hitSlop={8}
+          style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.94 : 1 }] })}
+        >
           <Wordmark />
         </Pressable>
       </Header>

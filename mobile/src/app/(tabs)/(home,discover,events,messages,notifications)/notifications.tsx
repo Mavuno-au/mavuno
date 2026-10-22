@@ -110,7 +110,7 @@ export default function Notifications() {
         </Pressable>
       ) : null}
       <View style={{ borderBottomWidth: 1, borderBottomColor: palette.hairline }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 8 }} accessibilityRole="tablist">
+        <ScrollView horizontal scrollsToTop={false} showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 8 }} accessibilityRole="tablist">
           {NOTIFICATION_FILTERS.map((option) => {
             const selected = option.key === filter;
             return (

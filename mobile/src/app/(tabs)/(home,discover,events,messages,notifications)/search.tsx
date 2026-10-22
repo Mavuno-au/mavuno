@@ -93,7 +93,7 @@ export default function Search() {
               style={[type.body, { flex: 1, minHeight: 44, color: palette.ink }]}
             />
             {text ? (
-              <Pressable accessibilityRole="button" accessibilityLabel="Clear search" onPress={() => setText("")} hitSlop={8}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Clear search" onPress={() => setText("")} style={{ width: 44, height: 44, marginRight: -12, alignItems: "center", justifyContent: "center" }}>
                 <X size={16} color={palette.inkMuted} />
               </Pressable>
             ) : null}

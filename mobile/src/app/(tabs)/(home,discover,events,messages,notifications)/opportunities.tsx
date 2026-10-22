@@ -62,7 +62,7 @@ export default function Opportunities() {
         }
       />
       <View style={{ borderBottomWidth: 1, borderBottomColor: palette.hairline }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 8 }} accessibilityRole="tablist">
+        <ScrollView horizontal scrollsToTop={false} showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 8 }} accessibilityRole="tablist">
           {chip("All", type === null, () => setType(null))}
           {TYPES.map((option) => chip(option.label, type === option.value, () => setType(option.value)))}
         </ScrollView>

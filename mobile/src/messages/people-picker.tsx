@@ -45,7 +45,7 @@ export function PeoplePicker({ viewerId, chosen, onToggle, exclude = [] }: { vie
           />
         </View>
         {chosen.length > 0 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+          <ScrollView horizontal scrollsToTop={false} showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
             {chosen.map((person) => (
               <Pressable
                 key={person.id}

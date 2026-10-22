@@ -141,6 +141,8 @@ function LivePost({ post: read, variant, previews, place, pinnedHere }: { post: 
           setMenu(true);
         }}
         delayLongPress={350}
+        // A touch that starts a scroll shouldn't flash the row, as on Bluesky.
+        unstable_pressDelay={100}
         style={({ pressed }) => ({ paddingHorizontal: 16, paddingTop: 14, paddingBottom: variant === "ancestor" ? 6 : 2, backgroundColor: pressed ? palette.wash : "transparent" })}
       >
         <View style={{ flexDirection: large ? "column" : "row", gap: large ? 10 : 12 }}>

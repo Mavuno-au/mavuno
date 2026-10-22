@@ -145,6 +145,7 @@ export function NotificationRow({ group, recipientId, followable, seenUnread }: 
     <Pressable
       accessible={false}
       onPress={() => open(latest)}
+      unstable_pressDelay={100}
       style={({ pressed }) => ({ flexDirection: "row", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: palette.hairline, backgroundColor: pressed ? palette.wash : unread ? palette.primarySoft : "transparent" })}
     >
       <View style={{ width: 36, height: 36, borderRadius: 18, borderWidth: 2, borderColor: unread ? palette.primary : palette.rail, alignItems: "center", justifyContent: "center", marginTop: 2 }}>
