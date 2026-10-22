@@ -100,6 +100,20 @@ function wallpaper(colours, width, height, { scale = 1 } = {}) {
   );
 }
 
+// The phone app's icon: the mark on sand, as the iPhone design has it. iOS
+// rounds the corners itself and draws its own background behind the dark and
+// tinted versions; Android's adaptive icon keeps the mark inside its safe zone.
+function phoneIcon(colours, { ground = null, markScale = 0.58 } = {}) {
+  const size = 1024;
+  const height = size * markScale;
+  const width = height * (bounds.width / bounds.height);
+  const background = ground ? `<rect width="${size}" height="${size}" fill="${ground}"/>` : "";
+  return svg(size, size, background + placedMark(colours, { x: (size - width) / 2, y: (size - height) / 2, height }));
+}
+
+// The mark cropped to its drawn area for the launch screen, which shows it 64 points wide.
+const launchMark = (colours) => png(svg(bounds.width, bounds.height, placedMark(colours, { x: 0, y: 0, height: bounds.height })), 384);
+
 const out = (path, data) => {
   mkdirSync(dirname(join(root, path)), { recursive: true });
   writeFileSync(join(root, path), data);
@@ -128,6 +142,13 @@ const written = [
   out("src/app/opengraph-image.png", png(wallpaper(light, 1200, 630, { scale: 1.45 }), 1200)),
   // Email clients don't show SVG; the sign-in emails use this at half size.
   out("public/brand/mavuno-email-wordmark.png", png(wordmarkFile(light), 360)),
+  out("mobile/assets/icon.png", png(phoneIcon(light, { ground: light.ground }), 1024)),
+  out("mobile/assets/icon-dark.png", png(phoneIcon(dark), 1024)),
+  out("mobile/assets/icon-tinted.png", png(phoneIcon({ leaf: "#d9d9d9", seed: "#9a9a9a" }), 1024)),
+  out("mobile/assets/android-icon-foreground.png", png(phoneIcon(light, { markScale: 0.4 }), 1024)),
+  out("mobile/assets/android-icon-monochrome.png", png(phoneIcon({ leaf: "#ffffff", seed: "#ffffff" }, { markScale: 0.4 }), 1024)),
+  out("mobile/assets/splash.png", launchMark(light)),
+  out("mobile/assets/splash-dark.png", launchMark(dark)),
 ];
 
 console.log(written.join("\n"));

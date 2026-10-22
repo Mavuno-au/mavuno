@@ -23,6 +23,6 @@ export default defineConfig([
     files: ["scripts/**"],
     rules: { "no-console": "off" },
   },
-  // .claude holds installed agent skills, not app code.
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "supabase/**", ".claude/**"]),
+  // .claude holds installed agent skills, not app code. The phone app has its own config.
+  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "supabase/**", ".claude/**", "mobile/**"]),
 ]);

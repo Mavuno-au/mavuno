@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { cache } from "react";
 import { z } from "zod";
 import { parsePeople, parsePosts, parseReplyPreviews, postRowSchema, type PersonSummary, type Post, type PostRow, type ReplyPreviews, type ThreadPlace } from "@/lib/domain";
-import { feedTime, PAGE_SIZE, THREAD_MAX_LENGTH, THREAD_PAGE_SIZE, type FeedSource } from "@/lib/feeds";
+import { cursorOf, feedTime, PAGE_SIZE, parseTimeCursor, splitCursor, THREAD_MAX_LENGTH, THREAD_PAGE_SIZE, type FeedSource } from "@/lib/feeds";
 import { parseReplyPreviewCount, REPLY_PREVIEWS_COOKIE } from "@/lib/reply-previews";
 import { createClient } from "@/lib/supabase/server";
 
@@ -21,25 +21,12 @@ const score = z.union([z.number(), z.string()]).transform(String);
 const trendingRows = z.array(z.object({ trending_score: score, post: z.unknown() }).transform((row) => ({ score: row.trending_score, post: row.post })));
 const searchRows = z.array(z.object({ search_score: score, post: z.unknown() }).transform((row) => ({ score: row.search_score, post: row.post })));
 
-// Lists page after the sort key and id of the last row shown, so rows that
-// share a key (scheduled posts published together) are never skipped.
-const cursorOf = (key: string, id: string) => `${key}:${id}`;
-const splitCursor = (cursor: string) => ({ key: cursor.slice(0, -37), id: cursor.slice(-36) });
-
-const timeCursor = z
-  .string()
-  .regex(/^.+:[0-9a-f-]{36}$/)
-  .transform(splitCursor)
-  .pipe(z.object({ key: z.iso.datetime({ offset: true }), id: z.uuid() }));
-
 // Trending and search page after a score.
 const scoreCursor = z
   .string()
   .regex(/^-?\d+(\.\d+)?:[0-9a-f-]{36}$/)
   .transform(splitCursor)
   .pipe(z.object({ key: z.string(), id: z.uuid() }));
-
-const parseTimeCursor = (cursor: string | null) => (cursor ? timeCursor.parse(cursor) : null);
 
 async function query(source: FeedSource, cursor: string | null) {
   const supabase = await createClient();

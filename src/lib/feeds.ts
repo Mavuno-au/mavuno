@@ -24,6 +24,19 @@ export const PAGE_SIZE = 20;
 // after review comes in at the top. One still waiting has only its writing time.
 export const feedTime = (row: Pick<PostRow, "publishedAt" | "createdAt">) => row.publishedAt ?? row.createdAt;
 
+// Lists page after the sort key and id of the last row shown, so rows that
+// share a key (scheduled posts published together) are never skipped.
+export const cursorOf = (key: string, id: string) => `${key}:${id}`;
+export const splitCursor = (cursor: string) => ({ key: cursor.slice(0, -37), id: cursor.slice(-36) });
+
+const timeCursor = z
+  .string()
+  .regex(/^.+:[0-9a-f-]{36}$/)
+  .transform(splitCursor)
+  .pipe(z.object({ key: z.iso.datetime({ offset: true }), id: z.uuid() }));
+
+export const parseTimeCursor = (cursor: string | null) => (cursor ? timeCursor.parse(cursor) : null);
+
 // A continued thread reads this many posts at a time, and at most THREAD_MAX_LENGTH past the post on screen.
 export const THREAD_PAGE_SIZE = 10;
 export const THREAD_MAX_LENGTH = 100;

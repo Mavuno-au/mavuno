@@ -74,3 +74,14 @@ export function followedBy(names: readonly string[], total: number) {
 export function calendarDate(iso: string, timeZone = DISPLAY_TIME_ZONE) {
   return new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric", timeZone });
 }
+
+// A poll's clock starts when its post is published.
+export function pollTimeLeft(closesAt: string | null, now = Date.now()) {
+  if (!closesAt) return "Opens when published";
+  const ms = new Date(closesAt).getTime() - now;
+  if (ms <= 0) return "Final results";
+  const hours = Math.floor(ms / 3_600_000);
+  if (hours >= 24) return `${Math.floor(hours / 24)}d left`;
+  if (hours >= 1) return `${hours}h left`;
+  return `${Math.max(1, Math.floor(ms / 60_000))}m left`;
+}

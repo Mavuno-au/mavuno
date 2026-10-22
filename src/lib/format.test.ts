@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { count, dayLabel, followedBy, relativeTime } from "./format";
+import { count, dayLabel, followedBy, pollTimeLeft, relativeTime } from "./format";
 
 const now = new Date("2026-10-20T01:00:00Z").getTime();
 const ago = (ms: number) => new Date(now - ms).toISOString();
@@ -46,5 +46,20 @@ describe("followedBy", () => {
     [[], 0, null],
   ])("names %j of %d", (names, total, expected) => {
     expect(followedBy(names, total)).toBe(expected);
+  });
+});
+
+describe("pollTimeLeft", () => {
+  const later = (ms: number) => new Date(now + ms).toISOString();
+
+  it.each([
+    [null, "Opens when published"],
+    [later(-1), "Final results"],
+    [later(30_000), "1m left"],
+    [later(45 * 60_000), "45m left"],
+    [later(5 * 3_600_000), "5h left"],
+    [later(3 * 86_400_000), "3d left"],
+  ])("prints %s as %s", (closesAt, expected) => {
+    expect(pollTimeLeft(closesAt, now)).toBe(expected);
   });
 });

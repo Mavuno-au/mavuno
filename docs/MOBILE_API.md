@@ -288,6 +288,10 @@ Moderators and admins; the website can stay the place for this at first. All exc
 
 ## Code the app can share
 
-These modules in `src/lib` import nothing from Next.js or the server and can be shared as they are (they import each other with the `@/lib` alias, which the app maps too): `domain.ts`, `schemas.ts`, `age.ts`, `result.ts`, `text.ts`, `notifications.ts`, `catalogue.ts`, `rules.ts`, `feeds.ts`, `format.ts`, `invites.ts`, `who-to-follow.ts`, `calendar.ts`, `personal-info.ts`, `schedule.ts`.
+The app in `mobile/` imports these modules from `src/lib` as `@/lib/*` (see `mobile/README.md`). They import nothing from Next.js or the server and import each other with the same alias: `domain.ts`, `schemas.ts`, `age.ts`, `result.ts`, `text.ts`, `notifications.ts`, `catalogue.ts`, `rules.ts`, `feeds.ts`, `format.ts`, `invites.ts`, `who-to-follow.ts`, `calendar.ts`, `personal-info.ts`, `schedule.ts`, `reply-previews.ts` and `brand-mark.ts`.
 
-The form schemas for events, opportunities and spaces (`formField`, `fromZonedInput`, `RESERVED_SPACE_SLUGS`) and the row parsers in `src/lib/data/*` sit in server-only modules, and the event, opportunity and profile schemas are inside the action files. Moving them to plain modules would let the app import them rather than copy them.
+- `feeds.ts` holds the time cursors the feeds page by (`cursorOf`, `parseTimeCursor`), and `domain.ts` the profile row and its columns (`profileRowSchema`, `PROFILE_COLUMNS`).
+- `schemas.ts` holds the sign-in form and its messages (`signInSchema`, `signInError`).
+- `format.ts` holds a poll's time left (`pollTimeLeft`), `text.ts` avatar initials, and `reply-previews.ts` how many replies show under a post by default.
+
+The form schemas for events, opportunities and spaces (`formField`, `fromZonedInput`, `RESERVED_SPACE_SLUGS`) and most row parsers in `src/lib/data/*` sit in server-only modules, and the event, opportunity and profile edit schemas are inside the action files. Move each to a plain module when the app first needs it, as was done for the feeds and profiles.
