@@ -1,4 +1,3 @@
-import * as Haptics from "expo-haptics";
 import { Heart } from "lucide-react-native";
 import { useState } from "react";
 import { Animated, Pressable } from "react-native";
@@ -11,6 +10,7 @@ import { useShadowWriter } from "@/data/shadow";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
+import { haptics } from "@/util/haptics";
 import { useReduceMotion } from "@/util/motion";
 import { useToggleQueue } from "@/util/toggle-queue";
 
@@ -46,13 +46,13 @@ export function LikeButton({ post, size }: { post: Post; size: number }) {
       accessibilityValue={{ text: count(post.likes, "like") }}
       accessibilityState={{ selected: post.liked }}
       onPress={() => {
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        haptics.tap();
         if (!post.liked) bounce();
         setLiked(post.id, !post.liked);
         toggle(!post.liked, post.liked);
       }}
       hitSlop={6}
-      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 5, minWidth: 44, height: 44, paddingHorizontal: 12, borderRadius: 22, backgroundColor: pressed ? palette.wash : "transparent" })}
+      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 5, minWidth: 44, height: 44, paddingHorizontal: 10, borderRadius: 22, backgroundColor: pressed ? palette.wash : "transparent" })}
     >
       <Animated.View style={{ transform: [{ scale }] }}>
         <Heart size={size} color={colour} fill={post.liked ? colour : "none"} strokeWidth={1.9} />

@@ -36,7 +36,7 @@ import { Button, EmptyState, IconButton, LoadFailed } from "@/ui/controls";
 import { BackButton, Header } from "@/ui/header";
 import { ActionSheet, type SheetAction } from "@/ui/sheet";
 import { Text, type } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 import { toast, useToastFloor } from "@/ui/toast";
 import { timeZone } from "@/util/time";
 
@@ -506,7 +506,7 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
         </Text>
       ) : null}
       {access.kind === "request" ? null : (
-        <View {...composerFloor} style={{ borderTopWidth: 1, borderTopColor: palette.hairline, paddingHorizontal: 12, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 8), gap: 8, backgroundColor: palette.surface }}>
+        <View {...composerFloor} style={{ borderTopWidth: HAIRLINE, borderTopColor: palette.hairline, paddingHorizontal: 12, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 8), gap: 8, backgroundColor: palette.surface }}>
           {replyTo ? (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: palette.wash }}>
               <Text variant="small" tone="muted" numberOfLines={1} style={{ flex: 1 }}>
@@ -662,7 +662,7 @@ function HoldMenu({ message, viewerId, actions, onClose, onReact }: { message: M
               key={action.label}
               accessibilityRole="button"
               onPress={() => choose(action.onPress)}
-              style={({ pressed }) => ({ minHeight: 52, paddingHorizontal: 18, justifyContent: "center", borderTopWidth: 1, borderTopColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
+              style={({ pressed }) => ({ minHeight: 52, paddingHorizontal: 18, justifyContent: "center", borderTopWidth: HAIRLINE, borderTopColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
             >
               <Text variant="body" tone={action.destructive ? "destructive" : "ink"}>
                 {action.label}

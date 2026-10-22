@@ -5,15 +5,17 @@ import { View, type LayoutChangeEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { IconButton } from "@/ui/controls";
 import { Text } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 
 // Every screen starts with a 52-point bar under the status bar (the design's
 // header): a back button or the viewer's avatar, a title, and actions. A sheet
 // has no status bar above it, so `inset` is off there. The title is drawn
 // across the whole bar, so it sits in the middle of the screen even when one
 // avatar faces two buttons, as on Home; the wider side only limits how long
-// it can run before it truncates.
-export function Header({ title, left, right, children, inset = true }: { title?: string; left?: ReactNode; right?: ReactNode; children?: ReactNode; inset?: boolean }) {
+// it can run before it truncates. The line under it shows where content
+// scrolls beneath; a screen whose header has a bar of tabs or pills under it
+// passes border={false}, and the bar draws the line instead.
+export function Header({ title, left, right, children, inset = true, border = true }: { title?: string; left?: ReactNode; right?: ReactNode; children?: ReactNode; inset?: boolean; border?: boolean }) {
   const palette = usePalette();
   const insets = useSafeAreaInsets();
   const [sides, setSides] = useState({ left: 44, right: 44 });
@@ -22,7 +24,7 @@ export function Header({ title, left, right, children, inset = true }: { title?:
     setSides((current) => (current[side] === width ? current : { ...current, [side]: width }));
   };
   return (
-    <View style={{ paddingTop: inset ? insets.top : 4, backgroundColor: palette.surface }}>
+    <View style={{ paddingTop: inset ? insets.top : 4, backgroundColor: palette.surface, borderBottomWidth: border ? HAIRLINE : 0, borderBottomColor: palette.hairline }}>
       <View style={{ minHeight: 52, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
         <View onLayout={measure("left")} style={{ minWidth: 44, flexDirection: "row" }}>
           {left}

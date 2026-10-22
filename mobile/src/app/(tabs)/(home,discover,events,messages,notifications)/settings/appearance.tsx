@@ -5,7 +5,7 @@ import { setPreference, usePreferences, type Theme } from "@/data/preferences";
 import { Group } from "@/ui/form";
 import { BackButton, Header } from "@/ui/header";
 import { Text } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 
 const THEMES: { value: Theme; label: string }[] = [
   { value: "system", label: "Match my phone" },
@@ -26,7 +26,7 @@ export default function AppearanceSettings() {
       accessibilityRole="radio"
       accessibilityState={{ selected }}
       onPress={onPress}
-      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", minHeight: 52, paddingHorizontal: 16, borderBottomWidth: last ? 0 : 1, borderBottomColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
+      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", minHeight: 52, paddingHorizontal: 16, borderBottomWidth: last ? 0 : HAIRLINE, borderBottomColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
     >
       <Text variant="body" style={{ flex: 1 }}>
         {label}

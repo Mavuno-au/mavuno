@@ -10,11 +10,11 @@ import { loadConversations } from "@/data/messages";
 import { useViewer } from "@/data/session";
 import { supabase } from "@/data/supabase";
 import { ConversationAvatar } from "@/messages/conversation-avatar";
-import { Button, EmptyState, FeedSkeleton, IconButton, LoadFailed, Segmented } from "@/ui/controls";
+import { Button, EmptyState, IconButton, LoadFailed, RowSkeleton, Segmented } from "@/ui/controls";
 import { Header } from "@/ui/header";
 import { ActionSheet } from "@/ui/sheet";
 import { font, Text, type } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 import { onSoftReset } from "@/util/events";
 import { timeZone, useNow } from "@/util/time";
 
@@ -90,6 +90,7 @@ export default function Messages() {
     <View style={{ flex: 1, backgroundColor: palette.surface }}>
       <Header
         title={box === "archived" ? "Archived" : "Messages"}
+        border={false}
         left={
           <IconButton label="More" onPress={() => setMenu(true)}>
             <Ellipsis size={19} color={palette.ink} />
@@ -101,7 +102,7 @@ export default function Messages() {
           </IconButton>
         }
       />
-      <View style={{ paddingHorizontal: 16, paddingBottom: 8, gap: 8, borderBottomWidth: 1, borderBottomColor: palette.hairline }}>
+      <View style={{ paddingHorizontal: 16, paddingBottom: 8, gap: 8, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, minHeight: 40, paddingHorizontal: 12, borderRadius: 12, backgroundColor: palette.wash }}>
           <Search size={16} color={palette.inkMuted} />
           <TextInput
@@ -141,7 +142,7 @@ export default function Messages() {
         renderItem={({ item }) => (viewerId ? <ConversationRow conversation={item} viewerId={viewerId} /> : null)}
         ListEmptyComponent={
           state.kind === "loading" ? (
-            <FeedSkeleton rows={5} />
+            <RowSkeleton label="Loading messages" />
           ) : state.kind === "failed" ? (
             <LoadFailed title="Messages didn't load" reason={state.reason} onRetry={read} />
           ) : term ? (
@@ -190,7 +191,7 @@ function ConversationRow({ conversation, viewerId }: { conversation: Conversatio
       accessibilityRole="button"
       accessibilityLabel={`${conversation.name}${unread ? `, ${conversation.unread} unread` : ""}. ${preview(conversation, viewerId)}`}
       onPress={() => router.push(`/conversation/${conversation.id}`)}
-      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
+      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
     >
       <ConversationAvatar conversation={conversation} />
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>

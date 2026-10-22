@@ -10,6 +10,7 @@ import { useShadowWriter } from "@/data/shadow";
 import type { SheetAction } from "@/ui/sheet";
 import { usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
+import { haptics } from "@/util/haptics";
 import { postLink } from "@/util/links";
 import { useSafetyActions } from "@/util/safety";
 import { useToggleQueue } from "@/util/toggle-queue";
@@ -36,6 +37,7 @@ export function useSaveToggle(post: Post) {
   });
   return () => {
     const next = !post.saved;
+    haptics.tap();
     shadowSaved(post.id, next);
     toggle(next, post.saved);
     if (next) toast("Saved", { action: { label: "View saved", onPress: () => router.push("/saved") } });

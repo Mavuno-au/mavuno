@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { AtSign, CalendarCheck, Heart, MessageCircle, PartyPopper, Repeat2, ShieldAlert, ShieldCheck, UserPlus, Users, type LucideIcon } from "lucide-react-native";
+import { AtSign, CalendarCheck, ChevronDown, ChevronUp, Heart, MessageCircle, PartyPopper, Repeat2, ShieldAlert, ShieldCheck, UserPlus, Users, type LucideIcon } from "lucide-react-native";
 import { useState } from "react";
 import { Alert, Pressable, View } from "react-native";
 import { calendarDate, relativeTime } from "@/lib/format";
@@ -13,7 +13,7 @@ import { FollowButton } from "@/people/follow-button";
 import { Avatar } from "@/ui/avatar";
 import { Button } from "@/ui/controls";
 import { font, Text } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 import { openLink } from "@/util/links";
 import { timeZone, useNow } from "@/util/time";
 
@@ -78,9 +78,9 @@ function SayWelcome({ profileId }: { profileId: string }) {
   );
 }
 
-function FollowBack({ notification, profileId }: { notification: Notification; profileId: string }) {
+function FollowBack({ notification, profileId, name }: { notification: Notification; profileId: string; name: string }) {
   const { following } = useProfileShadow(profileId, { following: notification.followingActor, followers: 0 });
-  return <FollowButton profileId={profileId} following={following} followsYou />;
+  return <FollowButton profileId={profileId} name={name} following={following} followsYou compact />;
 }
 
 // Removals and suspensions name the rule and how to appeal. A notice without
@@ -107,6 +107,50 @@ function ModerationNotice({ notification }: { notification: Notification }) {
           </Text>
         </View>
       ) : null}
+    </View>
+  );
+}
+
+// Who did it, as one target rather than a row of small overlapping ones
+// (Bluesky's). Where the group opens, the strip opens it too, and VoiceOver
+// uses See all below; a single person's avatar goes to their profile.
+function ActorStrip({ actors, more, expandable, expanded, onToggle }: { actors: NotificationGroup["actors"]; more: number; expandable: boolean; expanded: boolean; onToggle: () => void }) {
+  const palette = usePalette();
+  const [only] = actors;
+  const Chevron = expanded ? ChevronUp : ChevronDown;
+  const avatars = (
+    <>
+      {actors.map((actor) => (
+        <View key={actor.id} style={{ marginRight: 5 }}>
+          <Avatar person={actor} size={32} />
+        </View>
+      ))}
+      {more > 0 ? (
+        <View style={{ minWidth: 32, height: 32, borderRadius: 16, paddingHorizontal: 5, marginRight: 5, backgroundColor: palette.wash, alignItems: "center", justifyContent: "center" }}>
+          <Text variant="caption">+{more}</Text>
+        </View>
+      ) : null}
+    </>
+  );
+  if (expandable) {
+    return (
+      <Pressable accessible={false} importantForAccessibility="no-hide-descendants" onPress={onToggle} hitSlop={6} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", opacity: pressed ? 0.7 : 1 })}>
+        {avatars}
+        <Chevron size={16} color={palette.inkMuted} />
+      </Pressable>
+    );
+  }
+  if (actors.length === 1 && only) {
+    return (
+      <Pressable accessibilityRole="link" accessibilityLabel={only.displayName} onPress={() => router.push(`/profile/${only.username}`)} hitSlop={6}>
+        <Avatar person={only} size={32} />
+      </Pressable>
+    );
+  }
+  // Several people and nothing to open: the row's own tap takes it.
+  return (
+    <View accessible={false} style={{ flexDirection: "row", alignItems: "center" }}>
+      {avatars}
     </View>
   );
 }
@@ -146,7 +190,7 @@ export function NotificationRow({ group, recipientId, followable, seenUnread }: 
       accessible={false}
       onPress={() => open(latest)}
       unstable_pressDelay={100}
-      style={({ pressed }) => ({ flexDirection: "row", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: palette.hairline, backgroundColor: pressed ? palette.wash : unread ? palette.primarySoft : "transparent" })}
+      style={({ pressed }) => ({ flexDirection: "row", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline, backgroundColor: pressed ? palette.wash : unread ? palette.primarySoft : "transparent" })}
     >
       <View style={{ width: 36, height: 36, borderRadius: 18, borderWidth: 2, borderColor: unread ? palette.primary : palette.rail, alignItems: "center", justifyContent: "center", marginTop: 2 }}>
         <Icon size={16} color={unread ? palette.primary : palette.inkMuted} />
@@ -156,17 +200,8 @@ export function NotificationRow({ group, recipientId, followable, seenUnread }: 
           <ModerationNotice notification={latest} />
         ) : (
           <>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-              {actors.map((actor) => (
-                <Pressable key={actor.id} accessibilityRole="link" accessibilityLabel={actor.displayName} onPress={() => router.push(`/profile/${actor.username}`)} hitSlop={4}>
-                  <Avatar person={actor} size={28} />
-                </Pressable>
-              ))}
-              {actorCount > actors.length ? (
-                <View style={{ minWidth: 28, height: 28, borderRadius: 14, paddingHorizontal: 4, backgroundColor: palette.wash, alignItems: "center", justifyContent: "center" }}>
-                  <Text variant="caption">+{actorCount - actors.length}</Text>
-                </View>
-              ) : null}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <ActorStrip actors={actors} more={actorCount - actors.length} expandable={isExpandable(group)} expanded={expanded} onToggle={() => void toggle()} />
               <Text variant="caption" tone="muted" style={{ marginLeft: "auto" }}>
                 {relativeTime(latest.createdAt, now, timeZone)}
               </Text>
@@ -198,7 +233,7 @@ export function NotificationRow({ group, recipientId, followable, seenUnread }: 
         {followable && latest.type === "joined" && first ? <SayWelcome profileId={first.id} /> : null}
         {followable && latest.type === "follow" && first && actorCount === 1 ? (
           <View style={{ alignSelf: "flex-start" }}>
-            <FollowBack notification={latest} profileId={first.id} />
+            <FollowBack notification={latest} profileId={first.id} name={first.displayName} />
           </View>
         ) : null}
         {isExpandable(group) ? (
@@ -221,7 +256,7 @@ export function NotificationRow({ group, recipientId, followable, seenUnread }: 
                           </Text>{" "}
                           {latest.type === "follow" ? "" : VERBS[item.type]}
                         </Text>
-                        {latest.type === "follow" && followable ? <FollowBack notification={item} profileId={item.actor.id} /> : null}
+                        {latest.type === "follow" && followable ? <FollowBack notification={item} profileId={item.actor.id} name={item.actor.displayName} /> : null}
                       </View>
                       {item.post ? (
                         <Text variant="small" tone="muted" numberOfLines={2}>

@@ -9,7 +9,7 @@ import { Button, EmptyState } from "@/ui/controls";
 import { Group } from "@/ui/form";
 import { BackButton, Header } from "@/ui/header";
 import { Text } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
 
 const ROLE = { owner: "Owner", admin: "Admin", editor: "Editor" } as const;
@@ -39,7 +39,7 @@ export default function OrganisationSettings() {
         {viewer.invitations.length > 0 ? (
           <Group title="Invitations">
             {viewer.invitations.map((organisation, index) => (
-              <View key={organisation.id} style={{ padding: 16, gap: 10, borderBottomWidth: index === viewer.invitations.length - 1 ? 0 : 1, borderBottomColor: palette.hairline }}>
+              <View key={organisation.id} style={{ padding: 16, gap: 10, borderBottomWidth: index === viewer.invitations.length - 1 ? 0 : HAIRLINE, borderBottomColor: palette.hairline }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
                   <Avatar person={{ ...organisation, accountType: "organisation" }} size={40} />
                   <Text variant="callout" style={{ flex: 1 }}>
@@ -61,7 +61,7 @@ export default function OrganisationSettings() {
                 key={organisation.id}
                 accessibilityRole="button"
                 onPress={() => router.push(`/settings/organisation/${organisation.username}`)}
-                style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderBottomWidth: index === viewer.organisations.length - 1 ? 0 : 1, borderBottomColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
+                style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderBottomWidth: index === viewer.organisations.length - 1 ? 0 : HAIRLINE, borderBottomColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
               >
                 <Avatar person={{ ...organisation, accountType: "organisation" }} size={40} />
                 <View style={{ flex: 1 }}>

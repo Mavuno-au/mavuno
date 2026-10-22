@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { Search as SearchIcon, X } from "lucide-react-native";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, TextInput, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, ScrollView, TextInput, View } from "react-native";
 import { z } from "zod";
 import type { PersonSummary } from "@/lib/domain";
 import { searchPeople } from "@/data/community";
@@ -12,10 +12,14 @@ import { FeedList } from "@/post/feed-list";
 import { EmptyState, Segmented } from "@/ui/controls";
 import { BackButton } from "@/ui/header";
 import { font, Text, type } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Tab = "all" | "people" | "posts";
+
+// The first tap on a result opens it rather than only closing the keyboard,
+// and starting to scroll puts the keyboard away, as Bluesky's search does.
+const KEYBOARD = { keyboardShouldPersistTaps: "handled", keyboardDismissMode: "on-drag" } as const;
 
 // The website's search: people first, then posts, ranked by relevance and
 // freshness. Posts need at least 3 characters.
@@ -48,23 +52,23 @@ export default function Search() {
   const postsReady = query.length >= 3;
   const posts = useFeed((cursor) => loadFeed({ kind: "search", query }, cursor), `search:${query}`, { enabled: postsReady });
   const found = people?.query === query ? people.people : null;
-  const shownPeople = tab === "all" ? (found ?? []).slice(0, 3) : (found ?? []);
+  const loadingPeople = query && found === null ? <ActivityIndicator style={{ paddingVertical: 16 }} color={palette.inkMuted} accessibilityLabel="Loading" /> : null;
 
+  // Top's first three people, above its posts.
   const peopleBlock = (
     <View>
-      {query && found === null ? <ActivityIndicator style={{ paddingVertical: 16 }} color={palette.inkMuted} accessibilityLabel="Loading" /> : null}
-      {found && found.length === 0 && tab === "people" ? <EmptyState title={`No people match “${query}”`}>Try their name or username.</EmptyState> : null}
-      {shownPeople.map((person) => (
+      {loadingPeople}
+      {(found ?? []).slice(0, 3).map((person) => (
         <PersonRow key={person.id} person={person} />
       ))}
-      {tab === "all" && found && found.length > 3 ? (
-        <Pressable accessibilityRole="button" onPress={() => setTab("people")} style={{ minHeight: 48, paddingHorizontal: 16, justifyContent: "center", borderBottomWidth: 1, borderBottomColor: palette.hairline }}>
+      {found && found.length > 3 ? (
+        <Pressable accessibilityRole="button" onPress={() => setTab("people")} style={{ minHeight: 48, paddingHorizontal: 16, justifyContent: "center", borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline }}>
           <Text variant="subhead" tone="primary" style={{ fontFamily: font.medium }}>
             See all {found.length} people
           </Text>
         </Pressable>
       ) : null}
-      {tab === "all" && postsReady ? (
+      {postsReady ? (
         <Text variant="small" tone="muted" accessibilityRole="header" style={{ fontFamily: font.semibold, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4 }}>
           Posts
         </Text>
@@ -100,7 +104,7 @@ export default function Search() {
           </View>
         </View>
         {query ? (
-          <View style={{ paddingHorizontal: 16, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: palette.hairline }}>
+          <View style={{ paddingHorizontal: 16, paddingBottom: 8, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline }}>
             <Segmented
               label="Results"
               options={[
@@ -119,12 +123,18 @@ export default function Search() {
           Find people, organisations and posts. Topics start with #.
         </EmptyState>
       ) : tab === "people" ? (
-        <View style={{ flex: 1 }}>{peopleBlock}</View>
+        <FlatList
+          data={found ?? []}
+          keyExtractor={(person) => person.id}
+          renderItem={({ item }) => <PersonRow person={item} />}
+          ListEmptyComponent={loadingPeople ?? <EmptyState title={`No people match “${query}”`}>Try their name or username.</EmptyState>}
+          {...KEYBOARD}
+        />
       ) : !postsReady ? (
-        <View style={{ flex: 1 }}>
+        <ScrollView {...KEYBOARD}>
           {tab === "all" ? peopleBlock : null}
           <EmptyState title="Type at least 3 characters to search posts" />
-        </View>
+        </ScrollView>
       ) : (
         <FeedList
           feed={posts}

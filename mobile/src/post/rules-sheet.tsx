@@ -8,7 +8,7 @@ import { reloadViewer, useViewer } from "@/data/session";
 import { Button } from "@/ui/controls";
 import { FieldError } from "@/ui/form";
 import { font, Text } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 import { openLink } from "@/util/links";
 
 // The website's rules dialog (src/components/moderation/rules-dialog.tsx) as a
@@ -80,7 +80,7 @@ function RulesSheet({ open, busy, error, onAccept, onClose }: { open: boolean; b
           </View>
           {error ? <FieldError>{error}</FieldError> : null}
         </ScrollView>
-        <View style={{ gap: 10, paddingHorizontal: 24, paddingTop: 12, paddingBottom: insets.bottom + 16, borderTopWidth: 1, borderTopColor: palette.hairline }}>
+        <View style={{ gap: 10, paddingHorizontal: 24, paddingTop: 12, paddingBottom: insets.bottom + 16, borderTopWidth: HAIRLINE, borderTopColor: palette.hairline }}>
           <Button label="I've read them and I agree" busy={busy} onPress={onAccept} />
           <Button label="Not now" variant="plain" onPress={onClose} disabled={busy} />
         </View>

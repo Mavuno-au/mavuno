@@ -1,4 +1,3 @@
-import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { BadgeCheck, Bookmark, Ellipsis, EyeOff, Heart, ListTree, MessageCircle, Pin, Quote, Share } from "lucide-react-native";
 import { useState, type ReactNode } from "react";
@@ -16,7 +15,8 @@ import { Avatar, ColourDot } from "@/ui/avatar";
 import { Chip } from "@/ui/controls";
 import { ActionSheet } from "@/ui/sheet";
 import { font, Text } from "@/ui/text";
-import { useLargeText, usePalette } from "@/ui/theme";
+import { HAIRLINE, useLargeText, usePalette } from "@/ui/theme";
+import { haptics } from "@/util/haptics";
 import { postLink, shareLink } from "@/util/links";
 import { timeZone, useNow } from "@/util/time";
 
@@ -37,7 +37,7 @@ export function PostRow({ row, variant = "feed", previews = [], place, pinnedHer
 function DeletedHere({ post }: { post: Post }) {
   const palette = usePalette();
   return (
-    <View accessibilityRole="alert" style={{ paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: palette.hairline, backgroundColor: palette.wash }}>
+    <View accessibilityRole="alert" style={{ paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline, backgroundColor: palette.wash }}>
       <Text variant="callout" tone="muted">
         You deleted this post{post.replies > 0 ? `. Its ${count(post.replies, "reply", "replies")} stay under a placeholder.` : "."}
       </Text>
@@ -52,7 +52,7 @@ export function TombstoneRow({ row }: { row: Tombstone }) {
     <View
       accessible
       accessibilityLabel={`Deleted post. This post was deleted.${row.replies > 0 ? ` ${count(row.replies, "reply", "replies")}.` : ""}`}
-      style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: palette.hairline }}
+      style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline }}
     >
       <View style={{ width: 40, height: 40, borderRadius: 20, borderWidth: 1.5, borderStyle: "dashed", borderColor: palette.rail }} />
       <Text variant="callout" tone="muted" style={{ flex: 1 }}>
@@ -131,13 +131,13 @@ function LivePost({ post: read, variant, previews, place, pinnedHere }: { post: 
   if (variant === "ancestor" && post.authorMuted && !uncovered) return <MutedAncestor onShow={() => setUncovered(true)} />;
 
   return (
-    <View style={{ borderBottomWidth: variant === "ancestor" ? 0 : 1, borderBottomColor: palette.hairline }}>
+    <View style={{ borderBottomWidth: variant === "ancestor" ? 0 : HAIRLINE, borderBottomColor: palette.hairline }}>
       <Pressable
         accessible={false}
         onPress={() => openPost(post)}
         // Pressing and holding a post opens its menu, as on the ••• button.
         onLongPress={() => {
-          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          haptics.confirm();
           setMenu(true);
         }}
         delayLongPress={350}
@@ -339,6 +339,9 @@ function Attachments({ post, focus = false }: { post: Post; focus?: boolean }) {
 
 // Reply, Quote, Like, Save, Share and the menu, as in the iPhone design.
 // The author sees who liked their post instead of a heart; nobody else can.
+// Reply, Quote and Like each have a slot of their own, with the icon at its
+// start, and the other three are fixed 44-point buttons on the right, so a
+// count appearing never moves another icon (Bluesky's PostControls).
 function Footer({ post, focus = false, onMore }: { post: Post; focus?: boolean; onMore: () => void }) {
   const palette = usePalette();
   const own = useActsFor(post.authorId);
@@ -352,7 +355,17 @@ function Footer({ post, focus = false, onMore }: { post: Post; focus?: boolean; 
       accessibilityState={selected === undefined ? undefined : { selected }}
       onPress={onPress}
       hitSlop={4}
-      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 5, minWidth: 44, height: 44, paddingHorizontal: value ? 10 : 0, borderRadius: 22, justifyContent: "center", backgroundColor: pressed ? palette.wash : "transparent" })}
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 5,
+        minWidth: 44,
+        height: 44,
+        paddingHorizontal: value === undefined ? 0 : 10,
+        borderRadius: 22,
+        justifyContent: value === undefined ? "center" : "flex-start",
+        backgroundColor: pressed ? palette.wash : "transparent",
+      })}
     >
       {icon}
       {value ? (
@@ -362,19 +375,22 @@ function Footer({ post, focus = false, onMore }: { post: Post; focus?: boolean; 
       ) : null}
     </Pressable>
   );
+  const slot = { flex: 1, alignItems: "flex-start" } as const;
   const muted = palette.inkMuted;
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: focus ? 48 : 44, marginLeft: -10, marginRight: -10, borderTopWidth: focus ? 1 : 0, borderTopColor: palette.hairline }}>
-      {button(post.replies > 0 ? `Reply, ${count(post.replies, "reply", "replies")}` : "Reply", <MessageCircle size={size} color={muted} strokeWidth={1.9} />, () => compose({ reply: post.id }), post.replies)}
-      {quotable ? button(post.quotes > 0 ? `Quote, ${count(post.quotes, "quote")}` : "Quote", <Quote size={size} color={muted} strokeWidth={1.9} />, () => compose({ quote: post.id }), post.quotes) : <View style={{ width: 44 }} />}
-      {own ? (
-        button(post.likes > 0 ? `${count(post.likes, "like")}. See who liked it` : "No likes yet", <LikedBy size={size} />, () => router.push(`/likers/${post.id}`), post.likes)
-      ) : (
-        <LikeButton post={post} size={size} />
-      )}
-      {button(post.saved ? "Remove from Saved" : "Save", <Bookmark size={size} color={post.saved ? palette.primary : muted} fill={post.saved ? palette.primary : "none"} strokeWidth={1.9} />, save, undefined, post.saved)}
-      {button("Share", <Share size={size} color={muted} strokeWidth={1.9} />, () => shareLink(postLink(post)))}
-      {button("More", <Ellipsis size={size} color={muted} strokeWidth={1.9} />, onMore)}
+    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: focus ? 48 : 44, marginLeft: -10, marginRight: -10, borderTopWidth: focus ? HAIRLINE : 0, borderTopColor: palette.hairline }}>
+      <View style={{ flex: 1, maxWidth: 300, flexDirection: "row", alignItems: "center" }}>
+        <View style={slot}>{button(post.replies > 0 ? `Reply, ${count(post.replies, "reply", "replies")}` : "Reply", <MessageCircle size={size} color={muted} strokeWidth={1.9} />, () => compose({ reply: post.id }), post.replies)}</View>
+        <View style={slot}>{quotable ? button(post.quotes > 0 ? `Quote, ${count(post.quotes, "quote")}` : "Quote", <Quote size={size} color={muted} strokeWidth={1.9} />, () => compose({ quote: post.id }), post.quotes) : null}</View>
+        <View style={slot}>
+          {own ? button(post.likes > 0 ? `${count(post.likes, "like")}. See who liked it` : "No likes yet", <LikedBy size={size} />, () => router.push(`/likers/${post.id}`), post.likes) : <LikeButton post={post} size={size} />}
+        </View>
+      </View>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+        {button(post.saved ? "Remove from Saved" : "Save", <Bookmark size={size} color={post.saved ? palette.primary : muted} fill={post.saved ? palette.primary : "none"} strokeWidth={1.9} />, save, undefined, post.saved)}
+        {button("Share", <Share size={size} color={muted} strokeWidth={1.9} />, () => shareLink(postLink(post)))}
+        {button("More", <Ellipsis size={size} color={muted} strokeWidth={1.9} />, onMore)}
+      </View>
     </View>
   );
 }
@@ -433,7 +449,7 @@ export function FocusedPost({ post: read, place, onLayout, onMore }: { post: Pos
   const deleted = usePostDeleted(post.id);
   if (deleted) return <DeletedHere post={post} />;
   return (
-    <View onLayout={onLayout} style={{ paddingHorizontal: 16, paddingTop: 12, gap: 12, borderBottomWidth: 1, borderBottomColor: palette.hairline }}>
+    <View onLayout={onLayout} style={{ paddingHorizontal: 16, paddingTop: 12, gap: 12, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline }}>
       <View style={{ flexDirection: large ? "column" : "row", alignItems: large ? "flex-start" : "center", gap: 12 }}>
         <ProfileAvatar post={post} size={large ? 52 : 44} />
         <View style={{ flex: large ? undefined : 1, gap: 2 }}>

@@ -1,4 +1,3 @@
-import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { BadgeCheck, Check } from "lucide-react-native";
@@ -9,8 +8,9 @@ import { compact } from "@/lib/format";
 import { setMembership } from "@/data/community";
 import { useViewer } from "@/data/session";
 import { font, Text } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
+import { haptics } from "@/util/haptics";
 
 // A space in a list, as in the iPhone design's Discover: its city's photo or
 // its emoji, its name, how busy it is, and Join right there. `brief` leaves
@@ -33,7 +33,7 @@ export function SpaceRow({ space, brief = false }: { space: SpaceListItem; brief
         gap: 12,
         paddingHorizontal: 16,
         paddingVertical: brief ? 8 : 12,
-        borderBottomWidth: brief ? 0 : 1,
+        borderBottomWidth: brief ? 0 : HAIRLINE,
         borderBottomColor: palette.hairline,
         backgroundColor: pressed ? palette.wash : "transparent",
       })}
@@ -71,16 +71,18 @@ function JoinPill({ spaceId, name, joined, onChange }: { spaceId: string; name: 
   if (!viewer) return null;
   const viewerId = viewer.id;
 
-  async function toggle() {
-    const next = !joined;
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  // Leaving from a list is one tap, so it says so, with Undo.
+  async function set(next: boolean) {
+    haptics.confirm();
     setBusy(true);
     onChange(next);
     const result = await setMembership(viewerId, spaceId, next);
     setBusy(false);
-    if (result.ok) return;
-    onChange(!next);
-    toast(`${next ? `Couldn't join ${name}` : `Couldn't leave ${name}`}. ${result.error}`, { tone: "error" });
+    if (!result.ok) {
+      onChange(!next);
+      return toast(`${next ? `Couldn't join ${name}` : `Couldn't leave ${name}`}. ${result.error}`, { tone: "error" });
+    }
+    if (!next) toast(`Left ${name}`, { action: { label: "Undo", onPress: () => void set(true) } });
   }
 
   return (
@@ -90,7 +92,7 @@ function JoinPill({ spaceId, name, joined, onChange }: { spaceId: string; name: 
       accessibilityHint={joined ? "Leaves this space" : undefined}
       accessibilityState={{ selected: joined, busy }}
       disabled={busy}
-      onPress={() => void toggle()}
+      onPress={() => void set(!joined)}
       hitSlop={{ top: 5, bottom: 5 }}
       style={({ pressed }) => ({
         flexDirection: "row",

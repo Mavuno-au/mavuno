@@ -15,7 +15,7 @@ import { Button, Chip, EmptyState, FeedSkeleton, IconButton, LoadFailed } from "
 import { BackButton, Header } from "@/ui/header";
 import { ActionSheet, type SheetAction } from "@/ui/sheet";
 import { font, Text } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 import { toast, useToastFloor } from "@/ui/toast";
 import { openLink, shareLink } from "@/util/links";
 
@@ -135,7 +135,7 @@ export default function OpportunityScreen() {
         ) : null}
         <View style={{ borderRadius: 12, borderWidth: 1, borderColor: palette.hairline }}>
           {rows.map(([label, value], index) => (
-            <View key={label} style={{ flexDirection: "row", gap: 12, paddingHorizontal: 14, paddingVertical: 12, borderTopWidth: index === 0 ? 0 : 1, borderTopColor: palette.hairline }}>
+            <View key={label} style={{ flexDirection: "row", gap: 12, paddingHorizontal: 14, paddingVertical: 12, borderTopWidth: index === 0 ? 0 : HAIRLINE, borderTopColor: palette.hairline }}>
               <Text variant="subhead" tone="muted" style={{ width: 110 }}>
                 {label}
               </Text>
@@ -149,7 +149,7 @@ export default function OpportunityScreen() {
         {opportunity.closed ? <Button label="See open opportunities" variant="outline" onPress={() => router.push("/opportunities")} /> : null}
       </ScrollView>
       {opportunity.closed ? null : (
-        <View {...barFloor} style={{ position: "absolute", left: 0, right: 0, bottom: 0, flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 10), borderTopWidth: 1, borderTopColor: palette.hairline, backgroundColor: palette.surface }}>
+        <View {...barFloor} style={{ position: "absolute", left: 0, right: 0, bottom: 0, flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 10), borderTopWidth: HAIRLINE, borderTopColor: palette.hairline, backgroundColor: palette.surface }}>
           {apply ? <Button label="Apply" onPress={() => openLink(apply)} style={{ flex: 1 }} /> : null}
           <Button
             label={saved ? "Saved" : "Save"}

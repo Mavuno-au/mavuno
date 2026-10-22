@@ -70,6 +70,10 @@ export function FeedList({ feed, empty, end = "You're all caught up.", header, l
         onEndReachedThreshold={2}
         refreshControl={ready ? <RefreshControl {...pull} tintColor={palette.inkMuted} /> : undefined}
         scrollsToTop={active && focused}
+        // Search's results are a feed: a tap on a post opens it even with the
+        // keyboard up, and a scroll puts the keyboard away.
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         indicatorStyle={palette.dark ? "white" : "black"}
         // Bluesky's settings: enough rows rendered to fill the screen at
         // about 100 points each, a short render batch so scrolling stays

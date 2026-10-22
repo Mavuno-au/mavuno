@@ -4,7 +4,7 @@ import type { PersonSummary } from "@/lib/domain";
 import { mentionSuggestions } from "@/data/posts";
 import { Avatar } from "@/ui/avatar";
 import { Text } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 
 // The handle being typed at the caret, as the website's mentions.tsx finds it.
 const TYPING = /(?:^|[^A-Za-z0-9_@])@([A-Za-z0-9_]{0,30})$/;
@@ -40,7 +40,7 @@ export function MentionList({ people, onPick }: { people: PersonSummary[]; onPic
   const palette = usePalette();
   if (people.length === 0) return null;
   return (
-    <View accessibilityRole="list" accessibilityLabel="People to mention" style={{ borderTopWidth: 1, borderTopColor: palette.hairline, backgroundColor: palette.popover }}>
+    <View accessibilityRole="list" accessibilityLabel="People to mention" style={{ borderTopWidth: HAIRLINE, borderTopColor: palette.hairline, backgroundColor: palette.popover }}>
       {people.map((person) => (
         <Pressable
           key={person.id}

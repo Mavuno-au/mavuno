@@ -7,10 +7,10 @@ import { loadSpaces } from "@/data/community";
 import { useViewer } from "@/data/session";
 import { useList } from "@/data/use-list";
 import { SpaceRow } from "@/community/space-card";
-import { Button, EmptyState, IconButton, Segmented } from "@/ui/controls";
+import { Button, EmptyState, IconButton, RowSkeleton, Segmented } from "@/ui/controls";
 import { BackButton, Header } from "@/ui/header";
 import { PagedList } from "@/ui/list";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 
 // The website's Spaces: Cities, Interests and the ones you've joined.
 export default function Spaces() {
@@ -22,6 +22,7 @@ export default function Spaces() {
     <View style={{ flex: 1, backgroundColor: palette.surface }}>
       <Header
         title="Spaces"
+        border={false}
         left={<BackButton fallback="/discover" />}
         right={
           <IconButton label="Start a space" onPress={() => router.push("/space-form")}>
@@ -29,7 +30,7 @@ export default function Spaces() {
           </IconButton>
         }
       />
-      <View style={{ paddingHorizontal: 16, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: palette.hairline }}>
+      <View style={{ paddingHorizontal: 16, paddingBottom: 8, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline }}>
         <Segmented
           label="Spaces"
           options={[
@@ -44,6 +45,7 @@ export default function Spaces() {
       <PagedList
         list={list}
         renderItem={({ item }) => <SpaceRow space={item} />}
+        skeleton={<RowSkeleton leading="square" label="Loading spaces" />}
         empty={
           tab === "joined" ? (
             <EmptyState icon={<Users size={26} color={palette.inkMuted} />} title="You haven't joined a space yet" action={<Button label="Browse cities" size="medium" onPress={() => setTab("city")} />}>

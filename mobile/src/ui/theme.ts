@@ -1,4 +1,4 @@
-import { useColorScheme, useWindowDimensions } from "react-native";
+import { StyleSheet, useColorScheme, useWindowDimensions } from "react-native";
 import type { Colour } from "@/lib/domain";
 
 // The website's tokens (src/app/globals.css and DESIGN.md). CSS can't be
@@ -48,6 +48,11 @@ const dark: typeof light = {
 };
 
 export type Palette = typeof light;
+
+// Lines between rows and under bars are one device pixel, as iOS draws them;
+// a whole point is three pixels on a Pro iPhone and makes lists look heavy.
+// Outlines of controls (buttons, pills, cards) stay at 1.
+export const HAIRLINE = StyleSheet.hairlineWidth;
 
 export function usePalette(): Palette {
   return useColorScheme() === "dark" ? dark : light;

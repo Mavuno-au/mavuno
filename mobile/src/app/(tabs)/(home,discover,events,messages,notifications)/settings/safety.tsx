@@ -10,7 +10,7 @@ import { Button } from "@/ui/controls";
 import { Group, Row } from "@/ui/form";
 import { BackButton, Header } from "@/ui/header";
 import { Text } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 import { openLink } from "@/util/links";
 
 // Muted and blocked people with Unmute and Unblock, how reporting works,
@@ -38,7 +38,7 @@ export default function SafetySettings() {
   }
 
   const person = (relation: Relation, kind: "mute" | "block", last: boolean) => (
-    <View key={relation.profile.id} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: last ? 0 : 1, borderBottomColor: palette.hairline }}>
+    <View key={relation.profile.id} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: last ? 0 : HAIRLINE, borderBottomColor: palette.hairline }}>
       <Pressable accessibilityRole="link" onPress={() => router.push(`/profile/${relation.profile.username}`)} style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
         <Avatar person={relation.profile} size={36} />
         <View style={{ flex: 1 }}>
