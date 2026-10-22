@@ -8,6 +8,9 @@ import { Chip } from "@/components/ui/page";
 import { EVENT_CATEGORIES, OPPORTUNITY_TYPES } from "@/lib/catalogue";
 import { DEADLINE_ZONE, type CommunityEvent, type Opportunity, type Review, type SpaceListItem } from "@/lib/data/community";
 import { compact, count, eventDate, relativeTime } from "@/lib/format";
+import { eventPlace } from "@/lib/community";
+
+export { eventPlace };
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -30,21 +33,6 @@ export function eventWhen(event: Pick<CommunityEvent, "startsAt" | "endsAt" | "t
   return `${start} to ${sameDay ? eventTime(event.endsAt, event.timezone) : eventDate(event.endsAt, event.timezone)}`;
 }
 
-export function eventPlace(event: Pick<CommunityEvent, "format" | "venue" | "city">) {
-  const physical = [event.venue, event.city].filter(Boolean).join(", ");
-  switch (event.format) {
-    case "online":
-      return "Online";
-    case "in_person":
-      return physical;
-    case "hybrid":
-      return physical ? `${physical} and online` : "Online";
-    default: {
-      const exhaustive: never = event.format;
-      return exhaustive;
-    }
-  }
-}
 
 export function EventRow({ event, withDate = false }: { event: CommunityEvent; withDate?: boolean }) {
   return (

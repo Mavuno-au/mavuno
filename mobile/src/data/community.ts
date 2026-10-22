@@ -277,3 +277,10 @@ export async function loadActiveSpaces(viewerId: string, limit = 8): Promise<Spa
   if (error) throw requestError("Spaces", error);
   return lenient(spaceRow, data).map((space) => ({ ...space, joined: mine.has(space.id) }));
 }
+
+// Which of these events the viewer has said they're going to.
+export async function loadMyRsvps(viewerId: string, eventIds: string[]): Promise<Map<string, RsvpStatus>> {
+  if (eventIds.length === 0) return new Map();
+  const { data } = await supabase.from("event_rsvps").select("event_id, status").eq("user_id", viewerId).in("event_id", eventIds);
+  return new Map(lenient(z.object({ event_id: id, status: rsvpSchema }), data).map((row) => [row.event_id, row.status] as const));
+}

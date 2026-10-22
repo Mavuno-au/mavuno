@@ -16,7 +16,7 @@ async function listFolder(folder: string, offset = 0): Promise<string[]> {
   return paths.length === PAGE ? [...paths, ...(await listFolder(folder, offset + PAGE))] : paths;
 }
 
-async function removeProfileMedia(profileIds: string[]) {
+export async function removeProfileMedia(profileIds: string[]) {
   const folders = profileIds.flatMap((profileId) => MEDIA_KINDS.map((kind) => `${profileId}/${kind}`));
   const paths = (await Promise.all(folders.map((folder) => listFolder(folder)))).flat();
   for (let start = 0; start < paths.length; start += PAGE) {
@@ -42,4 +42,11 @@ export async function deleteAccount(viewerId: string): Promise<Result> {
   if (error) return failFrom(error);
   await signOut("deleted");
   return done;
+}
+
+// Owners only, as on the website: its files first, then the organisation.
+export async function deleteOrganisation(orgId: string): Promise<Result> {
+  await removeProfileMedia([orgId]);
+  const { error } = await supabase.rpc("delete_organisation", { p_org_id: orgId });
+  return error ? failFrom(error) : done;
 }

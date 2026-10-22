@@ -5,22 +5,14 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { removeProfileMedia } from "@/lib/data/settings";
 import { done, fail, failFrom, type Result } from "@/lib/result";
-import { firstIssue, httpsUrl, usernameSchema } from "@/lib/schemas";
+import { firstIssue, usernameSchema } from "@/lib/schemas";
+import { newOrganisationSchema } from "@/lib/profile-form";
 import { createClient } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/viewer";
 
 const id = z.uuid();
 const teamRole = z.enum(["admin", "editor"]);
 export type TeamRole = z.infer<typeof teamRole>;
-
-const newOrganisationSchema = z.object({
-  username: usernameSchema,
-  name: z.string().trim().min(2, "Add the organisation's name.").max(60, "Names can be up to 60 characters."),
-  bio: z.string().trim().max(300, "The bio can be up to 300 characters."),
-  category: z.string().trim().max(60, "The category can be up to 60 characters."),
-  cityId: z.union([z.literal(""), z.coerce.number().int().positive()]).transform((value) => (value === "" ? null : value)),
-  website: httpsUrl,
-});
 
 export async function createOrganisation(_: Result | null, form: FormData): Promise<Result> {
   const parsed = newOrganisationSchema.safeParse(Object.fromEntries(form));

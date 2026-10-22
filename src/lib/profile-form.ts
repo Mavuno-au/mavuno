@@ -157,3 +157,14 @@ export type PrivateSettings = z.infer<typeof settingsRow>;
 export type DmPolicy = PrivateSettings["dmPolicy"];
 
 export const SETTINGS_COLUMNS = "dm_policy, read_receipts, discoverable, translation_language, feed_languages_only";
+
+// A new organisation, as the website's form and the app send it.
+export const newOrganisationSchema = z.object({
+  username: usernameSchema,
+  name: z.string().trim().min(2, "Add the organisation's name.").max(60, "Names can be up to 60 characters."),
+  bio: z.string().trim().max(300, "The bio can be up to 300 characters."),
+  category: z.string().trim().max(60, "The category can be up to 60 characters."),
+  cityId: z.union([z.literal(""), z.coerce.number().int().positive()]).transform((value) => (value === "" ? null : value)),
+  website: httpsUrl,
+});
+

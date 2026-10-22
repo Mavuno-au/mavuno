@@ -351,3 +351,20 @@ export const newSpaceSchema = z
   })
   .refine((space) => space.kind !== "city" || space.cityId !== null, { message: "Choose the city this space is for.", path: ["cityId"] });
 
+
+// Where an event is, in one line, as rows and the event page show it.
+export function eventPlace(event: Pick<CommunityEvent, "format" | "venue" | "city">) {
+  const physical = [event.venue, event.city].filter(Boolean).join(", ");
+  switch (event.format) {
+    case "online":
+      return "Online";
+    case "in_person":
+      return physical;
+    case "hybrid":
+      return physical ? `${physical} and online` : "Online";
+    default: {
+      const exhaustive: never = event.format;
+      return exhaustive;
+    }
+  }
+}
