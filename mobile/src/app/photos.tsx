@@ -1,15 +1,16 @@
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { X } from "lucide-react-native";
+import { Share, X } from "lucide-react-native";
 import { useState } from "react";
-import { Animated, FlatList, PanResponder, Pressable, ScrollView, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Animated, FlatList, PanResponder, Pressable, ScrollView, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { font, Text } from "@/ui/text";
-import { viewedPhotos } from "@/util/photos";
+import { sharePhoto, viewedPhotos } from "@/util/photos";
 
 // Full screen on black: swipe between photos, pinch to zoom, and the photo's
-// description under ALT so it helps everyone. Swipe down to close.
+// description under ALT so it helps everyone. Swipe down to close. Share
+// gives the photo itself to the share sheet, where Save Image keeps it.
 export default function PhotoViewer() {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -17,6 +18,7 @@ export default function PhotoViewer() {
   const [index, setIndex] = useState(first);
   const [showAlt, setShowAlt] = useState(false);
   const [drag] = useState(() => new Animated.Value(0));
+  const [sharing, setSharing] = useState(false);
 
   const close = () => (router.canGoBack() ? router.back() : router.replace("/"));
   const [pan] = useState(() =>
@@ -76,7 +78,23 @@ export default function PhotoViewer() {
             {index + 1} of {photos.length}
           </Text>
         ) : null}
-        <View style={{ width: 44 }} />
+        {current ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Share or save photo"
+            accessibilityState={{ busy: sharing }}
+            disabled={sharing}
+            onPress={() => {
+              setSharing(true);
+              void sharePhoto(current.url).finally(() => setSharing(false));
+            }}
+            style={{ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255, 255, 255, 0.16)" }}
+          >
+            {sharing ? <ActivityIndicator color="#ffffff" /> : <Share size={20} color="#ffffff" />}
+          </Pressable>
+        ) : (
+          <View style={{ width: 44 }} />
+        )}
       </View>
       {current?.alt ? (
         <View style={{ position: "absolute", left: 16, right: 16, bottom: insets.bottom + 16, gap: 8 }}>

@@ -5,12 +5,12 @@ import { FlatList, Pressable, RefreshControl, TextInput, View } from "react-nati
 import { relativeTime } from "@/lib/format";
 import { BOXES, boxOf, isVisible, preview, type Box, type Conversation } from "@/lib/messages";
 import { useCounts } from "@/data/counts";
-import { PROBLEM, reasonOf, type Reason } from "@/data/errors";
+import { reasonOf, type Reason } from "@/data/errors";
 import { loadConversations } from "@/data/messages";
 import { useViewer } from "@/data/session";
 import { supabase } from "@/data/supabase";
 import { ConversationAvatar } from "@/messages/conversation-avatar";
-import { Button, EmptyState, FeedSkeleton, IconButton, Segmented } from "@/ui/controls";
+import { Button, EmptyState, FeedSkeleton, IconButton, LoadFailed, Segmented } from "@/ui/controls";
 import { Header } from "@/ui/header";
 import { ActionSheet } from "@/ui/sheet";
 import { font, Text, type } from "@/ui/text";
@@ -143,9 +143,7 @@ export default function Messages() {
           state.kind === "loading" ? (
             <FeedSkeleton rows={5} />
           ) : state.kind === "failed" ? (
-            <EmptyState title="Messages didn't load" action={<Button label="Try again" size="medium" onPress={read} />}>
-              {PROBLEM[state.reason]}
-            </EmptyState>
+            <LoadFailed title="Messages didn't load" reason={state.reason} onRetry={read} />
           ) : term ? (
             <EmptyState title={`No conversations match "${search.trim()}"`} />
           ) : (

@@ -1,6 +1,6 @@
 import * as Clipboard from "expo-clipboard";
 import { router } from "expo-router";
-import { Bookmark, BookmarkCheck, Link2, Pin, PinOff, Trash2 } from "lucide-react-native";
+import { Bookmark, BookmarkCheck, Copy, Link2, Pin, PinOff, Trash2 } from "lucide-react-native";
 import { Alert } from "react-native";
 import type { Post } from "@/lib/domain";
 import { fail } from "@/lib/result";
@@ -32,7 +32,7 @@ export function useSaveToggle(post: Post) {
   const toggle = useToggleQueue({
     run: (on) => (viewerId ? setSaved(viewerId, post.id, on) : Promise.resolve(fail("Sign in first."))),
     onSettled: (saved) => shadowSaved(post.id, saved),
-    onError: (message, on) => Alert.alert(on ? "Couldn't save this post" : "Couldn't remove it from Saved", message),
+    onError: (message, on) => toast(`${on ? "Couldn't save this post" : "Couldn't remove it from Saved"}. ${message}`, { tone: "error" }),
   });
   return () => {
     const next = !post.saved;
@@ -68,7 +68,8 @@ export function useDeletePost() {
 }
 
 // The post menu, in the website's order: Save, Copy link, Pin, Delete for your
-// own; then Mute, Block and Report for someone else's, below a divider.
+// own; then Mute, Block and Report for someone else's, below a divider. Copy
+// text sits beside Copy link, as on Bluesky, since a row's text can't be selected.
 export function usePostMenu(post: Post, { pinnedHere = false }: { pinnedHere?: boolean } = {}): SheetAction[] {
   const palette = usePalette();
   const own = useActsFor(post.authorId);
@@ -86,18 +87,19 @@ export function usePostMenu(post: Post, { pinnedHere = false }: { pinnedHere?: b
       onPress: () => void Clipboard.setStringAsync(postLink(post)).then(() => toast("Link copied")),
     },
   ];
+  if (post.body.trim()) actions.push({ label: "Copy text", icon: <Copy {...icon} />, onPress: () => void Clipboard.setStringAsync(post.body).then(() => toast("Text copied")) });
   if (own && topLevel) {
     actions.push(
       pinnedHere
         ? {
             label: "Unpin from profile",
             icon: <PinOff {...icon} />,
-            onPress: () => void unpinPost(post.authorId).then((result) => (result.ok ? toast("Unpinned") : Alert.alert("Couldn't unpin", result.error))),
+            onPress: () => void unpinPost(post.authorId).then((result) => toast(result.ok ? "Unpinned" : `Couldn't unpin. ${result.error}`, result.ok ? {} : { tone: "error" })),
           }
         : {
             label: "Pin to profile",
             icon: <Pin {...icon} />,
-            onPress: () => void pinPost(post.id).then((result) => (result.ok ? toast("Pinned to your profile") : Alert.alert("Couldn't pin", result.error))),
+            onPress: () => void pinPost(post.id).then((result) => toast(result.ok ? "Pinned to your profile" : `Couldn't pin. ${result.error}`, result.ok ? {} : { tone: "error" })),
           },
     );
   }

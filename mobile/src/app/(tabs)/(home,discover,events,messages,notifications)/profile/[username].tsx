@@ -1,18 +1,18 @@
 import * as Clipboard from "expo-clipboard";
 import { router, useLocalSearchParams } from "expo-router";
-import { CloudOff, Ellipsis, Link2, SearchX, Settings, Share, UserX } from "lucide-react-native";
+import { Ellipsis, Link2, SearchX, Settings, Share, SquarePen, UserX } from "lucide-react-native";
 import { useCallback, useEffect, useState } from "react";
 import { View } from "react-native";
 import { usernameSchema } from "@/lib/schemas";
 import type { Post } from "@/lib/domain";
-import { PROBLEM, reasonOf, type Reason } from "@/data/errors";
+import { reasonOf, type Reason } from "@/data/errors";
 import { loadFeed, loadPinnedPost } from "@/data/posts";
 import { loadFollowersYouKnow, loadProfile, loadTeam, type FollowersYouKnow, type ProfilePage, type TeamMember } from "@/data/profiles";
 import { useSession, useViewer } from "@/data/session";
 import { useFeed } from "@/data/use-feed";
 import { ProfileHeader } from "@/people/profile-header";
 import { FeedList } from "@/post/feed-list";
-import { Button, EmptyState, FeedSkeleton, IconButton, Segmented } from "@/ui/controls";
+import { Button, EmptyState, FeedSkeleton, IconButton, LoadFailed, Segmented } from "@/ui/controls";
 import { BackButton, Header } from "@/ui/header";
 import { ActionSheet } from "@/ui/sheet";
 import { Text } from "@/ui/text";
@@ -119,11 +119,7 @@ export default function ProfileScreen() {
       <View style={{ flex: 1, backgroundColor: palette.surface }}>
         {header}
         {state.kind === "loading" ? <FeedSkeleton rows={3} /> : null}
-        {state.kind === "failed" ? (
-          <EmptyState icon={<CloudOff size={26} color={palette.inkMuted} />} title="This profile didn't load" action={<Button label="Try again" size="medium" onPress={retry} />}>
-            {PROBLEM[state.reason]}
-          </EmptyState>
-        ) : null}
+        {state.kind === "failed" ? <LoadFailed title="This profile didn't load" reason={state.reason} onRetry={retry} /> : null}
         {state.kind === "loaded" && state.page.kind === "missing" ? (
           <EmptyState icon={<SearchX size={26} color={palette.inkMuted} />} title="We couldn't find that">
             This profile may have been deleted, or the username has changed.
@@ -152,7 +148,14 @@ export default function ProfileScreen() {
             </View>
           </View>
         }
-        empty={<EmptyState title={EMPTY[tab]} />}
+        empty={
+          // Your own empty profile offers the way to fill it, as Bluesky's does.
+          profile.relationship.self && tab === "posts" ? (
+            <EmptyState title={EMPTY.posts} action={<Button label="Write your first post" size="medium" icon={<SquarePen size={16} color={palette.primaryInk} />} onPress={() => router.push("/compose")} />} />
+          ) : (
+            <EmptyState title={EMPTY[tab]} />
+          )
+        }
       />
     </View>
   );

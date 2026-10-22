@@ -1,7 +1,7 @@
 import { router, useIsFocused } from "expo-router";
 import { Briefcase, Hash, MapPin, Search, Users, X } from "lucide-react-native";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { Alert, Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import type { PersonSummary } from "@/lib/domain";
 import { dismissSuggestion, loadActiveSpaces, loadSuggestions, loadTrendingTopics, type SpaceListItem } from "@/data/community";
 import { useViewer } from "@/data/session";
@@ -11,6 +11,7 @@ import { EmptyState, FeedSkeleton, Segmented } from "@/ui/controls";
 import { Header } from "@/ui/header";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
+import { toast } from "@/ui/toast";
 import { onSoftReset } from "@/util/events";
 
 type Tab = "overview" | "people" | "organisations" | "topics";
@@ -52,7 +53,7 @@ export default function Discover() {
     void dismissSuggestion(viewerId, person.id, true).then((result) => {
       if (!result.ok) {
         setHidden((current) => new Set([...current].filter((other) => other !== person.id)));
-        Alert.alert("Couldn't hide them", result.error);
+        toast(`Couldn't hide them. ${result.error}`, { tone: "error" });
       }
     });
   };

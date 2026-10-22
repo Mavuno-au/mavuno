@@ -1,12 +1,12 @@
 import { router } from "expo-router";
 import { Rss, SquarePen, UserPlus } from "lucide-react-native";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import { feedTime } from "@/lib/feeds";
 import { loadFeed, newTrendingSeed } from "@/data/posts";
 import { useViewer } from "@/data/session";
 import { useFeed, type FeedState } from "@/data/use-feed";
-import { useNewPosts, type FeedKind } from "@/data/use-new-posts";
+import { setFollowingFresh, useNewPosts, type FeedKind } from "@/data/use-new-posts";
 import { FeedList } from "@/post/feed-list";
 import { Avatar } from "@/ui/avatar";
 import { Wordmark } from "@/ui/brand";
@@ -42,8 +42,11 @@ export default function Home() {
   const following = useFeed((cursor) => loadFeed({ kind: "following" }, cursor), "following", { takesPosts: true });
   const latest = useFeed((cursor) => loadFeed({ kind: "latest" }, cursor), "latest", { enabled: opened.has("latest"), takesPosts: true });
   const trending = useFeed((cursor) => loadFeed({ kind: "trending", seed }, cursor), `trending:${seed}`, { enabled: opened.has("trending") });
-  const [followingFresh, dismissFollowing] = useNewPosts({ feed: "following", ...checkable(following.state), active: feed === "following" });
+  const [followingFresh, dismissFollowing] = useNewPosts({ feed: "following", ...checkable(following.state), active: feed === "following", away: true });
   const [latestFresh, dismissLatest] = useNewPosts({ feed: "latest", ...checkable(latest.state), active: feed === "latest" });
+  useEffect(() => setFollowingFresh(followingFresh > 0), [followingFresh]);
+  useEffect(() => () => setFollowingFresh(false), []);
+
   // A refresh, however it starts, answers the new-posts pill.
   const withDismiss = (list: typeof following, dismiss: () => void) => ({
     ...list,

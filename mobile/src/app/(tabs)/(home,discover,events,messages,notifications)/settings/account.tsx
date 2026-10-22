@@ -7,7 +7,7 @@ import { checkUsername, updateProfile } from "@/data/profiles";
 import { reloadViewer, useSession, useViewer } from "@/data/session";
 import { changeEmail, changePassword, exportData } from "@/data/settings";
 import { Button } from "@/ui/controls";
-import { FieldError, Group, PasswordField, Row, TextField } from "@/ui/form";
+import { FieldError, Group, PasswordField, Row, TextField, useReturnChain } from "@/ui/form";
 import { BackButton, Header } from "@/ui/header";
 import { Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
@@ -51,7 +51,6 @@ export default function AccountSettings() {
     };
   }, [wanted, current]);
 
-  if (!viewer) return null;
   const parsed = usernameSchema.safeParse(wanted);
   const shownCheck: Check =
     !wanted || wanted === current
@@ -61,6 +60,19 @@ export default function AccountSettings() {
         : check?.name === wanted
           ? check.check
           : { kind: "checking" };
+
+  // Each change has its own button; Return in its last field presses it.
+  const usernameField = useReturnChain(["username"], () => {
+    if (shownCheck.kind === "available" && busy === null) void saveUsername();
+  });
+  const emailField = useReturnChain(["email"], () => {
+    if (newEmail.trim() && busy === null) void saveEmail();
+  });
+  const passwordField = useReturnChain(["password", "confirm"], () => {
+    if (password && confirm && busy === null) void savePassword();
+  });
+
+  if (!viewer) return null;
 
   async function saveUsername() {
     if (!viewer) return;
@@ -107,7 +119,7 @@ export default function AccountSettings() {
       <Header title="Account" left={<BackButton fallback="/settings" />} />
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 26, paddingBottom: 48 }}>
         <View style={{ gap: 10 }}>
-          <TextField label="Username" value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} mono maxLength={30} error={errors.username} />
+          <TextField {...usernameField("username")} label="Username" value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} mono maxLength={30} error={errors.username} />
           {shownCheck.kind === "available" ? (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <CircleCheck size={16} color={palette.primary} />
@@ -129,13 +141,13 @@ export default function AccountSettings() {
           <Text variant="callout" tone="muted" selectable>
             {email}
           </Text>
-          <TextField label="New email" value={newEmail} onChangeText={setNewEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} textContentType="emailAddress" error={errors.email} />
+          <TextField {...emailField("email")} label="New email" value={newEmail} onChangeText={setNewEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} textContentType="emailAddress" error={errors.email} />
           <Button label="Change email" variant="outline" size="medium" busy={busy === "email"} disabled={!newEmail.trim()} onPress={() => void saveEmail()} style={{ alignSelf: "flex-start" }} />
         </View>
 
         <View style={{ gap: 10 }}>
-          <PasswordField label="New password" value={password} onChangeText={setPassword} textContentType="newPassword" />
-          <PasswordField label="Type it again" value={confirm} onChangeText={setConfirm} textContentType="newPassword" error={errors.password} />
+          <PasswordField {...passwordField("password")} label="New password" value={password} onChangeText={setPassword} textContentType="newPassword" />
+          <PasswordField {...passwordField("confirm")} label="Type it again" value={confirm} onChangeText={setConfirm} textContentType="newPassword" error={errors.password} />
           <Button label="Change password" variant="outline" size="medium" busy={busy === "password"} disabled={!password || !confirm} onPress={() => void savePassword()} style={{ alignSelf: "flex-start" }} />
         </View>
 

@@ -58,7 +58,7 @@ export default function SafetySettings() {
     <View style={{ flex: 1, backgroundColor: palette.shell }}>
       <Header title="Muted and blocked" left={<BackButton fallback="/settings" />} />
       {!lists ? (
-        <ActivityIndicator style={{ marginTop: 40 }} color={palette.inkMuted} />
+        <ActivityIndicator style={{ marginTop: 40 }} color={palette.inkMuted} accessibilityLabel="Loading" />
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 24, paddingBottom: 48 }}>
           <Group title="Muted" footer="You don't see their posts. They aren't told.">

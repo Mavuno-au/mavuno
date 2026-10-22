@@ -52,7 +52,7 @@ export default function Search() {
 
   const peopleBlock = (
     <View>
-      {query && found === null ? <ActivityIndicator style={{ paddingVertical: 16 }} color={palette.inkMuted} /> : null}
+      {query && found === null ? <ActivityIndicator style={{ paddingVertical: 16 }} color={palette.inkMuted} accessibilityLabel="Loading" /> : null}
       {found && found.length === 0 && tab === "people" ? <EmptyState title={`No people match “${query}”`}>Try their name or username.</EmptyState> : null}
       {shownPeople.map((person) => (
         <PersonRow key={person.id} person={person} />

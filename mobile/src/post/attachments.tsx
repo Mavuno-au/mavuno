@@ -1,8 +1,9 @@
+import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { Briefcase, CalendarDays, Check } from "lucide-react-native";
+import { Briefcase, CalendarDays, Check, Maximize2 } from "lucide-react-native";
 import { useEffect, useState, type ReactNode } from "react";
-import { Alert, Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { OPPORTUNITY_TYPES } from "@/lib/catalogue";
 import type { EventSummary, LinkPreview, OpportunitySummary, Poll, Post, PostImage, QuotedPost } from "@/lib/domain";
 import { count, eventDate, pollTimeLeft, relativeTime } from "@/lib/format";
@@ -13,8 +14,9 @@ import { useShadowWriter } from "@/data/shadow";
 import { Avatar } from "@/ui/avatar";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
+import { toast } from "@/ui/toast";
 import { openLabelledLink } from "@/util/links";
-import { openPhotos } from "@/util/photos";
+import { openPhotos, sharePhoto } from "@/util/photos";
 import { timeZone, useNow } from "@/util/time";
 
 // Bordered blocks are only for things embedded in a post (DESIGN.md).
@@ -25,20 +27,42 @@ function useBlock() {
 
 const imageLabel = (images: PostImage[], index: number) => images[index]?.alt || (images.length > 1 ? `Photo ${index + 1} of ${images.length}` : "Photo");
 
-export function ImageGrid({ images }: { images: PostImage[] }) {
+// A single photo keeps its own shape between a wide panorama and a tall
+// portrait. Feeds allow up to twice as tall as wide, the post a page is about
+// four times, as on Bluesky; anything beyond is cropped and says so.
+const WIDEST = 2;
+const TALLEST = { feed: 1 / 2, focus: 1 / 4 };
+
+export function ImageGrid({ images, focus = false }: { images: PostImage[]; focus?: boolean }) {
   const palette = usePalette();
   const block = useBlock();
-  // Tapping a photo opens it full screen, with its description under ALT.
-  const tile = (image: PostImage, index: number) => (
+  const share = (image: PostImage) => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    void sharePhoto(image.url);
+  };
+  // Tapping a photo opens it full screen, with its description under ALT;
+  // pressing and holding one shares it, which is also how it's saved.
+  const tile = (image: PostImage, index: number, cropped = false) => (
     <Pressable
       key={image.id}
       style={{ flex: 1, backgroundColor: palette.wash }}
       accessibilityRole="imagebutton"
       accessibilityLabel={imageLabel(images, index)}
-      accessibilityHint="Opens the photo full screen"
+      accessibilityHint={cropped ? "Shown cropped. Opens the whole photo full screen" : "Opens the photo full screen"}
+      accessibilityActions={[{ name: "share", label: "Share or save photo" }]}
+      onAccessibilityAction={(event) => {
+        if (event.nativeEvent.actionName === "share") share(image);
+      }}
       onPress={() => openPhotos(images, index)}
+      onLongPress={() => share(image)}
+      delayLongPress={350}
     >
       <Image source={image.url} style={{ flex: 1 }} contentFit="cover" transition={150} accessible={false} accessibilityIgnoresInvertColors />
+      {cropped ? (
+        <View style={{ position: "absolute", right: 6, bottom: 6, width: 22, height: 22, borderRadius: 4, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0, 0, 0, 0.7)" }}>
+          <Maximize2 size={13} color="#ffffff" strokeWidth={2.4} />
+        </View>
+      ) : null}
       {image.alt ? (
         <View style={{ position: "absolute", left: 6, bottom: 6, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, backgroundColor: "rgba(0, 0, 0, 0.7)" }}>
           <Text allowFontScaling={false} style={{ fontFamily: font.monoMedium, fontSize: 10, lineHeight: 14, color: "#ffffff" }}>
@@ -52,9 +76,10 @@ export function ImageGrid({ images }: { images: PostImage[] }) {
   const [first, second, third, fourth] = images;
   if (!first) return null;
   if (images.length === 1) {
-    // Its own shape, kept between a tall portrait and a wide panorama.
-    const ratio = first.width && first.height ? Math.min(Math.max(first.width / first.height, 0.75), 2) : 16 / 10;
-    return <View style={[block, { marginTop: 10, aspectRatio: ratio }]}>{tile(first, 0)}</View>;
+    const own = first.width && first.height ? first.width / first.height : 16 / 10;
+    const tallest = focus ? TALLEST.focus : TALLEST.feed;
+    const ratio = Math.min(Math.max(own, tallest), WIDEST);
+    return <View style={[block, { marginTop: 10, aspectRatio: ratio }]}>{tile(first, 0, ratio !== own)}</View>;
   }
   const gap = 2;
   return (
@@ -258,7 +283,7 @@ export function PollView({ post, poll }: { post: Post; poll: Poll }) {
     const result = await votePoll(post.id, optionId);
     if (!result.ok) {
       setVoting(null);
-      return Alert.alert("Couldn't vote", result.error);
+      return toast(`Couldn't vote. ${result.error}`, { tone: "error" });
     }
     const fresh = await loadPost(post.id).catch(() => null);
     setVoting(null);

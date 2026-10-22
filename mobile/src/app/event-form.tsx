@@ -14,7 +14,7 @@ import { pickImages, uploadImage } from "@/data/upload";
 import { useRulesGate } from "@/post/rules-sheet";
 import { Segmented } from "@/ui/controls";
 import { DateField } from "@/ui/date-field";
-import { FieldError, Group, SelectRow, SheetHeader, TextField, ToggleRow, useErrorScroll } from "@/ui/form";
+import { FieldError, Group, SelectRow, SheetHeader, TextField, ToggleRow, useErrorScroll, useReturnChain } from "@/ui/form";
 import { Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
@@ -113,12 +113,16 @@ export default function EventForm() {
     });
   }, [editing, viewerId]);
 
+  // Where it is and how to get in follow one another; the title and the
+  // description stand on their own.
+  const field = useReturnChain([...(form?.format === "online" ? [] : ["venue", "address"]), ...(form?.format === "in_person" ? [] : ["onlineUrl"]), "ticketUrl", "capacity"]);
+
   if (!viewer) return null;
   if (!form) {
     return (
       <View style={{ flex: 1, backgroundColor: palette.surface }}>
         <SheetHeader title="Edit event" onCancel={() => router.back()} />
-        {error ? <FieldError>{error}</FieldError> : <ActivityIndicator style={{ marginTop: 40 }} color={palette.inkMuted} />}
+        {error ? <FieldError>{error}</FieldError> : <ActivityIndicator style={{ marginTop: 40 }} color={palette.inkMuted} accessibilityLabel="Loading" />}
       </View>
     );
   }
@@ -207,18 +211,18 @@ export default function EventForm() {
             <Group>
               <SelectRow label="City" options={cities.map((city) => ({ value: city.id, label: `${city.name}, ${city.state}` }))} value={form.cityId} onChange={(cityId) => set("cityId", cityId)} last />
             </Group>
-            <TextField label="Venue" value={form.venue} onChangeText={(text) => set("venue", text)} maxLength={120} placeholder="Acacia Ridge Community Centre" />
-            <TextField label="Address" value={form.address} onChangeText={(text) => set("address", text)} maxLength={200} />
+            <TextField {...field("venue")} label="Venue" value={form.venue} onChangeText={(text) => set("venue", text)} maxLength={120} placeholder="Acacia Ridge Community Centre" />
+            <TextField {...field("address")} label="Address" value={form.address} onChangeText={(text) => set("address", text)} maxLength={200} />
           </>
         )}
         {form.format === "in_person" ? null : (
-          <TextField label="Link to join online" hint="Only people who say they're going see it." value={form.onlineUrl} onChangeText={(text) => set("onlineUrl", text)} keyboardType="url" autoCapitalize="none" autoCorrect={false} placeholder="https://" />
+          <TextField {...field("onlineUrl")} label="Link to join online" hint="Only people who say they're going see it." value={form.onlineUrl} onChangeText={(text) => set("onlineUrl", text)} keyboardType="url" autoCapitalize="none" autoCorrect={false} placeholder="https://" />
         )}
         <View style={{ borderRadius: 14, overflow: "hidden", backgroundColor: palette.surface }}>
           <ToggleRow label="Free" value={form.free} onChange={(free) => set("free", free)} last />
         </View>
-        <TextField label={form.free ? "Registration link (optional)" : "Tickets link"} value={form.ticketUrl} onChangeText={(text) => set("ticketUrl", text)} keyboardType="url" autoCapitalize="none" autoCorrect={false} placeholder="https://" />
-        <TextField label="Places (optional)" value={form.capacity} onChangeText={(text) => set("capacity", text.replace(/\D/g, ""))} keyboardType="number-pad" maxLength={6} />
+        <TextField {...field("ticketUrl")} label={form.free ? "Registration link (optional)" : "Tickets link"} value={form.ticketUrl} onChangeText={(text) => set("ticketUrl", text)} keyboardType="url" autoCapitalize="none" autoCorrect={false} placeholder="https://" />
+        <TextField {...field("capacity")} label="Places (optional)" value={form.capacity} onChangeText={(text) => set("capacity", text.replace(/\D/g, ""))} keyboardType="number-pad" maxLength={6} />
         {spaces.length > 0 ? (
           <Group>
             <SelectRow label="Space" options={[{ value: "", label: "No space" }, ...spaces.map((space) => ({ value: space.id, label: space.name }))]} value={form.spaceId ?? ""} onChange={(spaceId) => set("spaceId", spaceId || null)} last />

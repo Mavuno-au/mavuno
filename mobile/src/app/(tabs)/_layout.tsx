@@ -1,7 +1,9 @@
 import { Tabs } from "expo-router/js-tabs";
 import { Bell, CalendarDays, Compass, House, MessageCircle, type LucideIcon } from "lucide-react-native";
+import { View } from "react-native";
 import { z } from "zod";
 import { badge, useCounts } from "@/data/counts";
+import { useFollowingFresh } from "@/data/use-new-posts";
 import { font } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
 import { emitSoftReset } from "@/util/events";
@@ -23,7 +25,10 @@ const stackIndex = z.object({ index: z.number() });
 export default function TabsLayout() {
   const palette = usePalette();
   const counts = useCounts();
+  const followingFresh = useFollowingFresh();
   const badges: Record<string, string | undefined> = { "(messages)": badge(counts.messages), "(notifications)": badge(counts.notifications) };
+  // Home has a dot rather than a number: new posts in Following.
+  const dot: Record<string, boolean> = { "(home)": followingFresh };
 
   return (
     <Tabs
@@ -54,9 +59,14 @@ export default function TabsLayout() {
           name={name}
           options={{
             title,
-            tabBarAccessibilityLabel: badges[name] ? `${title}, ${badges[name]} new` : title,
+            tabBarAccessibilityLabel: badges[name] ? `${title}, ${badges[name]} new` : dot[name] ? `${title}, new posts` : title,
             tabBarBadge: badges[name],
-            tabBarIcon: ({ color, focused }) => <Icon size={24} color={color} strokeWidth={focused ? 2.3 : 1.8} />,
+            tabBarIcon: ({ color, focused }) => (
+              <View>
+                <Icon size={24} color={color} strokeWidth={focused ? 2.3 : 1.8} />
+                {dot[name] ? <View style={{ position: "absolute", top: -2, right: -4, width: 10, height: 10, borderRadius: 5, borderWidth: 2, borderColor: palette.surface, backgroundColor: palette.primary }} /> : null}
+              </View>
+            ),
           }}
         />
       ))}

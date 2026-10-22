@@ -12,7 +12,7 @@ import { MEDIA_URL } from "@/data/posts";
 import { reloadViewer } from "@/data/session";
 import { pickImages, uploadImage } from "@/data/upload";
 import { Avatar } from "@/ui/avatar";
-import { ChipPicker, FieldError, Group, SelectRow, SheetHeader, TextField, useErrorScroll } from "@/ui/form";
+import { ChipPicker, FieldError, Group, SelectRow, SheetHeader, TextField, useErrorScroll, useReturnChain } from "@/ui/form";
 import { ActionSheet } from "@/ui/sheet";
 import { font, Text } from "@/ui/text";
 import { identityColour, usePalette } from "@/ui/theme";
@@ -93,7 +93,7 @@ export default function EditProfile() {
     return (
       <View style={{ flex: 1, backgroundColor: palette.surface }}>
         <SheetHeader title="Edit profile" onCancel={() => router.back()} />
-        <ActivityIndicator style={{ marginTop: 40 }} color={palette.inkMuted} />
+        <ActivityIndicator style={{ marginTop: 40 }} color={palette.inkMuted} accessibilityLabel="Loading" />
       </View>
     );
   }
@@ -110,6 +110,17 @@ function Editor({ profile, cities, initial }: { profile: EditableProfile; cities
   const [uploading, setUploading] = useState<"avatar" | "banner" | null>(null);
   const [photoMenu, setPhotoMenu] = useState<"avatar" | "banner" | null>(null);
   const organisation = profile.accountType === "organisation";
+  const field = useReturnChain([
+    "name",
+    "bio",
+    ...(organisation ? ["category"] : ["pronouns", "heritage"]),
+    "website",
+    "headline",
+    "occupation",
+    "company",
+    "industry",
+    ...form.links.flatMap((_, index) => [`label-${index}`, `url-${index}`]),
+  ]);
   const changed = JSON.stringify(form) !== JSON.stringify(initial);
   const set = <Key extends keyof Form>(key: Key, value: Form[Key]) => setForm((current) => ({ ...current, [key]: value }));
   const toggle = <Value extends string>(values: Value[], value: Value) => (values.includes(value) ? values.filter((other) => other !== value) : [...values, value]);
@@ -184,9 +195,9 @@ function Editor({ profile, cities, initial }: { profile: EditableProfile; cities
 
         <View style={{ paddingHorizontal: 16, gap: 16 }}>
           {error ? <FieldError>{error}</FieldError> : null}
-          <TextField label="Name" value={form.displayName} onChangeText={(text) => set("displayName", text)} maxLength={60} textContentType="name" />
-          <TextField label="Bio" value={form.bio} onChangeText={(text) => set("bio", text)} limit={LIMITS.bio} maxLength={LIMITS.bio + 20} multiline />
-          {organisation ? <TextField label="Category" hint="Church, community group, business…" value={form.category} onChangeText={(text) => set("category", text)} maxLength={60} /> : null}
+          <TextField {...field("name")} label="Name" value={form.displayName} onChangeText={(text) => set("displayName", text)} maxLength={60} textContentType="name" />
+          <TextField {...field("bio", { multiline: true })} label="Bio" value={form.bio} onChangeText={(text) => set("bio", text)} limit={LIMITS.bio} maxLength={LIMITS.bio + 20} multiline />
+          {organisation ? <TextField {...field("category")} label="Category" hint="Church, community group, business…" value={form.category} onChangeText={(text) => set("category", text)} maxLength={60} /> : null}
         </View>
 
         <Group title="About">
@@ -195,9 +206,9 @@ function Editor({ profile, cities, initial }: { profile: EditableProfile; cities
             <Text variant="small" tone="muted">
               Only your city is ever shown.
             </Text>
-            {organisation ? null : <TextField label="Pronouns" value={form.pronouns} onChangeText={(text) => set("pronouns", text)} maxLength={30} />}
-            {organisation ? null : <TextField label="Heritage" hint="Optional, in your own words." value={form.heritage} onChangeText={(text) => set("heritage", text)} maxLength={60} />}
-            <TextField label="Website" value={form.website} onChangeText={(text) => set("website", text)} keyboardType="url" autoCapitalize="none" autoCorrect={false} placeholder="https://" />
+            {organisation ? null : <TextField {...field("pronouns")} label="Pronouns" value={form.pronouns} onChangeText={(text) => set("pronouns", text)} maxLength={30} />}
+            {organisation ? null : <TextField {...field("heritage")} label="Heritage" hint="Optional, in your own words." value={form.heritage} onChangeText={(text) => set("heritage", text)} maxLength={60} />}
+            <TextField {...field("website")} label="Website" value={form.website} onChangeText={(text) => set("website", text)} keyboardType="url" autoCapitalize="none" autoCorrect={false} placeholder="https://" />
           </View>
         </Group>
 
@@ -234,10 +245,10 @@ function Editor({ profile, cities, initial }: { profile: EditableProfile; cities
           <Text variant="heading" accessibilityRole="header">
             Work
           </Text>
-          <TextField label="Headline" value={form.headline} onChangeText={(text) => set("headline", text)} maxLength={100} placeholder="Nurse and mentor, Logan" />
-          <TextField label="Occupation" value={form.occupation} onChangeText={(text) => set("occupation", text)} maxLength={80} />
-          <TextField label="Company" value={form.company} onChangeText={(text) => set("company", text)} maxLength={80} />
-          <TextField label="Industry" value={form.industry} onChangeText={(text) => set("industry", text)} maxLength={60} />
+          <TextField {...field("headline")} label="Headline" value={form.headline} onChangeText={(text) => set("headline", text)} maxLength={100} placeholder="Nurse and mentor, Logan" />
+          <TextField {...field("occupation")} label="Occupation" value={form.occupation} onChangeText={(text) => set("occupation", text)} maxLength={80} />
+          <TextField {...field("company")} label="Company" value={form.company} onChangeText={(text) => set("company", text)} maxLength={80} />
+          <TextField {...field("industry")} label="Industry" value={form.industry} onChangeText={(text) => set("industry", text)} maxLength={60} />
           <ChipPicker label="Open to" options={OPEN_TO_CHOICES} selected={form.openTo} onToggle={(value) => set("openTo", toggle(form.openTo, value))} />
           <ChipPicker label="Interests" options={INTEREST_CHOICES} selected={form.interests} onToggle={(value) => set("interests", toggle(form.interests, value))} max={15} />
         </View>
@@ -256,8 +267,8 @@ function Editor({ profile, cities, initial }: { profile: EditableProfile; cities
                   <X size={18} color={palette.inkMuted} />
                 </Pressable>
               </View>
-              <TextField label="Label" value={link.label} onChangeText={(label) => set("links", form.links.map((other, at) => (at === index ? { ...other, label } : other)))} maxLength={40} />
-              <TextField label="Address" value={link.url} onChangeText={(url) => set("links", form.links.map((other, at) => (at === index ? { ...other, url } : other)))} keyboardType="url" autoCapitalize="none" autoCorrect={false} placeholder="https://" />
+              <TextField {...field(`label-${index}`)} label="Label" value={link.label} onChangeText={(label) => set("links", form.links.map((other, at) => (at === index ? { ...other, label } : other)))} maxLength={40} />
+              <TextField {...field(`url-${index}`)} label="Address" value={link.url} onChangeText={(url) => set("links", form.links.map((other, at) => (at === index ? { ...other, url } : other)))} keyboardType="url" autoCapitalize="none" autoCorrect={false} placeholder="https://" />
             </View>
           ))}
           {form.links.length < 5 ? (

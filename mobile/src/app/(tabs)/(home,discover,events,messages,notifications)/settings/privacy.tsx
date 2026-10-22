@@ -45,7 +45,7 @@ export default function PrivacySettings() {
     <View style={{ flex: 1, backgroundColor: palette.shell }}>
       <Header title="Privacy" left={<BackButton fallback="/settings" />} />
       {!settings ? (
-        <ActivityIndicator style={{ marginTop: 40 }} color={palette.inkMuted} />
+        <ActivityIndicator style={{ marginTop: 40 }} color={palette.inkMuted} accessibilityLabel="Loading" />
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 24, paddingBottom: 48 }}>
           <Group title="Who can message me">

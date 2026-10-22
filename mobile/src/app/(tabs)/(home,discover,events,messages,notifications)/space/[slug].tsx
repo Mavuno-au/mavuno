@@ -6,12 +6,13 @@ import { Alert, View } from "react-native";
 import type { CommunityEvent, Space, SpaceRole } from "@/lib/community";
 import { compact } from "@/lib/format";
 import { loadSpace, loadUpcomingEvents, setMembership } from "@/data/community";
+import { reasonOf, type Reason } from "@/data/errors";
 import { useViewer } from "@/data/session";
 import { useFeed } from "@/data/use-feed";
 import { loadFeed } from "@/data/posts";
 import { EventRow } from "@/community/event-row";
 import { FeedList } from "@/post/feed-list";
-import { Button, EmptyState, FeedSkeleton, IconButton } from "@/ui/controls";
+import { Button, EmptyState, FeedSkeleton, IconButton, LoadFailed } from "@/ui/controls";
 import { BackButton, Header } from "@/ui/header";
 import { ActionSheet } from "@/ui/sheet";
 import { font, Text } from "@/ui/text";
@@ -20,7 +21,7 @@ import { toast } from "@/ui/toast";
 import { openLink, shareLink } from "@/util/links";
 import { siteLink } from "@/data/env";
 
-type Loaded = { space: Space; role: SpaceRole | null; events: CommunityEvent[] };
+type State = { kind: "missing" } | { kind: "failed"; reason: Reason } | { kind: "ready"; space: Space; role: SpaceRole | null; events: CommunityEvent[] };
 
 // A city or interest space, as on the website: the city's photo with its
 // credit and licence, Join, the next events, and the space's posts.
@@ -28,7 +29,7 @@ export default function SpaceScreen() {
   const palette = usePalette();
   const viewer = useViewer();
   const slug = String(useLocalSearchParams().slug ?? "");
-  const [loaded, setLoaded] = useState<{ slug: string; state: Loaded | null | "failed" } | null>(null);
+  const [loaded, setLoaded] = useState<{ slug: string; state: State } | null>(null);
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState(false);
   const viewerId = viewer?.id ?? null;
@@ -37,26 +38,26 @@ export default function SpaceScreen() {
     if (!viewerId) return;
     void loadSpace(slug, viewerId)
       .then(async (found) => {
-        if (!found) return setLoaded({ slug, state: null });
+        if (!found) return setLoaded({ slug, state: { kind: "missing" } });
         const events = await loadUpcomingEvents({ kind: "space", spaceId: found.space.id }, null, 3).catch(() => []);
-        setLoaded({ slug, state: { ...found, events } });
+        setLoaded({ slug, state: { kind: "ready", ...found, events } });
       })
-      .catch(() => setLoaded({ slug, state: "failed" }));
+      .catch((error: unknown) => setLoaded({ slug, state: { kind: "failed", reason: reasonOf(error) } }));
   }, [slug, viewerId]);
 
   useEffect(read, [read]);
 
   const state = loaded?.slug === slug ? loaded.state : undefined;
-  const space = state && state !== "failed" ? state.space : null;
+  const space = state?.kind === "ready" ? state.space : null;
   const feed = useFeed((cursor) => loadFeed({ kind: "space", spaceId: space?.id ?? "" }, cursor), `space:${space?.id ?? ""}`, { enabled: space !== null, takesPosts: true });
 
-  if (state === undefined || state === null || state === "failed" || !space) {
+  if (state?.kind !== "ready" || !space) {
     return (
       <View style={{ flex: 1, backgroundColor: palette.surface }}>
         <Header title="Space" left={<BackButton fallback="/spaces" />} />
         {state === undefined ? <FeedSkeleton rows={3} /> : null}
-        {state === null ? <EmptyState title="We couldn't find that space">It may have been renamed or removed.</EmptyState> : null}
-        {state === "failed" ? <EmptyState title="This space didn't load" action={<Button label="Try again" size="medium" onPress={read} />} /> : null}
+        {state?.kind === "missing" ? <EmptyState title="We couldn't find that space">It may have been renamed or removed.</EmptyState> : null}
+        {state?.kind === "failed" ? <LoadFailed title="This space didn't load" reason={state.reason} onRetry={read} /> : null}
       </View>
     );
   }

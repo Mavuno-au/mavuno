@@ -83,7 +83,7 @@ export default function OpportunityForm() {
     return (
       <View style={{ flex: 1, backgroundColor: palette.surface }}>
         <SheetHeader title="Edit opportunity" onCancel={() => router.back()} />
-        {error ? <FieldError>{error}</FieldError> : <ActivityIndicator style={{ marginTop: 40 }} color={palette.inkMuted} />}
+        {error ? <FieldError>{error}</FieldError> : <ActivityIndicator style={{ marginTop: 40 }} color={palette.inkMuted} accessibilityLabel="Loading" />}
       </View>
     );
   }

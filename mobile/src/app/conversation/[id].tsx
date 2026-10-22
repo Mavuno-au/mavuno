@@ -9,7 +9,7 @@ import { z } from "zod";
 import { LIMITS } from "@/lib/catalogue";
 import { count, dayLabel } from "@/lib/format";
 import type { Conversation, Member, Message } from "@/lib/messages";
-import { PROBLEM, reasonOf, type Reason } from "@/data/errors";
+import { reasonOf, type Reason } from "@/data/errors";
 import {
   loadConversation,
   loadMembers,
@@ -32,12 +32,12 @@ import { pickImages, uploadImage, type PickedImage } from "@/data/upload";
 import { ConversationAvatar } from "@/messages/conversation-avatar";
 import { MessageBubble, type Delivery } from "@/messages/message-bubble";
 import { ImageTray } from "@/post/composer/images";
-import { Button, EmptyState, IconButton } from "@/ui/controls";
+import { Button, EmptyState, IconButton, LoadFailed } from "@/ui/controls";
 import { BackButton, Header } from "@/ui/header";
 import { ActionSheet, type SheetAction } from "@/ui/sheet";
 import { Text, type } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
-import { toast } from "@/ui/toast";
+import { toast, useToastFloor } from "@/ui/toast";
 import { timeZone } from "@/util/time";
 
 // The website's thread (src/components/messages/thread-view.tsx), timings included.
@@ -45,6 +45,8 @@ const TYPING_MS = 4_000;
 const TYPING_EVERY_MS = 2_500;
 const CATCH_UP_EVERY_MS = 20_000;
 const RUN_GAP_MS = 5 * 60_000;
+// After a pause this long a divider says when the conversation picked up again, as Bluesky's does.
+const DIVIDER_GAP_MS = 60 * 60_000;
 const REACTIONS_RECHECKED = 100;
 const QUICK_REACTIONS = ["❤️", "😂", "👍", "🙏", "🔥"] as const;
 
@@ -56,10 +58,12 @@ const typingPayload = z.object({ userId: z.uuid() });
 type Pending = { key: string; body: string; images: PickedImage[]; replyTo: Message | null; delivery: Delivery; createdAt: string };
 type Item =
   | { kind: "message"; id: string; message: Message; first: boolean; last: boolean; delivery?: Delivery; pending?: Pending }
-  | { kind: "day"; id: string; label: string }
+  | { kind: "divider"; id: string; label: string }
   | { kind: "history"; id: string };
 
 const day = (iso: string) => dayLabel(iso, new Date(), timeZone);
+// "Today at 3:42 pm", in the reader's own zone.
+const sentAt = (iso: string) => `${day(iso)} at ${new Date(iso).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", timeZone })}`;
 const sameRun = (a: Message | undefined, b: Message | undefined) =>
   a !== undefined && b !== undefined && a.senderId === b.senderId && day(a.createdAt) === day(b.createdAt) && Date.parse(b.createdAt) - Date.parse(a.createdAt) < RUN_GAP_MS;
 
@@ -90,12 +94,8 @@ export default function ConversationScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: palette.surface }}>
         <Header title="Messages" left={<BackButton fallback="/messages" />} />
-        {state.kind === "loading" ? <ActivityIndicator style={{ marginTop: 40 }} color={palette.inkMuted} /> : null}
-        {state.kind === "failed" ? (
-          <EmptyState title="This conversation didn't load" action={<Button label="Try again" size="medium" onPress={read} />}>
-            {PROBLEM[state.reason]}
-          </EmptyState>
-        ) : null}
+        {state.kind === "loading" ? <ActivityIndicator style={{ marginTop: 40 }} color={palette.inkMuted} accessibilityLabel="Loading the conversation" /> : null}
+        {state.kind === "failed" ? <LoadFailed title="This conversation didn't load" reason={state.reason} onRetry={read} /> : null}
         {state.kind === "missing" ? <EmptyState title="We couldn't find that conversation">You may have left it, or it was deleted.</EmptyState> : null}
       </View>
     );
@@ -113,7 +113,9 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
   const [messages, setMessages] = useState<Message[]>([]);
   // A request nobody has written in yet has nothing to read.
   const empty = access.kind === "request" && conversation.lastMessage === null;
-  const [first, setFirst] = useState<"loading" | "failed" | "ready">(empty ? "ready" : "loading");
+  const [first, setFirst] = useState<{ kind: "loading" } | { kind: "failed"; reason: Reason } | { kind: "ready" }>(empty ? { kind: "ready" } : { kind: "loading" });
+  // Try again rereads the first page; the conversation itself already loaded.
+  const [attempt, setAttempt] = useState(0);
   const [older, setOlder] = useState<{ next: string | null; loading: boolean }>({ next: null, loading: false });
   const [members, setMembers] = useState<Member[]>(conversation.members);
   const [typing, setTyping] = useState<Record<string, number>>({});
@@ -128,6 +130,7 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
   const shown = useRef<Message[]>([]);
   const known = useRef(new Set<string>());
   const lastTyped = useRef(0);
+  const composerFloor = useToastFloor(access.kind !== "request");
 
   useEffect(() => {
     shown.current = messages;
@@ -148,14 +151,14 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
         for (const message of page.messages) known.current.add(message.id);
         setMessages(page.messages);
         setOlder({ next: page.next, loading: false });
-        setFirst("ready");
+        setFirst({ kind: "ready" });
       },
-      () => current && setFirst("failed"),
+      (error: unknown) => current && setFirst({ kind: "failed", reason: reasonOf(error) }),
     );
     return () => {
       current = false;
     };
-  }, [id, empty]);
+  }, [id, empty, attempt]);
 
   // Realtime: new and changed messages from the table, and pings for
   // reactions, reads and typing, as the website does.
@@ -323,7 +326,7 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
       ),
     );
     void setReaction(viewerId, message.id, emoji, on).then((result) => {
-      if (!result.ok) return Alert.alert("Couldn't react", result.error);
+      if (!result.ok) return toast(`Couldn't react. ${result.error}`, { tone: "error" });
       void channel.current?.send({ type: "broadcast", event: "reaction", payload: { messageId: message.id } });
     });
   }
@@ -345,7 +348,8 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
   all.forEach((message, index) => {
     const previous = all[index - 1];
     const following = all[index + 1];
-    if (!previous || day(previous.createdAt) !== day(message.createdAt)) items.push({ kind: "day", id: `day-${message.id}`, label: day(message.createdAt) });
+    const paused = previous !== undefined && Date.parse(message.createdAt) - Date.parse(previous.createdAt) > DIVIDER_GAP_MS;
+    if (!previous || paused || day(previous.createdAt) !== day(message.createdAt)) items.push({ kind: "divider", id: `divider-${message.id}`, label: sentAt(message.createdAt) });
     const waiting = pending.find((item) => item.key === message.id);
     items.push({ kind: "message", id: message.id, message, first: !sameRun(previous, message), last: !sameRun(message, following), delivery: waiting?.delivery, pending: waiting });
   });
@@ -412,10 +416,15 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
         </Pressable>
       </Header>
       {access.kind === "request" ? <RequestBanner conversation={conversation} viewerId={viewerId} onChanged={onChanged} /> : null}
-      {first === "failed" ? (
-        <EmptyState title="Messages didn't load" action={<Button label="Try again" size="medium" onPress={onChanged} />}>
-          Check your connection, then try again.
-        </EmptyState>
+      {first.kind === "failed" ? (
+        <LoadFailed
+          title="Messages didn't load"
+          reason={first.reason}
+          onRetry={() => {
+            setFirst({ kind: "loading" });
+            setAttempt((count) => count + 1);
+          }}
+        />
       ) : (
         <FlatList
           inverted
@@ -439,9 +448,9 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
               ) : null}
             </View>
           }
-          ListFooterComponent={first === "loading" || older.loading ? <ActivityIndicator style={{ paddingVertical: 16 }} color={palette.inkMuted} /> : undefined}
+          ListFooterComponent={first.kind === "loading" || older.loading ? <ActivityIndicator style={{ paddingVertical: 16 }} color={palette.inkMuted} accessibilityLabel="Loading messages" /> : undefined}
           ListEmptyComponent={
-            first === "ready" && access.kind !== "request" ? (
+            first.kind === "ready" && access.kind !== "request" ? (
               <View style={{ transform: [{ scaleY: -1 }] }}>
                 <EmptyState title="Say hello">{conversation.kind === "group" ? "Start the conversation." : `This is the start of your conversation with ${conversation.name}.`}</EmptyState>
               </View>
@@ -449,7 +458,7 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
           }
           renderItem={({ item }) => {
             switch (item.kind) {
-              case "day":
+              case "divider":
                 return (
                   <Text variant="caption" tone="muted" style={{ textAlign: "center", paddingVertical: 10 }}>
                     {item.label}
@@ -463,6 +472,9 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
                 );
               case "message": {
                 const waiting = item.pending;
+                const message = item.message;
+                // VoiceOver reaches what pressing and holding offers as the bubble's actions.
+                const actions = waiting ? [] : [...(message.content.kind === "message" ? [{ label: "React", onPress: () => setHolding(message) }] : []), ...messageActions(message, viewerId, () => setReplyTo(message))];
                 return (
                   <MessageBubble
                     message={item.message}
@@ -473,6 +485,7 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
                     viewerId={viewerId}
                     authorName={authorName}
                     delivery={item.delivery}
+                    actions={actions}
                     onLongPress={() => (waiting ? undefined : setHolding(item.message))}
                     onRetry={() => waiting && void deliver(waiting)}
                     onReact={(emoji, on) => react(item.message, emoji, on)}
@@ -493,7 +506,7 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
         </Text>
       ) : null}
       {access.kind === "request" ? null : (
-        <View style={{ borderTopWidth: 1, borderTopColor: palette.hairline, paddingHorizontal: 12, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 8), gap: 8, backgroundColor: palette.surface }}>
+        <View {...composerFloor} style={{ borderTopWidth: 1, borderTopColor: palette.hairline, paddingHorizontal: 12, paddingTop: 8, paddingBottom: Math.max(insets.bottom, 8), gap: 8, backgroundColor: palette.surface }}>
           {replyTo ? (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: palette.wash }}>
               <Text variant="small" tone="muted" numberOfLines={1} style={{ flex: 1 }}>
@@ -565,7 +578,7 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
           const mine = holding.reactions.some((reaction) => reaction.emoji === emoji && reaction.userId === viewerId);
           react(holding, emoji, !mine);
         }}
-        onReply={() => holding && setReplyTo(holding)}
+        actions={holding ? messageActions(holding, viewerId, () => setReplyTo(holding)) : []}
       />
       <ActionSheet title={conversation.name} actions={menuActions} open={menu} onClose={() => setMenu(false)} />
     </KeyboardAvoidingView>
@@ -592,13 +605,24 @@ function confirmBlock(viewerId: string, person: { id: string; username: string }
   );
 }
 
-// Press and hold a message: react, reply, copy, or report someone else's.
-function HoldMenu({ message, viewerId, onClose, onReact, onReply }: { message: Message | null; viewerId: string; onClose: () => void; onReact: (emoji: string) => void; onReply: () => void }) {
+type MessageAction = { label: string; onPress: () => void; destructive?: boolean };
+
+// What pressing and holding a message offers besides reactions: reply, copy,
+// or report someone else's.
+function messageActions(message: Message, viewerId: string, onReply: () => void): MessageAction[] {
+  const text = message.content.kind === "message" ? message.content.body : "";
+  return [
+    ...(message.content.kind === "message" ? [{ label: "Reply", onPress: onReply }] : []),
+    ...(text ? [{ label: "Copy text", onPress: () => void Clipboard.setStringAsync(text).then(() => toast("Copied")) }] : []),
+    ...(message.senderId === viewerId ? [] : [{ label: "Report message", destructive: true, onPress: () => router.push({ pathname: "/report", params: { type: "message", id: message.id } }) }]),
+  ];
+}
+
+// Press and hold a message: when it was sent, reactions, and its actions.
+function HoldMenu({ message, viewerId, actions, onClose, onReact }: { message: Message | null; viewerId: string; actions: MessageAction[]; onClose: () => void; onReact: (emoji: string) => void }) {
   const palette = usePalette();
   const insets = useSafeAreaInsets();
   const open = message !== null;
-  const mine = message?.senderId === viewerId;
-  const text = message?.content.kind === "message" ? message.content.body : "";
   const choose = (action: () => void) => {
     onClose();
     action();
@@ -628,24 +652,23 @@ function HoldMenu({ message, viewerId, onClose, onReact, onReply }: { message: M
           </View>
         ) : null}
         <View style={{ borderRadius: 16, overflow: "hidden", backgroundColor: palette.popover }}>
-          {[
-            { label: "Reply", show: message?.content.kind === "message", onPress: onReply, danger: false },
-            { label: "Copy text", show: Boolean(text), onPress: () => void Clipboard.setStringAsync(text).then(() => toast("Copied")), danger: false },
-            { label: "Report message", show: !mine, onPress: () => message && router.push({ pathname: "/report", params: { type: "message", id: message.id } }), danger: true },
-          ]
-            .filter((action) => action.show)
-            .map((action, index) => (
-              <Pressable
-                key={action.label}
-                accessibilityRole="button"
-                onPress={() => choose(action.onPress)}
-                style={({ pressed }) => ({ minHeight: 52, paddingHorizontal: 18, justifyContent: "center", borderTopWidth: index === 0 ? 0 : 1, borderTopColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
-              >
-                <Text variant="body" tone={action.danger ? "destructive" : "ink"}>
-                  {action.label}
-                </Text>
-              </Pressable>
-            ))}
+          {message ? (
+            <Text variant="caption" tone="muted" style={{ paddingHorizontal: 18, paddingTop: 12, paddingBottom: 10 }}>
+              {sentAt(message.createdAt)}
+            </Text>
+          ) : null}
+          {actions.map((action) => (
+            <Pressable
+              key={action.label}
+              accessibilityRole="button"
+              onPress={() => choose(action.onPress)}
+              style={({ pressed }) => ({ minHeight: 52, paddingHorizontal: 18, justifyContent: "center", borderTopWidth: 1, borderTopColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
+            >
+              <Text variant="body" tone={action.destructive ? "destructive" : "ink"}>
+                {action.label}
+              </Text>
+            </Pressable>
+          ))}
         </View>
       </View>
     </Modal>

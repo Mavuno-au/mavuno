@@ -13,6 +13,8 @@ export type Delivery = { kind: "sent" } | { kind: "sending" } | { kind: "failed"
 
 // One message in a conversation. Messages from the same person a few minutes
 // apart form a run: the name shows on the first, the avatar on the last.
+// What pressing and holding offers is also the bubble's VoiceOver actions,
+// and a message that didn't send is a button that sends it again.
 export function MessageBubble({
   message,
   mine,
@@ -22,6 +24,7 @@ export function MessageBubble({
   viewerId,
   authorName,
   delivery = { kind: "sent" },
+  actions = [],
   onLongPress,
   onRetry,
   onReact,
@@ -34,6 +37,7 @@ export function MessageBubble({
   viewerId: string;
   authorName: (senderId: string | null) => string;
   delivery?: Delivery;
+  actions?: { label: string; onPress: () => void }[];
   onLongPress: () => void;
   onRetry: () => void;
   onReact: (emoji: string, on: boolean) => void;
@@ -55,8 +59,10 @@ export function MessageBubble({
       <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8, maxWidth: "86%" }}>
         {showAvatar ? <View style={{ width: 32 }}>{last && message.sender ? <Avatar person={message.sender} size={32} /> : null}</View> : null}
         <Pressable
-          accessibilityRole="text"
-          accessibilityHint="Press and hold to react or reply"
+          accessibilityRole={delivery.kind === "failed" ? "button" : "text"}
+          accessibilityHint={delivery.kind === "failed" ? "Couldn't send. Sends it again" : undefined}
+          accessibilityActions={actions.map((action) => ({ name: action.label, label: action.label }))}
+          onAccessibilityAction={(event) => actions.find((action) => action.label === event.nativeEvent.actionName)?.onPress()}
           onLongPress={onLongPress}
           onPress={delivery.kind === "failed" ? onRetry : undefined}
           delayLongPress={300}

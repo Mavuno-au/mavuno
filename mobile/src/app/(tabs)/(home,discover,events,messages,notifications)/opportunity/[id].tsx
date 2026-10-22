@@ -6,17 +6,20 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { OPPORTUNITY_TYPES } from "@/lib/catalogue";
 import { DEADLINE_ZONE, type Opportunity } from "@/lib/community";
 import { siteLink } from "@/data/env";
+import { reasonOf, type Reason } from "@/data/errors";
 import { closeOpportunity, loadOpportunity, setOpportunitySaved } from "@/data/community";
 import { useViewer } from "@/data/session";
 import { RichText } from "@/post/rich-text";
 import { Avatar } from "@/ui/avatar";
-import { Button, Chip, EmptyState, FeedSkeleton, IconButton } from "@/ui/controls";
+import { Button, Chip, EmptyState, FeedSkeleton, IconButton, LoadFailed } from "@/ui/controls";
 import { BackButton, Header } from "@/ui/header";
 import { ActionSheet, type SheetAction } from "@/ui/sheet";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
-import { toast } from "@/ui/toast";
+import { toast, useToastFloor } from "@/ui/toast";
 import { openLink, shareLink } from "@/util/links";
+
+type State = { kind: "missing" } | { kind: "failed"; reason: Reason } | { kind: "ready"; opportunity: Opportunity; saved: boolean };
 
 // The website's opportunity: its details in a small table, with Apply and
 // Save pinned at the bottom. A closed one says so and hides Apply.
@@ -25,27 +28,29 @@ export default function OpportunityScreen() {
   const insets = useSafeAreaInsets();
   const viewer = useViewer();
   const opportunityId = String(useLocalSearchParams().id ?? "");
-  const [loaded, setLoaded] = useState<{ id: string; state: { opportunity: Opportunity; saved: boolean } | null | "failed" } | null>(null);
+  const [loaded, setLoaded] = useState<{ id: string; state: State } | null>(null);
   const [menu, setMenu] = useState(false);
+  // Saved and Removed toasts show above Apply and Save.
+  const barFloor = useToastFloor();
   const viewerId = viewer?.id ?? null;
 
   const read = useCallback(() => {
     if (!viewerId) return;
     void loadOpportunity(opportunityId, viewerId)
-      .then((found) => setLoaded({ id: opportunityId, state: found }))
-      .catch(() => setLoaded({ id: opportunityId, state: "failed" }));
+      .then((found) => setLoaded({ id: opportunityId, state: found ? { kind: "ready", ...found } : { kind: "missing" } }))
+      .catch((error: unknown) => setLoaded({ id: opportunityId, state: { kind: "failed", reason: reasonOf(error) } }));
   }, [opportunityId, viewerId]);
 
   useEffect(read, [read]);
 
   const state = loaded?.id === opportunityId ? loaded.state : undefined;
-  if (state === undefined || state === null || state === "failed" || !viewer) {
+  if (state?.kind !== "ready" || !viewer) {
     return (
       <View style={{ flex: 1, backgroundColor: palette.surface }}>
         <Header title="Opportunity" left={<BackButton fallback="/opportunities" />} />
         {state === undefined ? <FeedSkeleton rows={2} /> : null}
-        {state === null ? <EmptyState title="We couldn't find that opportunity">It may have been removed.</EmptyState> : null}
-        {state === "failed" ? <EmptyState title="This didn't load" action={<Button label="Try again" size="medium" onPress={read} />} /> : null}
+        {state?.kind === "missing" ? <EmptyState title="We couldn't find that opportunity">It may have been removed.</EmptyState> : null}
+        {state?.kind === "failed" ? <LoadFailed title="This opportunity didn't load" reason={state.reason} onRetry={read} /> : null}
       </View>
     );
   }
@@ -144,7 +149,7 @@ export default function OpportunityScreen() {
         {opportunity.closed ? <Button label="See open opportunities" variant="outline" onPress={() => router.push("/opportunities")} /> : null}
       </ScrollView>
       {opportunity.closed ? null : (
-        <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 10), borderTopWidth: 1, borderTopColor: palette.hairline, backgroundColor: palette.surface }}>
+        <View {...barFloor} style={{ position: "absolute", left: 0, right: 0, bottom: 0, flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 10), borderTopWidth: 1, borderTopColor: palette.hairline, backgroundColor: palette.surface }}>
           {apply ? <Button label="Apply" onPress={() => openLink(apply)} style={{ flex: 1 }} /> : null}
           <Button
             label={saved ? "Saved" : "Save"}
