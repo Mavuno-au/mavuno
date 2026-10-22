@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { deletionDate } from "@/lib/age";
 import { colourSchema } from "@/lib/domain";
-import { createClient } from "@/lib/supabase/server";
+import { credentials } from "@/lib/bearer";
+import { createClient, createGuestClient, createTokenClient, type Supabase } from "@/lib/supabase/server";
 import { signInPath } from "@/lib/safe-redirect";
 
 const identity = z.object({
@@ -72,9 +73,10 @@ const toIdentity = (row: z.infer<typeof identity>): Identity => ({
   colour: row.colour,
 });
 
-export const getViewer = cache(async (): Promise<Viewer | null> => {
-  const supabase = await createClient();
-  const { data: claims } = await supabase.auth.getClaims();
+// `token` is the mobile app's access token; without it the claims come from
+// the session cookie the client was built with.
+async function loadViewer(supabase: Supabase, token?: string): Promise<Viewer | null> {
+  const { data: claims } = await supabase.auth.getClaims(token);
   const userId = claims?.claims.sub;
   if (!userId) return null;
 
@@ -111,7 +113,29 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
     organisations: row.organisation_members.filter((m) => m.accepted_at !== null).map((m) => ({ ...toIdentity(m.organisation), role: m.role })),
     invitations: row.organisation_members.filter((m) => m.accepted_at === null).map((m) => ({ ...toIdentity(m.organisation), role: m.role })),
   };
-});
+}
+
+export const getViewer = cache(async () => loadViewer(await createClient()));
+
+// For API routes the mobile app calls too: the viewer and a client acting as
+// them, from a bearer token if the request has one, else from the cookie.
+export async function getRequestViewer(request: Request): Promise<{ supabase: Supabase; viewer: Viewer | null }> {
+  const given = credentials(request.headers.get("authorization"));
+  switch (given.kind) {
+    case "cookie":
+      return { supabase: await createClient(), viewer: await getViewer() };
+    case "bearer": {
+      const supabase = createTokenClient(given.token);
+      return { supabase, viewer: await loadViewer(supabase, given.token) };
+    }
+    case "malformed":
+      return { supabase: createGuestClient(), viewer: null };
+    default: {
+      const exhaustive: never = given;
+      return exhaustive;
+    }
+  }
+}
 
 export async function requireViewer(next = "/") {
   const viewer = await getViewer();

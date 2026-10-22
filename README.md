@@ -150,14 +150,14 @@ src/
   app/(auth)/       sign in, sign up, password reset
   app/onboarding/   first-time setup
   app/actions/      server actions; each returns Result<T>
-  app/api/          translate, export, maintenance, tasks
+  app/api/          upload, translate, export, maintenance, tasks
   components/       ui, shell, people, post, messages, community, settings, moderation
   lib/domain.ts     zod schemas that turn database rows into domain types
   lib/data/         server-only loaders
   lib/feeds.ts      every list of posts is a FeedSource
 ```
 
-`PRODUCT.md` and `DESIGN.md` describe the product rules and design system, `PRODUCT_METRICS.md` what `/operations` measures and why, and `AGENTS.md` the engineering guidelines. The logo files on `/brand` are drawn from `src/lib/brand-mark.ts` by `pnpm brand`.
+`PRODUCT.md` and `DESIGN.md` describe the product rules and design system, `PRODUCT_METRICS.md` what `/operations` measures and why, `AGENTS.md` the engineering guidelines, and `docs/MOBILE_API.md` what the mobile app calls (the upload, translate, export and tasks routes take a Supabase access token as `Authorization: Bearer` as well as the session cookie). The logo files on `/brand` are drawn from `src/lib/brand-mark.ts` by `pnpm brand`.
 
 Rows from Supabase are parsed once in `lib/domain.ts` or a loader, into discriminated unions (a `PostRow` is a `post` or a `tombstone`; a quoted post is a `post`, `deleted` or `unavailable`). Components trust those types.
 

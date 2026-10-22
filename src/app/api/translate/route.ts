@@ -2,21 +2,20 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { allow } from "@/lib/rate-limit";
 import { serverEnv } from "@/lib/server-env";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { getViewer, isModerator } from "@/lib/viewer";
+import { createServiceClient } from "@/lib/supabase/server";
+import { getRequestViewer, isModerator } from "@/lib/viewer";
 
 const requestSchema = z.object({ postId: z.uuid(), target: z.string().regex(/^[a-z]{2,3}$/) });
 const providerResponse = z.object({ translatedText: z.string() });
 
 export async function POST(request: NextRequest) {
-  const viewer = await getViewer();
+  const { supabase, viewer } = await getRequestViewer(request);
   if (!viewer) return NextResponse.json({ error: "Sign in to translate" }, { status: 401 });
 
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Bad request" }, { status: 400 });
   const target = viewer.translationLanguage ?? parsed.data.target;
 
-  const supabase = await createClient();
   const [{ data: settings }, { data: post }] = await Promise.all([
     supabase.from("site_settings").select("translations").single(),
     supabase.from("posts").select("id, body, language, status, deleted_at").eq("id", parsed.data.postId).maybeSingle(),

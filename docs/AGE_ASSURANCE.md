@@ -20,7 +20,7 @@ eSafety's guidance says self-declaration alone is not enough, so no single step 
 
 ## Privacy (s63F)
 
-- The date of birth is compared and dropped. It is never written to the database. It waits in an httpOnly cookie for at most 30 minutes only while someone signs up (Google sends them away and back), and is deleted as soon as the account exists.
+- The date of birth is compared and dropped. It is never written to the database. It waits in an httpOnly cookie for at most 30 minutes only while someone signs up (Google sends them away and back), and is deleted as soon as the account exists. The mobile app keeps it only in memory until the account exists and keeps the under-16 answer, which holds no personal information, on the device for 24 hours (`docs/MOBILE_API.md`).
 - We store `profile_settings.age_confirmed_at` (that the person confirmed they are 16 or older, and when) and, if deactivated, `age_deactivated_at`. Both are in the member's data export.
 - Anything someone sends for a review (an email, a letter, a photo of ID) is used only for that review and deleted once we decide. We record only the outcome and how they showed it (`video_call`, `document` or `other`).
 - The under-16 cookie on the sign-up page holds no personal information.

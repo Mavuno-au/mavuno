@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { reencode } from "@/lib/images";
 import { allow } from "@/lib/rate-limit";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { getViewer } from "@/lib/viewer";
+import { createServiceClient } from "@/lib/supabase/server";
+import { getRequestViewer } from "@/lib/viewer";
 
 // Under the 4.5 MB a Vercel function accepts. The browser sends a WebP it
 // already shrank, so real uploads are far smaller.
@@ -40,11 +40,12 @@ const problem = (error: string, status: number) => NextResponse.json({ error }, 
 
 // Every photo is stored as the server re-encoded it, so no upload keeps its
 // metadata, whatever the client did. Storage takes writes only from the
-// service role; without its key, uploads stay off rather than open.
+// service role; without its key, uploads stay off rather than open. The
+// mobile app signs in with a bearer token instead of the cookie.
 export async function POST(request: Request) {
   const service = createServiceClient();
   if (!service) return problem("Photo uploads aren't available right now.", 503);
-  const viewer = await getViewer();
+  const { supabase, viewer } = await getRequestViewer(request);
   if (!viewer) return problem("Sign in to add photos.", 401);
   if (!allow(`upload:${viewer.id}`, 30, 60_000)) return problem("Too many photos at once. Wait a minute.", 429);
 
@@ -55,7 +56,6 @@ export async function POST(request: Request) {
   if (file.size > MAX_BYTES) return problem("Images can be up to 4 MB.", 413);
 
   const { folder, path, width } = destination(target.data);
-  const supabase = await createClient();
   const [{ data: allowed }, { data: settings }] = await Promise.all([
     supabase.rpc("can_upload", { p_bucket: target.data.bucket, p_folder: folder }),
     supabase.from("site_settings").select("uploads").single(),

@@ -1,8 +1,11 @@
 import { timingSafeEqual } from "node:crypto";
-import { NextResponse, type NextRequest } from "next/server";
-import { runBackgroundTasks } from "@/lib/background-tasks";
+import { after, NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
+import { runBackgroundTasks, runTasksFor } from "@/lib/background-tasks";
+import { allow } from "@/lib/rate-limit";
 import { serverEnv } from "@/lib/server-env";
 import { createServiceClient } from "@/lib/supabase/server";
+import { getRequestViewer } from "@/lib/viewer";
 
 export const maxDuration = 60;
 
@@ -34,4 +37,21 @@ export async function GET(request: NextRequest) {
     if (batch < BATCH || Date.now() > until) break;
   }
   return NextResponse.json({ ran });
+}
+
+// The mobile app writes posts, messages and listings straight to the
+// database, then asks for their link card and automatic check here, as the
+// website's server actions do after they create one. Running tasks that are
+// already queued early is harmless, so any signed-in member may ask; without
+// this they wait for the database's next wake-up, up to two minutes.
+const runSchema = z.object({ targetId: z.uuid() });
+
+export async function POST(request: NextRequest) {
+  const { viewer } = await getRequestViewer(request);
+  if (!viewer) return NextResponse.json({ error: "Sign in first" }, { status: 401 });
+  const parsed = runSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: "Bad request" }, { status: 400 });
+  if (!allow(`tasks:${viewer.id}`, 30, 60_000)) return NextResponse.json({ error: "Slow down" }, { status: 429 });
+  after(() => runTasksFor(parsed.data.targetId));
+  return new NextResponse(null, { status: 202 });
 }
