@@ -24,6 +24,15 @@ export async function createClient() {
 
 export type Supabase = Awaited<ReturnType<typeof createClient>>;
 
+// Acts as whoever the mobile app's access token belongs to. The database
+// checks the token on every query; the caller checks it first with getClaims.
+export function createTokenClient(token: string): Supabase {
+  return createSupabaseClient(publicEnv.supabaseUrl, publicEnv.supabaseKey, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
 // Bypasses row level security. Only for server jobs that act on nobody's behalf.
 export function createServiceClient() {
   if (!serverEnv.SUPABASE_SERVICE_ROLE_KEY) return null;
