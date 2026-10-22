@@ -1,10 +1,10 @@
 import { timingSafeEqual } from "node:crypto";
 import { after, NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { runBackgroundTasks, runTasksFor } from "@/lib/background-tasks";
+import { runBackgroundTasks } from "@/lib/background-tasks";
 import { allow } from "@/lib/rate-limit";
 import { serverEnv } from "@/lib/server-env";
-import { createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, type Supabase } from "@/lib/supabase/server";
 import { getRequestViewer } from "@/lib/viewer";
 
 export const maxDuration = 60;
@@ -41,17 +41,30 @@ export async function GET(request: NextRequest) {
 
 // The mobile app writes posts, messages and listings straight to the
 // database, then asks for their link card and automatic check here, as the
-// website's server actions do after they create one. Running tasks that are
-// already queued early is harmless, so any signed-in member may ask; without
-// this they wait for the database's next wake-up, up to two minutes.
+// website's server actions do after they create one; without this they wait
+// for the database's next wake-up, up to two minutes. Only for something the
+// member wrote, and only its own tasks: each run costs function time, so a
+// member can't keep the server busy with other people's ids or retries.
 const runSchema = z.object({ targetId: z.uuid() });
 
+async function wroteIt(supabase: Supabase, viewerId: string, targetId: string) {
+  const found = await Promise.all([
+    supabase.from("posts").select("id").eq("id", targetId).eq("created_by", viewerId).maybeSingle(),
+    supabase.from("messages").select("id").eq("id", targetId).eq("sender_id", viewerId).maybeSingle(),
+    supabase.from("events").select("id").eq("id", targetId).eq("created_by", viewerId).maybeSingle(),
+    supabase.from("opportunities").select("id").eq("id", targetId).eq("created_by", viewerId).maybeSingle(),
+  ]);
+  return found.some(({ data }) => data !== null);
+}
+
 export async function POST(request: NextRequest) {
-  const { viewer } = await getRequestViewer(request);
+  const { supabase, viewer } = await getRequestViewer(request);
   if (!viewer) return NextResponse.json({ error: "Sign in first" }, { status: 401 });
   const parsed = runSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Bad request" }, { status: 400 });
   if (!allow(`tasks:${viewer.id}`, 30, 60_000)) return NextResponse.json({ error: "Slow down" }, { status: 429 });
-  after(() => runTasksFor(parsed.data.targetId));
+  const { targetId } = parsed.data;
+  if (!(await wroteIt(supabase, viewer.id, targetId))) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  after(() => runBackgroundTasks({ targetId, limit: 5 }));
   return new NextResponse(null, { status: 202 });
 }

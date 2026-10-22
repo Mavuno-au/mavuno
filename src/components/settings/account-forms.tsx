@@ -8,6 +8,7 @@ import { Button, buttonClass } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Field, FormError, Input } from "@/components/ui/field";
 import { useViewer } from "@/components/shell/viewer-context";
+import { noteDeleting } from "@/lib/browser-data";
 import { cn } from "@/lib/cn";
 import { toUsername } from "@/lib/schemas";
 
@@ -162,7 +163,7 @@ export function DeleteAccount() {
         </Button>
       </div>
       <Dialog open={open} onClose={() => setOpen(false)} title="Delete your account?">
-        <form action={action} className="grid gap-4">
+        <form action={action} onSubmit={() => viewer && noteDeleting(viewer.id)} className="grid gap-4">
           <div className="grid gap-2 text-[15px]">
             <p>Your profile, posts, replies, likes, follows, messages you sent and the images you uploaded are deleted for good. Replies other people wrote under your posts stay, under a [deleted] placeholder.</p>
             <p>Organisations you own on your own are deleted too. Hand them over first if they should carry on.</p>
