@@ -1,7 +1,7 @@
 import { router } from "expo-router";
 import { Briefcase, Plus } from "lucide-react-native";
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { View } from "react-native";
 import { OPPORTUNITY_TYPES } from "@/lib/catalogue";
 import type { Opportunity } from "@/lib/community";
 import type { OpportunityType } from "@/lib/domain";
@@ -9,17 +9,17 @@ import { loadOpportunities } from "@/data/community";
 import { loadCities, type City } from "@/data/profiles";
 import { useList } from "@/data/use-list";
 import { OpportunityRow } from "@/community/opportunity-row";
-import { Button, EmptyState, IconButton } from "@/ui/controls";
+import { Button, EmptyState, IconButton, Pills, RowSkeleton } from "@/ui/controls";
 import { Group, SelectRow, ToggleRow } from "@/ui/form";
 import { BackButton, Header } from "@/ui/header";
 import { PagedList } from "@/ui/list";
-import { font, Text } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 
 const TYPES = Object.entries(OPPORTUNITY_TYPES).flatMap(([value, type]) => {
   const key = Object.keys(OPPORTUNITY_TYPES).find((candidate): candidate is OpportunityType => candidate === value);
-  return key ? [{ value: key, label: type.plural }] : [];
+  return key ? [{ key, label: type.plural }] : [];
 });
+const FILTERS: readonly { key: OpportunityType | "all"; label: string }[] = [{ key: "all", label: "All" }, ...TYPES];
 
 // The seven types are a scrolling row of chips; the city filter is a native menu.
 export default function Opportunities() {
@@ -36,24 +36,11 @@ export default function Opportunities() {
       .catch(() => setCities([]));
   }, []);
 
-  const chip = (label: string, selected: boolean, onPress: () => void) => (
-    <Pressable
-      key={label}
-      accessibilityRole="tab"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      style={{ minHeight: 36, paddingHorizontal: 14, borderRadius: 18, justifyContent: "center", backgroundColor: selected ? palette.ink : palette.wash }}
-    >
-      <Text variant="subhead" style={{ fontFamily: selected ? font.semibold : font.medium, color: selected ? palette.surface : palette.ink }}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-
   return (
     <View style={{ flex: 1, backgroundColor: palette.surface }}>
       <Header
         title="Opportunities"
+        border={false}
         left={<BackButton fallback="/discover" />}
         right={
           <IconButton label="Post an opportunity" onPress={() => router.push("/opportunity-form")}>
@@ -61,14 +48,14 @@ export default function Opportunities() {
           </IconButton>
         }
       />
-      <View style={{ borderBottomWidth: 1, borderBottomColor: palette.hairline }}>
-        <ScrollView horizontal scrollsToTop={false} showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 8 }} accessibilityRole="tablist">
-          {chip("All", type === null, () => setType(null))}
-          {TYPES.map((option) => chip(option.label, type === option.value, () => setType(option.value)))}
-        </ScrollView>
+      <View style={{ borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline }}>
+        <View style={{ paddingVertical: 8 }}>
+          <Pills label="Kind" options={FILTERS} value={type ?? "all"} onChange={(key) => setType(key === "all" ? null : key)} />
+        </View>
       </View>
       <PagedList
         list={list}
+        skeleton={<RowSkeleton leading="square" lines={3} label="Loading opportunities" />}
         header={
           <View style={{ padding: 16 }}>
             <Group>

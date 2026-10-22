@@ -1,18 +1,19 @@
 import { router, useIsFocused } from "expo-router";
 import { Briefcase, Hash, MapPin, Search, Users } from "lucide-react-native";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { LayoutAnimation, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import type { PersonSummary } from "@/lib/domain";
 import { dismissSuggestion, loadActiveSpaces, loadSuggestions, loadTrendingTopics, type SpaceListItem } from "@/data/community";
 import { useViewer } from "@/data/session";
 import { PersonRow } from "@/people/person-row";
 import { SpaceRow } from "@/community/space-card";
-import { EmptyState, FeedSkeleton } from "@/ui/controls";
+import { EmptyState, Pills, RowSkeleton } from "@/ui/controls";
 import { Header } from "@/ui/header";
 import { font, Text } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
 import { onSoftReset } from "@/util/events";
+import { useReduceMotion } from "@/util/motion";
 
 type Tab = "overview" | "people" | "organisations" | "topics";
 
@@ -31,6 +32,7 @@ export default function Discover() {
   const palette = usePalette();
   const viewer = useViewer();
   const focused = useIsFocused();
+  const reduceMotion = useReduceMotion();
   const [tab, setTab] = useState<Tab>("overview");
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -53,16 +55,34 @@ export default function Discover() {
   useEffect(read, [read]);
   useEffect(() => (focused ? onSoftReset(read) : undefined), [focused, read]);
 
-  // The website's Not for me: hidden from suggestions, with a way back.
+  // The website's Not for me: hidden from suggestions, with a way back. The
+  // rows below close the gap rather than jump into it (Bluesky's dismiss),
+  // except under Reduce Motion.
+  const hide = (id: string, on: boolean) => {
+    if (!reduceMotion) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setHidden((current) => (on ? new Set([...current, id]) : new Set([...current].filter((other) => other !== id))));
+  };
   const notForMe = (person: PersonSummary) => {
     if (!viewerId) return;
-    setHidden((current) => new Set([...current, person.id]));
-    void dismissSuggestion(viewerId, person.id, true).then((result) => {
-      if (!result.ok) {
-        setHidden((current) => new Set([...current].filter((other) => other !== person.id)));
-        toast(`Couldn't hide them. ${result.error}`, { tone: "error" });
-      }
+    hide(person.id, true);
+    const hiding = dismissSuggestion(viewerId, person.id, true).then((result) => {
+      if (result.ok) return true;
+      hide(person.id, false);
+      toast(`Couldn't hide them. ${result.error}`, { tone: "error" });
+      return false;
     });
+    // Undo waits for the hide to land, so the two can't arrive out of order.
+    const undo = () => {
+      hide(person.id, false);
+      void hiding.then(async (hid) => {
+        if (!hid) return;
+        const result = await dismissSuggestion(viewerId, person.id, false);
+        if (result.ok) return;
+        hide(person.id, true);
+        toast(`Couldn't bring them back. ${result.error}`, { tone: "error" });
+      });
+    };
+    toast("Hidden from suggestions", { action: { label: "Undo", onPress: undo } });
   };
 
   const suggestion = (person: PersonSummary) => <PersonRow key={person.id} person={person} detail={person.reason ?? undefined} onDismiss={() => notForMe(person)} />;
@@ -87,8 +107,8 @@ export default function Discover() {
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.surface }}>
-      <Header title="Discover" />
-      <View style={{ paddingHorizontal: 16, paddingBottom: 8, gap: 8, borderBottomWidth: 1, borderBottomColor: palette.hairline }}>
+      <Header title="Discover" border={false} />
+      <View style={{ paddingHorizontal: 16, paddingBottom: 8, gap: 8, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline }}>
         <Pressable
           accessibilityRole="search"
           accessibilityLabel="Search people, organisations and posts"
@@ -101,32 +121,9 @@ export default function Discover() {
           </Text>
         </Pressable>
         {/* Pills rather than a segmented control: four labels don't fit one at large text sizes. */}
-        <ScrollView horizontal scrollsToTop={false} showsHorizontalScrollIndicator={false} accessibilityRole="tablist" accessibilityLabel="Discover" style={{ marginHorizontal: -16 }} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
-          {TABS.map((option) => {
-            const selected = option.key === tab;
-            return (
-              <Pressable
-                key={option.key}
-                accessibilityRole="tab"
-                accessibilityState={{ selected }}
-                onPress={() => setTab(option.key)}
-                style={({ pressed }) => ({
-                  minHeight: 40,
-                  paddingHorizontal: 16,
-                  borderRadius: 20,
-                  borderWidth: 1,
-                  borderColor: selected ? palette.primary : palette.rail,
-                  backgroundColor: selected ? palette.primary : pressed ? palette.wash : palette.surface,
-                  justifyContent: "center",
-                })}
-              >
-                <Text variant="callout" tone={selected ? "primaryInk" : "ink"} style={{ fontFamily: font.medium }} maxFontSizeMultiplier={1.6}>
-                  {option.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        <View style={{ marginHorizontal: -16 }}>
+          <Pills label="Discover" options={TABS} value={tab} onChange={setTab} />
+        </View>
       </View>
       <ScrollView
         refreshControl={
@@ -141,7 +138,7 @@ export default function Discover() {
         }
         contentContainerStyle={{ paddingBottom: 32 }}
       >
-        {!loaded ? <FeedSkeleton rows={4} /> : null}
+        {!loaded ? <RowSkeleton label="Loading suggestions" /> : null}
         {loaded && tab === "overview" ? (
           <View style={{ gap: 22, paddingTop: 16 }}>
             <View style={{ flexDirection: "row", gap: 10, paddingHorizontal: 16 }}>
@@ -186,7 +183,7 @@ export default function Discover() {
                 key={topic.topic}
                 accessibilityRole="link"
                 onPress={() => router.push(`/topic/${topic.topic}`)}
-                style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 60, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
+                style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 60, paddingHorizontal: 16, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
               >
                 <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: palette.primarySoft, alignItems: "center", justifyContent: "center" }}>
                   <Hash size={18} color={palette.primary} />

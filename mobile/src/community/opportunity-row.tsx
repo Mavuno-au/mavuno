@@ -6,7 +6,7 @@ import { DEADLINE_ZONE, type Opportunity } from "@/lib/community";
 import { Avatar } from "@/ui/avatar";
 import { Chip } from "@/ui/controls";
 import { Text } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 
 export const applyBy = (deadline: string) => `Apply by ${new Date(deadline).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: DEADLINE_ZONE })}`;
 
@@ -20,7 +20,7 @@ export function OpportunityRow({ opportunity }: { opportunity: Opportunity }) {
       accessibilityRole="link"
       accessibilityLabel={`${OPPORTUNITY_TYPES[opportunity.type].label}: ${opportunity.title}, ${who}${where ? `, ${where}` : ""}`}
       onPress={() => router.push(`/opportunity/${opportunity.id}`)}
-      style={({ pressed }) => ({ flexDirection: "row", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
+      style={({ pressed }) => ({ flexDirection: "row", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
     >
       <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: palette.primarySoft, alignItems: "center", justifyContent: "center" }}>
         {opportunity.poster.avatarUrl ? <Avatar person={opportunity.poster} size={44} /> : <Briefcase size={20} color={palette.primary} />}

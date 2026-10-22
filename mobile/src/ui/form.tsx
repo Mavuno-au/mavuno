@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type ComponentRef, type ReactNode, type Re
 import { AccessibilityInfo, ActivityIndicator, Pressable, Switch, TextInput, View, type ScrollView, type TextInputProps } from "react-native";
 import { ActionSheet } from "@/ui/sheet";
 import { font, Text, type } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 
 // Labels sit above fields, so they don't vanish while typing, and every field
 // is at least 44 points tall and 16-point text, so iOS never zooms.
@@ -215,7 +215,7 @@ export function Row({
       style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 52, paddingLeft: 16, backgroundColor: pressed ? palette.wash : "transparent" })}
     >
       {icon}
-      <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8, minHeight: 52, paddingVertical: 10, paddingRight: 14, borderBottomWidth: last ? 0 : 1, borderBottomColor: palette.hairline }}>
+      <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8, minHeight: 52, paddingVertical: 10, paddingRight: 14, borderBottomWidth: last ? 0 : HAIRLINE, borderBottomColor: palette.hairline }}>
         <Text variant="body" tone={tone} style={{ flex: 1 }}>
           {label}
         </Text>
@@ -234,7 +234,7 @@ export function ToggleRow({ label, hint, value, onChange, last = false, disabled
   const palette = usePalette();
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 52, paddingLeft: 16 }}>
-      <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 12, minHeight: 52, paddingVertical: 10, paddingRight: 14, borderBottomWidth: last ? 0 : 1, borderBottomColor: palette.hairline }}>
+      <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 12, minHeight: 52, paddingVertical: 10, paddingRight: 14, borderBottomWidth: last ? 0 : HAIRLINE, borderBottomColor: palette.hairline }}>
         <View style={{ flex: 1, gap: 2 }}>
           <Text variant="body">{label}</Text>
           {hint ? (

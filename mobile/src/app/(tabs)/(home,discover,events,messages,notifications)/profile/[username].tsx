@@ -12,11 +12,11 @@ import { useSession, useViewer } from "@/data/session";
 import { useFeed } from "@/data/use-feed";
 import { ProfileHeader } from "@/people/profile-header";
 import { FeedList } from "@/post/feed-list";
-import { Button, EmptyState, FeedSkeleton, IconButton, LoadFailed, Segmented } from "@/ui/controls";
+import { Button, EmptyState, IconButton, LoadFailed, PageSkeleton, Segmented } from "@/ui/controls";
 import { BackButton, Header } from "@/ui/header";
 import { ActionSheet } from "@/ui/sheet";
 import { Text } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
 import { onPostCreated, onRelationChanged } from "@/util/events";
 import { profileLink, shareLink } from "@/util/links";
@@ -118,7 +118,7 @@ export default function ProfileScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: palette.surface }}>
         {header}
-        {state.kind === "loading" ? <FeedSkeleton rows={3} /> : null}
+        {state.kind === "loading" ? <PageSkeleton avatar label="Loading profile" /> : null}
         {state.kind === "failed" ? <LoadFailed title="This profile didn't load" reason={state.reason} onRetry={retry} /> : null}
         {state.kind === "loaded" && state.page.kind === "missing" ? (
           <EmptyState icon={<SearchX size={26} color={palette.inkMuted} />} title="We couldn't find that">
@@ -143,7 +143,7 @@ export default function ProfileScreen() {
         header={
           <View>
             <ProfileHeader profile={profile.profile} relationship={profile.relationship} manages={manages} known={state.known} team={state.team} />
-            <View style={{ paddingHorizontal: 16, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: palette.hairline }}>
+            <View style={{ paddingHorizontal: 16, paddingBottom: 8, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline }}>
               <Segmented label={`${profile.profile.display_name}'s posts`} options={TABS} value={tab} onChange={setTab} />
             </View>
           </View>

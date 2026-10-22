@@ -1,7 +1,7 @@
 import { useState, type ReactElement, type ReactNode } from "react";
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, View, type ListRenderItem } from "react-native";
 import type { ListState } from "@/data/use-list";
-import { EndOfList, LoadFailed } from "@/ui/controls";
+import { EndOfList, LoadFailed, RowSkeleton } from "@/ui/controls";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
 
@@ -21,6 +21,7 @@ export function usePullToRefresh(refreshing: boolean, refresh: () => void) {
 }
 
 // A paged list with the same loading, failure, empty and end states as feeds.
+// While it loads it shows rows of people unless `skeleton` says otherwise.
 export function PagedList<Item extends { id: string }>({
   list,
   renderItem,
@@ -50,7 +51,7 @@ export function PagedList<Item extends { id: string }>({
       ListHeaderComponent={header}
       ListEmptyComponent={
         state.kind === "loading" ? (
-          <>{skeleton ?? <ActivityIndicator style={{ paddingVertical: 40 }} color={palette.inkMuted} accessibilityLabel="Loading" />}</>
+          <>{skeleton ?? <RowSkeleton />}</>
         ) : state.kind === "failed" ? (
           <LoadFailed title={failedTitle} reason={state.reason} onRetry={list.retry} />
         ) : (

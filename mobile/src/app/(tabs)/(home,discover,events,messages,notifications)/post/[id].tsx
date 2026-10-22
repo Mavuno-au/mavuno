@@ -17,7 +17,7 @@ import { EmptyState, EndOfList, FeedSkeleton, IconButton, LoadFailed } from "@/u
 import { ActionSheet } from "@/ui/sheet";
 import { BackButton, Header } from "@/ui/header";
 import { font, Text } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 import { useToastFloor } from "@/ui/toast";
 
 type Loaded = Extract<Thread, { kind: "thread" }>;
@@ -222,7 +222,7 @@ export default function PostScreen() {
             accessibilityRole="button"
             disabled={state.partsMore === "loading"}
             onPress={moreParts}
-            style={({ pressed }) => ({ minHeight: 48, alignItems: "center", justifyContent: "center", borderBottomWidth: 1, borderBottomColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
+            style={({ pressed }) => ({ minHeight: 48, alignItems: "center", justifyContent: "center", borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
           >
             <Text variant="subhead" tone="primary" style={{ fontFamily: font.medium }}>
               {state.partsMore === "loading" ? "Loading…" : state.partsMore === "failed" ? "Couldn't load more of this thread. Try again." : "Show more of this thread"}
@@ -287,7 +287,7 @@ function ReplyBar({ post }: { post: Post }) {
   const first = post.author.displayName.split(/\s+/)[0] ?? post.author.displayName;
   const floor = useToastFloor();
   return (
-    <View {...floor} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 8, borderTopWidth: 1, borderTopColor: palette.hairline, backgroundColor: palette.surface }}>
+    <View {...floor} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 8, borderTopWidth: HAIRLINE, borderTopColor: palette.hairline, backgroundColor: palette.surface }}>
       {viewer ? <Avatar person={viewer} size={32} /> : null}
       <Pressable
         accessibilityRole="button"

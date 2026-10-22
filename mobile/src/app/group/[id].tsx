@@ -14,7 +14,7 @@ import { Group, SheetHeader, TextField, ToggleRow } from "@/ui/form";
 import { BackButton, Header } from "@/ui/header";
 import { ActionSheet } from "@/ui/sheet";
 import { Text } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
 
 // The website's group settings (src/components/messages/group-settings-dialog.tsx):
@@ -169,7 +169,7 @@ function MemberRow({ person, onPress }: { person: Member; onPress?: () => void }
       accessibilityRole={onPress ? "button" : undefined}
       disabled={!onPress}
       onPress={onPress}
-      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 60, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
+      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 60, paddingHorizontal: 16, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
     >
       <Avatar person={person} size={40} />
       <View style={{ flex: 1, minWidth: 0 }}>

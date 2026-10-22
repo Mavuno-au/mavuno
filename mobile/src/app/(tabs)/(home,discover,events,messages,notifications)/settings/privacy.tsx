@@ -7,7 +7,7 @@ import { updatePrivacy } from "@/data/settings";
 import { Group, ToggleRow } from "@/ui/form";
 import { BackButton, Header } from "@/ui/header";
 import { Text } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 
 // The website's wording (src/components/settings/privacy-form.tsx).
 const DM_POLICIES = [
@@ -57,7 +57,7 @@ export default function PrivacySettings() {
                   accessibilityRole="radio"
                   accessibilityState={{ selected }}
                   onPress={() => void save({ ...settings, dmPolicy: policy.value })}
-                  style={({ pressed }) => ({ flexDirection: "row", gap: 12, padding: 16, borderBottomWidth: index === DM_POLICIES.length - 1 ? 0 : 1, borderBottomColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
+                  style={({ pressed }) => ({ flexDirection: "row", gap: 12, padding: 16, borderBottomWidth: index === DM_POLICIES.length - 1 ? 0 : HAIRLINE, borderBottomColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
                 >
                   <View style={{ flex: 1, gap: 2 }}>
                     <Text variant="body">{policy.label}</Text>

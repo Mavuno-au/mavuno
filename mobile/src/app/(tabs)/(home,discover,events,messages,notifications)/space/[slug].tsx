@@ -1,6 +1,5 @@
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
-import * as Haptics from "expo-haptics";
 import { BadgeCheck, Check, Ellipsis } from "lucide-react-native";
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
@@ -15,12 +14,13 @@ import { loadFeed } from "@/data/posts";
 import { EventRow } from "@/community/event-row";
 import { Avatar } from "@/ui/avatar";
 import { FeedList } from "@/post/feed-list";
-import { Button, EmptyState, FeedSkeleton, IconButton, LoadFailed } from "@/ui/controls";
+import { Button, EmptyState, IconButton, LoadFailed, PageSkeleton } from "@/ui/controls";
 import { BackButton, Header } from "@/ui/header";
 import { ActionSheet } from "@/ui/sheet";
 import { font, Text } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
+import { haptics } from "@/util/haptics";
 import { openLink, shareLink } from "@/util/links";
 import { siteLink } from "@/data/env";
 
@@ -61,7 +61,7 @@ export default function SpaceScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: palette.surface }}>
         <Header left={<BackButton fallback="/spaces" />} />
-        {state === undefined ? <FeedSkeleton rows={3} /> : null}
+        {state === undefined ? <PageSkeleton label="Loading space" /> : null}
         {state?.kind === "missing" ? <EmptyState title="We couldn't find that space">It may have been renamed or removed.</EmptyState> : null}
         {state?.kind === "failed" ? <LoadFailed title="This space didn't load" reason={state.reason} onRetry={read} /> : null}
       </View>
@@ -69,14 +69,17 @@ export default function SpaceScreen() {
   }
 
   const joined = state.role !== null;
-  async function toggle() {
+  async function set(next: boolean) {
     if (!viewerId || !space) return;
     setBusy(true);
-    const result = await setMembership(viewerId, space.id, !joined);
+    const result = await setMembership(viewerId, space.id, next);
     setBusy(false);
-    if (!result.ok) return toast(`${joined ? "Couldn't leave" : "Couldn't join"}. ${result.error}`, { tone: "error" });
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    toast(joined ? `Left ${space.name}` : `Joined ${space.name}`);
+    if (!result.ok) return toast(`${next ? "Couldn't join" : "Couldn't leave"}. ${result.error}`, { tone: "error" });
+    haptics.confirm();
+    // Joining again makes a member, so a moderator or owner gets no Undo: it
+    // wouldn't give back what they left.
+    const undo = !next && state?.kind === "ready" && state.role === "member";
+    toast(next ? `Joined ${space.name}` : `Left ${space.name}`, undo ? { action: { label: "Undo", onPress: () => void set(true) } } : {});
     read();
   }
   const write = () => router.push({ pathname: "/compose", params: { space: space.id, placeholder: `Write something for ${space.name}` } });
@@ -91,7 +94,7 @@ export default function SpaceScreen() {
   // on it, then the name with Join beside it, the description, and a field
   // that starts a post here.
   const header = (
-    <View style={{ borderBottomWidth: 1, borderBottomColor: palette.hairline }}>
+    <View style={{ borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline }}>
       {space.photo ? (
         <View style={{ height: PHOTO_HEIGHT, backgroundColor: palette.wash }}>
           <Image source={space.photo.url} style={{ flex: 1 }} contentFit="cover" contentPosition={{ top: "40%" }} accessibilityLabel={`${space.name}`} />
@@ -131,7 +134,7 @@ export default function SpaceScreen() {
             size="medium"
             busy={busy}
             icon={joined ? <Check size={16} color={palette.ink} strokeWidth={2.4} /> : undefined}
-            onPress={() => void toggle()}
+            onPress={() => void set(!joined)}
             style={{ minWidth: 104 }}
           />
         </View>

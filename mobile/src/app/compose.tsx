@@ -26,7 +26,7 @@ import { Avatar } from "@/ui/avatar";
 import { FieldError, SheetHeader } from "@/ui/form";
 import { ActionSheet, type SheetAction } from "@/ui/sheet";
 import { font, Text, type } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
 import { emitPostCreated } from "@/util/events";
 import { timeZone } from "@/util/time";
@@ -439,7 +439,7 @@ function Composer({ mode, initialText, placeholder }: { mode: Mode; initialText:
       <MentionList people={people} onPick={(person) => insertMention(person.username)} />
       <View
         accessibilityRole="toolbar"
-        style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingTop: 6, paddingBottom: Math.max(insets.bottom, 6), borderTopWidth: 1, borderTopColor: palette.hairline, backgroundColor: palette.surface }}
+        style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingTop: 6, paddingBottom: Math.max(insets.bottom, 6), borderTopWidth: HAIRLINE, borderTopColor: palette.hairline, backgroundColor: palette.surface }}
       >
         {mode.kind === "quote" ? null : tool("Add photos", ImagePlus, () => void addImages(), images.length >= LIMITS.images || poll !== null)}
         {mode.kind === "post" ? tool(poll ? "Remove poll" : "Add a poll", BarChart3, () => setPoll(poll ? null : newPoll()), images.length > 0, poll !== null) : null}

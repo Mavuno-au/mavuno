@@ -1,4 +1,3 @@
-import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { Briefcase, CalendarDays, Check, Maximize2 } from "lucide-react-native";
@@ -15,6 +14,7 @@ import { Avatar } from "@/ui/avatar";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
+import { haptics } from "@/util/haptics";
 import { openLabelledLink } from "@/util/links";
 import { openPhotos, sharePhoto } from "@/util/photos";
 import { timeZone, useNow } from "@/util/time";
@@ -37,7 +37,7 @@ export function ImageGrid({ images, focus = false }: { images: PostImage[]; focu
   const palette = usePalette();
   const block = useBlock();
   const share = (image: PostImage) => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    haptics.confirm();
     void sharePhoto(image.url);
   };
   // Tapping a photo opens it full screen, with its description under ALT;

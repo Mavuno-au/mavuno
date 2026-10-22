@@ -1,9 +1,11 @@
 import { CloudOff } from "lucide-react-native";
-import type { ReactNode } from "react";
-import { ActivityIndicator, Pressable, View, type DimensionValue, type PressableProps, type StyleProp, type ViewStyle } from "react-native";
+import { useEffect, useState, type ReactNode } from "react";
+import { ActivityIndicator, Animated, Easing, Pressable, ScrollView, View, type DimensionValue, type PressableProps, type StyleProp, type ViewStyle } from "react-native";
 import { PROBLEM, type Reason } from "@/data/errors";
 import { font, Text } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
+import { haptics } from "@/util/haptics";
+import { useReduceMotion } from "@/util/motion";
 
 // Every control is at least 44 points square (Apple's minimum) and grows with
 // the text inside it, so large text sizes never clip a label.
@@ -102,10 +104,41 @@ export function IconButton({ label, onPress, children, ...props }: { label: stri
 }
 
 // iOS-style segmented control: the design swaps the website's underlined tabs for this.
+// One thumb slides to the chosen segment, as UISegmentedControl's does, and
+// is placed without moving under Reduce Motion. The segments share the width
+// equally, so the thumb's place is a fraction of it and nothing is measured.
 export function Segmented<Key extends string>({ label, options, value, onChange }: { label: string; options: readonly { key: Key; label: string }[]; value: Key; onChange: (key: Key) => void }) {
   const palette = usePalette();
+  const reduceMotion = useReduceMotion();
+  const index = Math.max(0, options.findIndex((option) => option.key === value));
+  const [place] = useState(() => new Animated.Value(index));
+  useEffect(() => {
+    if (reduceMotion) return place.setValue(index);
+    const slide = Animated.timing(place, { toValue: index, duration: 300, easing: Easing.out(Easing.exp), useNativeDriver: false });
+    slide.start();
+    return () => slide.stop();
+  }, [index, place, reduceMotion]);
+  const share = 100 / Math.max(options.length, 1);
+  const left = options.length > 1 ? place.interpolate({ inputRange: [0, options.length - 1], outputRange: ["0%", `${share * (options.length - 1)}%`] }) : "0%";
   return (
     <View accessibilityRole="tablist" accessibilityLabel={label} style={{ flexDirection: "row", padding: 3, borderRadius: 22, backgroundColor: palette.wash, minHeight: 44 }}>
+      <View pointerEvents="none" style={{ position: "absolute", top: 3, bottom: 3, left: 3, right: 3 }}>
+        <Animated.View
+          style={{
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            left,
+            width: `${share}%`,
+            borderRadius: 19,
+            backgroundColor: palette.popover,
+            shadowColor: "#000",
+            shadowOpacity: 0.12,
+            shadowRadius: 3,
+            shadowOffset: { width: 0, height: 1 },
+          }}
+        />
+      </View>
       {options.map((option) => {
         const selected = option.key === value;
         return (
@@ -113,21 +146,11 @@ export function Segmented<Key extends string>({ label, options, value, onChange 
             key={option.key}
             accessibilityRole="tab"
             accessibilityState={{ selected }}
-            onPress={() => onChange(option.key)}
-            style={{
-              flex: 1,
-              minHeight: 38,
-              paddingVertical: 6,
-              paddingHorizontal: 8,
-              borderRadius: 19,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: selected ? palette.popover : "transparent",
-              shadowColor: "#000",
-              shadowOpacity: selected ? 0.12 : 0,
-              shadowRadius: 3,
-              shadowOffset: { width: 0, height: 1 },
+            onPress={() => {
+              if (!selected) haptics.selection();
+              onChange(option.key);
             }}
+            style={{ flex: 1, minHeight: 38, paddingVertical: 6, paddingHorizontal: 8, alignItems: "center", justifyContent: "center" }}
           >
             <Text variant="label" tone={selected ? "ink" : "muted"} maxFontSizeMultiplier={1.6} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={selected ? undefined : { fontFamily: font.medium }}>
               {option.label}
@@ -136,6 +159,45 @@ export function Segmented<Key extends string>({ label, options, value, onChange 
         );
       })}
     </View>
+  );
+}
+
+// A scrolling row of filters, for where a segmented control's labels
+// wouldn't fit at large text sizes. The gutter is inside the row, so pills
+// scroll to the screen's edge. Not the list's scroller: a tap on the status
+// bar goes to the list.
+export function Pills<Key extends string>({ label, options, value, onChange }: { label: string; options: readonly { key: Key; label: string }[]; value: Key; onChange: (key: Key) => void }) {
+  const palette = usePalette();
+  return (
+    <ScrollView horizontal scrollsToTop={false} showsHorizontalScrollIndicator={false} accessibilityRole="tablist" accessibilityLabel={label} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
+      {options.map((option) => {
+        const selected = option.key === value;
+        return (
+          <Pressable
+            key={option.key}
+            accessibilityRole="tab"
+            accessibilityState={{ selected }}
+            onPress={() => {
+              if (!selected) haptics.selection();
+              onChange(option.key);
+            }}
+            style={({ pressed }) => ({
+              minHeight: 40,
+              paddingHorizontal: 16,
+              borderRadius: 20,
+              borderWidth: 1,
+              borderColor: selected ? palette.primary : palette.rail,
+              backgroundColor: selected ? palette.primary : pressed ? palette.wash : palette.surface,
+              justifyContent: "center",
+            })}
+          >
+            <Text variant="callout" tone={selected ? "primaryInk" : "ink"} style={{ fontFamily: font.medium }} maxFontSizeMultiplier={1.6}>
+              {option.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
   );
 }
 
@@ -195,6 +257,83 @@ export function Chip({ children, tone = "muted" }: { children: ReactNode; tone?:
   );
 }
 
+function Bar({ width, height = 12 }: { width: DimensionValue; height?: number }) {
+  const palette = usePalette();
+  return <View style={{ width, height, borderRadius: Math.min(height / 2, 6), backgroundColor: palette.wash }} />;
+}
+
+const LINE_WIDTHS: DimensionValue[][] = [
+  ["42%", "88%", "64%"],
+  ["34%", "72%", "80%"],
+  ["50%", "92%", "58%"],
+  ["38%", "66%", "74%"],
+];
+
+// Stands in for a list of people, spaces or opportunities: what leads the row
+// (an avatar, a space's photo, none) and how many lines of text follow it.
+export function RowSkeleton({ leading = "circle", lines = 2, rows = 6, label = "Loading" }: { leading?: "circle" | "square" | "none"; lines?: number; rows?: number; label?: string }) {
+  const palette = usePalette();
+  return (
+    <View accessible accessibilityLabel={label} accessibilityState={{ busy: true }}>
+      {Array.from({ length: rows }, (_, index) => (
+        <View key={index} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline }}>
+          {leading === "none" ? null : <View style={{ width: 44, height: 44, borderRadius: leading === "circle" ? 22 : 12, backgroundColor: palette.wash }} />}
+          <View style={{ flex: 1, gap: 9 }}>
+            {(LINE_WIDTHS[index % LINE_WIDTHS.length] ?? []).slice(0, lines).map((width, line) => (
+              <Bar key={line} width={width} />
+            ))}
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// The notification rows' shape: the kind's ring, who did it, and what they did.
+export function NotificationSkeleton({ rows = 6 }: { rows?: number }) {
+  const palette = usePalette();
+  return (
+    <View accessible accessibilityLabel="Loading notifications" accessibilityState={{ busy: true }}>
+      {Array.from({ length: rows }, (_, index) => (
+        <View key={index} style={{ flexDirection: "row", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline }}>
+          <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: palette.wash, marginTop: 2 }} />
+          <View style={{ flex: 1, gap: 10 }}>
+            <View style={{ flexDirection: "row", gap: 5 }}>
+              {Array.from({ length: (index % 3) + 1 }, (_, avatar) => (
+                <View key={avatar} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: palette.wash }} />
+              ))}
+            </View>
+            {(LINE_WIDTHS[index % LINE_WIDTHS.length] ?? []).slice(1, 3).map((width, line) => (
+              <Bar key={line} width={width} />
+            ))}
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// A profile's or a space's header while it loads: the avatar (a profile's),
+// the name and the line under it, the posts' tabs or the space's "Post in"
+// field, then posts.
+export function PageSkeleton({ avatar = false, label }: { avatar?: boolean; label: string }) {
+  const palette = usePalette();
+  return (
+    <View accessible accessibilityLabel={label} accessibilityState={{ busy: true }}>
+      <View style={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: 14, gap: 12, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline }}>
+        {avatar ? <View style={{ width: 76, height: 76, borderRadius: 38, backgroundColor: palette.wash }} /> : null}
+        <View style={{ gap: 8 }}>
+          <Bar width="55%" height={26} />
+          <Bar width="35%" height={15} />
+        </View>
+        <Bar width="70%" />
+        <View style={{ height: 44, borderRadius: 22, backgroundColor: palette.wash }} />
+      </View>
+      <FeedSkeleton rows={2} />
+    </View>
+  );
+}
+
 // Skeletons match the rows they stand in for, so nothing jumps when posts arrive.
 export function FeedSkeleton({ rows = 4 }: { rows?: number }) {
   const palette = usePalette();
@@ -202,7 +341,7 @@ export function FeedSkeleton({ rows = 4 }: { rows?: number }) {
   return (
     <View accessible accessibilityLabel="Loading posts" accessibilityState={{ busy: true }}>
       {Array.from({ length: rows }, (_, index) => (
-        <View key={index} style={{ flexDirection: "row", gap: 12, padding: 16, borderBottomWidth: 1, borderBottomColor: palette.hairline }}>
+        <View key={index} style={{ flexDirection: "row", gap: 12, padding: 16, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline }}>
           <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: palette.wash }} />
           <View style={{ flex: 1, gap: 9, paddingTop: 3 }}>
             {(widths[index % widths.length] ?? []).map((width, line) => (

@@ -1,4 +1,3 @@
-import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { Rss, SquarePen, UserPlus } from "lucide-react-native";
 import { useEffect, useState } from "react";
@@ -13,8 +12,9 @@ import { Avatar } from "@/ui/avatar";
 import { Wordmark } from "@/ui/brand";
 import { Button, EmptyState, IconButton, Segmented } from "@/ui/controls";
 import { Header } from "@/ui/header";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 import { emitSoftReset } from "@/util/events";
+import { haptics } from "@/util/haptics";
 
 type HomeFeed = FeedKind | "trending";
 
@@ -69,6 +69,7 @@ export default function Home() {
   return (
     <View style={{ flex: 1, backgroundColor: palette.surface }}>
       <Header
+        border={false}
         left={
           viewer ? (
             <Pressable
@@ -97,7 +98,7 @@ export default function Home() {
           accessibilityLabel="Mavuno"
           accessibilityHint="Scrolls to the top"
           onPress={() => {
-            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            haptics.tap();
             emitSoftReset();
           }}
           hitSlop={8}
@@ -106,7 +107,7 @@ export default function Home() {
           <Wordmark />
         </Pressable>
       </Header>
-      <View style={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: palette.hairline, backgroundColor: palette.surface }}>
+      <View style={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline, backgroundColor: palette.surface }}>
         <Segmented label="Feeds" options={FEEDS} value={feed} onChange={show} />
       </View>
       <View style={{ flex: 1, display: feed === "following" ? "flex" : "none" }}>

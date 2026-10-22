@@ -2,19 +2,21 @@ import { fail } from "@/lib/result";
 import { setFollow } from "@/data/profiles";
 import { useSession } from "@/data/session";
 import { useShadowWriter } from "@/data/shadow";
-import * as Haptics from "expo-haptics";
 import { Pressable } from "react-native";
 import { Button } from "@/ui/controls";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
+import { haptics } from "@/util/haptics";
 import { useToggleQueue } from "@/util/toggle-queue";
 
 // The website's follow button (src/components/people/follow-button.tsx):
 // "Follow back" when they already follow you, "Following" once you do. The
 // button changes as soon as it is tapped; the server hears in turn. `compact`
 // is the design's 34-point pill for lists of suggestions, still 44 to tap.
-export function FollowButton({ profileId, following, followsYou, compact = false }: { profileId: string; following: boolean; followsYou: boolean; compact?: boolean }) {
+// A stray tap on "Following" in a list would unfollow without a word, so
+// unfollowing says so, with Undo (Bluesky's "No longer following").
+export function FollowButton({ profileId, name, following, followsYou, compact = false }: { profileId: string; name: string; following: boolean; followsYou: boolean; compact?: boolean }) {
   const palette = usePalette();
   const session = useSession();
   const viewerId = session.kind === "signed-in" ? session.session.user.id : null;
@@ -27,10 +29,14 @@ export function FollowButton({ profileId, following, followsYou, compact = false
 
   const label = following ? "Following" : followsYou ? "Follow back" : "Follow";
   const hint = following ? "Unfollows this account" : "Follows this account";
+  const set = (on: boolean) => {
+    haptics.confirm();
+    setFollowing(profileId, on);
+    toggle(on, !on);
+  };
   const press = () => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setFollowing(profileId, !following);
-    toggle(!following, following);
+    set(!following);
+    if (following) toast(`Unfollowed ${name}`, { action: { label: "Undo", onPress: () => set(true) } });
   };
 
   if (compact) {

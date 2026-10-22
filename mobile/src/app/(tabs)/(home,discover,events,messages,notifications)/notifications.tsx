@@ -1,19 +1,19 @@
 import { useFocusEffect, useIsFocused } from "expo-router";
 import { ArrowUp, Bell, ChevronDown } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { NOTIFICATION_FILTERS, type NotificationFilterKey, type NotificationGroup } from "@/lib/notifications";
 import { useCounts } from "@/data/counts";
 import { loadNotifications, markNotificationsRead } from "@/data/notifications";
 import { useViewer } from "@/data/session";
 import { useList } from "@/data/use-list";
 import { NotificationRow } from "@/notifications/notification-row";
-import { EmptyState } from "@/ui/controls";
+import { EmptyState, NotificationSkeleton, Pills } from "@/ui/controls";
 import { Header } from "@/ui/header";
 import { PagedList } from "@/ui/list";
 import { ActionSheet } from "@/ui/sheet";
 import { font, Text } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 import { onSoftReset } from "@/util/events";
 
 type Item = { id: string; group: NotificationGroup };
@@ -97,7 +97,7 @@ export default function Notifications() {
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.surface }}>
-      <Header title="Notifications" />
+      <Header title="Notifications" border={false} />
       {identities.length > 1 ? (
         <Pressable accessibilityRole="button" accessibilityLabel={`Showing notifications for ${identity?.displayName ?? "you"}. Change`} onPress={() => setChoosing(true)} style={{ flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "center", minHeight: 36, paddingHorizontal: 12 }}>
           <Text variant="subhead" tone="muted">
@@ -109,28 +109,18 @@ export default function Notifications() {
           <ChevronDown size={16} color={palette.primary} />
         </Pressable>
       ) : null}
-      <View style={{ borderBottomWidth: 1, borderBottomColor: palette.hairline }}>
-        <ScrollView horizontal scrollsToTop={false} showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 8 }} accessibilityRole="tablist">
-          {NOTIFICATION_FILTERS.map((option) => {
-            const selected = option.key === filter;
-            return (
-              <Pressable
-                key={option.key}
-                accessibilityRole="tab"
-                accessibilityState={{ selected }}
-                onPress={() => {
-                  setArrived(0);
-                  setFilter(option.key);
-                }}
-                style={{ minHeight: 36, paddingHorizontal: 14, borderRadius: 18, justifyContent: "center", backgroundColor: selected ? palette.ink : palette.wash }}
-              >
-                <Text variant="subhead" maxFontSizeMultiplier={1.6} style={{ fontFamily: selected ? font.semibold : font.medium, color: selected ? palette.surface : palette.ink }}>
-                  {option.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+      <View style={{ borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline }}>
+        <View style={{ paddingVertical: 8 }}>
+          <Pills
+            label="Show"
+            options={NOTIFICATION_FILTERS}
+            value={filter}
+            onChange={(key) => {
+              setArrived(0);
+              setFilter(key);
+            }}
+          />
+        </View>
       </View>
       <View style={{ flex: 1 }}>
         <PagedList
@@ -143,6 +133,7 @@ export default function Notifications() {
           }
           end="That's everything."
           failedTitle="Notifications didn't load"
+          skeleton={<NotificationSkeleton />}
         />
         {arrived > 0 ? (
           <View pointerEvents="box-none" style={{ position: "absolute", top: 10, left: 0, right: 0, alignItems: "center" }}>

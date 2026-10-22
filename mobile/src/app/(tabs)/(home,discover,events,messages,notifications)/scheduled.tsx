@@ -6,11 +6,11 @@ import { count, fullDate } from "@/lib/format";
 import type { ScheduledPost } from "@/lib/scheduled-posts";
 import { cancelScheduledPost, loadScheduledPosts } from "@/data/posts";
 import { useList } from "@/data/use-list";
-import { Button, Chip, EmptyState } from "@/ui/controls";
+import { Button, Chip, EmptyState, RowSkeleton } from "@/ui/controls";
 import { BackButton, Header } from "@/ui/header";
 import { PagedList } from "@/ui/list";
 import { font, Text } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
 import { timeZone } from "@/util/time";
 
@@ -24,8 +24,9 @@ export default function Scheduled() {
       <Header title="Scheduled posts" left={<BackButton />} />
       <PagedList
         list={list}
+        skeleton={<RowSkeleton leading="none" lines={3} label="Loading scheduled posts" />}
         header={
-          <Text variant="small" tone="muted" style={{ paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: palette.hairline }}>
+          <Text variant="small" tone="muted" style={{ paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline }}>
             Only you can see these until they go out.
           </Text>
         }
@@ -65,7 +66,7 @@ function ScheduledRow({ post, onCancelled }: { post: ScheduledPost; onCancelled:
 
   const outcome = post.outcome;
   return (
-    <View style={{ paddingHorizontal: 16, paddingVertical: 14, gap: 8, borderBottomWidth: 1, borderBottomColor: palette.hairline }}>
+    <View style={{ paddingHorizontal: 16, paddingVertical: 14, gap: 8, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <Text variant="meta" tone="muted">
           {fullDate(post.scheduledAt, timeZone)}

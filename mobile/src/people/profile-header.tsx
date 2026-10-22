@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { Alert, Pressable, View } from "react-native";
 import { languageName, OPEN_TO } from "@/lib/catalogue";
 import type { ProfileRow } from "@/lib/domain";
+import { compact } from "@/lib/format";
 import { displayUrl } from "@/lib/text";
 import { startConversation } from "@/data/messages";
 import type { FollowersYouKnow, Relationship, TeamMember } from "@/data/profiles";
@@ -70,7 +71,7 @@ export function ProfileHeader({
             <>
               {manages ? <Button label="Edit profile" variant="outline" size="medium" onPress={() => router.push({ pathname: "/edit-profile", params: { id: profile.id } })} /> : null}
               {relationship.canMessage ? <MessageButton profileId={profile.id} /> : null}
-              <FollowButton profileId={profile.id} following={social.following} followsYou={relationship.followsYou} />
+              <FollowButton profileId={profile.id} name={profile.display_name} following={social.following} followsYou={relationship.followsYou} />
             </>
           )}
         </View>
@@ -231,15 +232,23 @@ function Fact({ icon, children }: { icon?: ReactNode; children: ReactNode }) {
   );
 }
 
+// Counts read as 1.2K, as on Bluesky. Followers and following are links whose
+// tap area reaches 44 points without making the line taller.
 function Count({ value, label, onPress }: { value: number; label: string; onPress?: () => void }) {
-  return (
-    <Text variant="callout" accessibilityRole={onPress ? "link" : undefined} onPress={onPress}>
+  const text = (
+    <Text variant="callout">
       <Text variant="callout" style={{ fontFamily: font.monoMedium }}>
-        {value}
+        {compact(value)}
       </Text>{" "}
       <Text variant="callout" tone="muted">
         {label}
       </Text>
     </Text>
+  );
+  if (!onPress) return text;
+  return (
+    <Pressable accessibilityRole="link" accessibilityLabel={`${value} ${label}`} onPress={onPress} hitSlop={{ top: 12, bottom: 12, left: 6, right: 6 }} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
+      {text}
+    </Pressable>
   );
 }

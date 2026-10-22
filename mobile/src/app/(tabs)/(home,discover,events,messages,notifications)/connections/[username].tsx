@@ -12,7 +12,7 @@ import { EmptyState, Segmented } from "@/ui/controls";
 import { BackButton, Header } from "@/ui/header";
 import { PagedList } from "@/ui/list";
 import { type } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 
 // Followers and following on one screen, with a switch between the two and a search box.
 export default function Connections() {
@@ -45,8 +45,8 @@ export default function Connections() {
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.surface }}>
-      <Header title={profile?.name ?? (username ? `@${username}` : "People")} left={<BackButton />} />
-      <View style={{ paddingHorizontal: 16, paddingBottom: 8, gap: 8, borderBottomWidth: 1, borderBottomColor: palette.hairline }}>
+      <Header title={profile?.name ?? (username ? `@${username}` : "People")} left={<BackButton />} border={false} />
+      <View style={{ paddingHorizontal: 16, paddingBottom: 8, gap: 8, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline }}>
         <Segmented
           label="People"
           options={[

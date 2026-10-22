@@ -5,7 +5,7 @@ import { eventPlace, type CommunityEvent } from "@/lib/community";
 import { eventDate } from "@/lib/format";
 import { Chip } from "@/ui/controls";
 import { font, Text } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 
 // The date block from the event screen: the day is readable at a glance.
 export function DateBlock({ iso, timeZone, size = 52 }: { iso: string; timeZone: string; size?: number }) {
@@ -34,7 +34,7 @@ export function EventRow({ event, going = false }: { event: CommunityEvent; goin
       accessibilityRole="link"
       accessibilityLabel={`${event.title}. ${when}. ${where}${going ? ". You're going" : ""}`}
       onPress={() => router.push(`/event/${event.id}`)}
-      style={({ pressed }) => ({ flexDirection: "row", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
+      style={({ pressed }) => ({ flexDirection: "row", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
     >
       <DateBlock iso={event.startsAt} timeZone={event.timezone} />
       <View style={{ flex: 1, minWidth: 0, gap: 3 }}>

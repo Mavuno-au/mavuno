@@ -19,7 +19,7 @@ import { Wordmark } from "@/ui/brand";
 import { Button } from "@/ui/controls";
 import { ChipPicker, FieldError, SelectRow, TextField } from "@/ui/form";
 import { Text } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 
 const STEPS = ["About you", "Follow a few people", "Join spaces", "How Mavuno works"] as const;
 
@@ -322,7 +322,7 @@ function SpaceOption({ space, checked, onToggle }: { space: SpaceListItem; check
       accessibilityLabel={`${space.name}. ${space.description}`}
       disabled={space.joined}
       onPress={onToggle}
-      style={({ pressed }) => ({ flexDirection: "row", alignItems: "flex-start", gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: palette.hairline, opacity: pressed ? 0.7 : 1 })}
+      style={({ pressed }) => ({ flexDirection: "row", alignItems: "flex-start", gap: 12, paddingVertical: 12, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline, opacity: pressed ? 0.7 : 1 })}
     >
       <View style={{ width: 24, height: 24, marginTop: 10, borderRadius: 12, borderWidth: on ? 0 : 2, borderColor: palette.rail, backgroundColor: on ? palette.primary : "transparent", alignItems: "center", justifyContent: "center" }}>
         {on ? <Check size={15} color={palette.primaryInk} strokeWidth={3} /> : null}

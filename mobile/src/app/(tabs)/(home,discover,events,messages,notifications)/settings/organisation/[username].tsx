@@ -11,7 +11,7 @@ import { FieldError, Group, Row, TextField } from "@/ui/form";
 import { BackButton, Header } from "@/ui/header";
 import { ActionSheet, type SheetAction } from "@/ui/sheet";
 import { Text } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
 
 const ROLE = { owner: "Owner", admin: "Admin", editor: "Editor" } as const;
@@ -128,7 +128,7 @@ export default function ManageOrganisation() {
                 accessibilityRole={manager && person.id !== viewer.id ? "button" : undefined}
                 disabled={!manager || person.id === viewer.id || person.role === "owner"}
                 onPress={() => setMember(person)}
-                style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderBottomWidth: index === team.length - 1 ? 0 : 1, borderBottomColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
+                style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderBottomWidth: index === team.length - 1 ? 0 : HAIRLINE, borderBottomColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
               >
                 <Avatar person={person} size={36} />
                 <View style={{ flex: 1 }}>

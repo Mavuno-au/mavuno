@@ -6,7 +6,7 @@ import { FeedList } from "@/post/feed-list";
 import { EmptyState } from "@/ui/controls";
 import { BackButton, Header } from "@/ui/header";
 import { Text } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { HAIRLINE, usePalette } from "@/ui/theme";
 
 // Private to you, as on the website; the filled bookmark on a post removes it.
 export default function Saved() {
@@ -18,7 +18,7 @@ export default function Saved() {
       <FeedList
         feed={feed}
         header={
-          <Text variant="small" tone="muted" style={{ paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: palette.hairline }}>
+          <Text variant="small" tone="muted" style={{ paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline }}>
             Only you can see what you've saved.
           </Text>
         }
