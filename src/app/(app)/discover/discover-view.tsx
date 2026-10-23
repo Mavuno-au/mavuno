@@ -3,11 +3,13 @@ import Link from "next/link";
 import { SpaceAvatar } from "@/components/community/city-photo";
 import { PersonRow } from "@/components/people/person-row";
 import { PostItem } from "@/components/post/post-item";
+import { ButtonLink } from "@/components/ui/button";
 import { EmptyState, PageHeader, Section, Tabs } from "@/components/ui/page";
 import { loadActiveSpaces, loadSuggestedOrganisations } from "@/lib/data/discover";
 import { loadFeed, newTrendingSeed } from "@/lib/data/posts";
 import { loadSuggestions, loadTrendingTopics } from "@/lib/data/shell";
 import { compact, relativeTime } from "@/lib/format";
+import { getViewer } from "@/lib/viewer";
 
 export const DISCOVER_TABS = [
   { key: "overview", label: "Overview", href: "/discover" },
@@ -33,7 +35,18 @@ export function DiscoverView({ tab }: { tab: DiscoverTab }) {
   );
 }
 
+// Suggestions are worked out for a member, so a visitor is asked to join
+// rather than told there is no one here.
+function JoinToSee({ what }: { what: string }) {
+  return (
+    <EmptyState title={`Join to see ${what}`} action={<ButtonLink href="/signup">Join Mavuno</ButtonLink>}>
+      Suggestions come from your city, your interests and the people you follow.
+    </EmptyState>
+  );
+}
+
 async function DiscoverTabContent({ tab }: { tab: DiscoverTab }) {
+  if ((tab === "people" || tab === "organisations") && !(await getViewer())) return <JoinToSee what={tab === "people" ? "people to follow" : "organisations"} />;
   switch (tab) {
     case "people": {
       const people = await loadSuggestions(30);
@@ -61,11 +74,12 @@ async function DiscoverTabContent({ tab }: { tab: DiscoverTab }) {
 }
 
 async function Overview() {
+  const viewer = await getViewer();
   const [topics, spaces, people, organisations, trending] = await Promise.all([
     loadTrendingTopics(6),
     loadActiveSpaces(6),
-    loadSuggestions(4),
-    loadSuggestedOrganisations(3),
+    viewer ? loadSuggestions(4) : [],
+    viewer ? loadSuggestedOrganisations(3) : [],
     loadFeed({ kind: "trending", seed: newTrendingSeed() }, null, { previews: false }),
   ]);
 
