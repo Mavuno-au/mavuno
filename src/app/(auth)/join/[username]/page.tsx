@@ -7,6 +7,7 @@ import { loadInviter } from "@/lib/data/profiles";
 import { onboardingPath, signInPath } from "@/lib/safe-redirect";
 import { getViewer } from "@/lib/viewer";
 import { SignUpForm } from "../../auth-forms";
+import { Agreement } from "../../agreement";
 import { GoogleButton } from "../../google-button";
 import { SignUpSteps, type SignUpStart } from "../../signup/sign-up-steps";
 
@@ -45,6 +46,7 @@ export default async function JoinPage({ params }: PageProps<"/join/[username]">
       <p className="text-center text-sm text-ink-muted">
         Already a member? <Link href={signInPath(`/@${inviter.username}`)} className="font-medium text-primary hover:underline">Sign in</Link>
       </p>
+      <Agreement joining />
     </div>
   );
 }

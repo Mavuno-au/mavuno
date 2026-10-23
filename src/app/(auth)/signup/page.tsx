@@ -5,6 +5,7 @@ import { answeredUnder16, readBirthDate } from "@/lib/age-check";
 import { onboardingPath, safeNext, signInPath } from "@/lib/safe-redirect";
 import { getViewer } from "@/lib/viewer";
 import { SignUpForm } from "../auth-forms";
+import { Agreement } from "../agreement";
 import { GoogleButton } from "../google-button";
 import { SignUpSteps, type SignUpStart } from "./sign-up-steps";
 
@@ -27,6 +28,7 @@ export default async function SignUpPage({ searchParams }: PageProps<"/signup">)
       <p className="text-center text-sm text-ink-muted">
         Already a member? <Link href={signInPath(next)} className="font-medium text-primary hover:underline">Sign in</Link>
       </p>
+      <Agreement joining />
     </div>
   );
 }

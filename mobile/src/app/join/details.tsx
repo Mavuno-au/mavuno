@@ -84,8 +84,8 @@ export default function JoinDetails() {
         <>
           <Button label="Join Mavuno" busy={busy} disabled={!ready} onPress={() => void join()} />
           <Text variant="small" tone="muted" style={{ textAlign: "center" }}>
-            By joining you agree to the {legal("community rules", "/rules")}, {legal("terms", "/terms")} and {legal("privacy policy", "/privacy")}. Until you have a track record, what you
-            publish is checked for harm by OpenAI; your messages never are.
+            By joining you agree to the {legal("community rules", "/rules")}, {legal("terms", "/terms")} and {legal("privacy policy", "/privacy")}, including automatic safety
+            checks by OpenAI on what new members post.
           </Text>
         </>
       }

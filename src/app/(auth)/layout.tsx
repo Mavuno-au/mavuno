@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Wordmark } from "@/components/shell/brand";
 
 // Sign-in, sign-up and password pages are for members, not search results.
@@ -10,12 +9,6 @@ export default function AuthLayout({ children }: LayoutProps<"/">) {
     <div className="flex min-h-dvh flex-col items-center px-4 py-10">
       <Wordmark />
       <main className="mt-8 w-full max-w-sm rounded-xl border border-hairline bg-surface p-6 sm:p-8">{children}</main>
-      <p className="mt-6 text-center text-sm text-ink-muted">
-        By joining you agree to the <Link href="/rules" className="text-primary hover:underline">community rules</Link>,{" "}
-        <Link href="/terms" className="text-primary hover:underline">terms</Link> and{" "}
-        <Link href="/privacy" className="text-primary hover:underline">privacy policy</Link>. Until you have a track record, what you publish is checked for harm by
-        OpenAI; your messages never are.
-      </p>
     </div>
   );
 }
