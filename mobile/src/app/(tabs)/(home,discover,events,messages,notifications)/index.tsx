@@ -2,6 +2,7 @@ import { router } from "expo-router";
 import { Rss, SquarePen, UserPlus } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
+import PagerView from "react-native-pager-view";
 import { feedTime } from "@/lib/feeds";
 import { loadFeed, newTrendingSeed } from "@/data/posts";
 import { usePreferences } from "@/data/preferences";
@@ -87,11 +88,18 @@ export default function Home() {
     [trending],
   );
 
+  // The feeds sit side by side, so a swipe moves between them as on Bluesky
+  // and the website. A feed reached for the first time starts loading.
+  const pager = useRef<PagerView>(null);
+  const select = (next: HomeFeed) => {
+    setFeed(next);
+    setOpened((current) => (current.has(next) ? current : new Set([...current, next])));
+  };
   // Tapping the feed already shown scrolls it back to the top and refreshes it.
   const show = (next: HomeFeed) => {
     if (next === feed) return emitSoftReset();
-    setFeed(next);
-    setOpened((current) => new Set([...current, next]));
+    pager.current?.setPage(FEEDS.findIndex((option) => option.key === next));
+    select(next);
   };
 
   return (
@@ -138,38 +146,48 @@ export default function Home() {
       <View style={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline, backgroundColor: palette.surface }}>
         <Segmented label="Feeds" options={FEEDS} value={feed} onChange={show} />
       </View>
-      <View style={{ flex: 1, display: feed === "following" ? "flex" : "none" }}>
-        <FeedList
-          feed={followingFeed}
-          active={feed === "following"}
-          fresh={followingFresh}
-          insert={suggestions}
-          empty={
-            <EmptyState
-              icon={<Rss size={26} color={palette.inkMuted} />}
-              title="Your feed is quiet"
-              action={
-                <View style={{ gap: 10, alignItems: "center" }}>
-                  <Button label="Browse Latest" size="medium" onPress={() => show("latest")} />
-                  <Button label="Bring your friends" size="medium" variant="outline" onPress={() => router.push("/invite")} />
-                </View>
-              }
-            >
-              Follow people and organisations to see their posts here, or browse the latest posts.
-            </EmptyState>
-          }
-        />
-      </View>
-      {opened.has("latest") ? (
-        <View style={{ flex: 1, display: feed === "latest" ? "flex" : "none" }}>
-          <FeedList feed={latestFeed} active={feed === "latest"} fresh={latestFresh} insert={suggestions} empty={<EmptyState title="Nothing here yet">Be the first to post something.</EmptyState>} />
+      <PagerView
+        ref={pager}
+        style={{ flex: 1 }}
+        initialPage={0}
+        onPageSelected={(event) => {
+          const next = FEEDS[event.nativeEvent.position]?.key;
+          if (next && next !== feed) select(next);
+        }}
+      >
+        <View key="following" style={{ flex: 1 }}>
+          <FeedList
+            feed={followingFeed}
+            active={feed === "following"}
+            fresh={followingFresh}
+            insert={suggestions}
+            empty={
+              <EmptyState
+                icon={<Rss size={26} color={palette.inkMuted} />}
+                title="Your feed is quiet"
+                action={
+                  <View style={{ gap: 10, alignItems: "center" }}>
+                    <Button label="Browse Latest" size="medium" onPress={() => show("latest")} />
+                    <Button label="Bring your friends" size="medium" variant="outline" onPress={() => router.push("/invite")} />
+                  </View>
+                }
+              >
+                Follow people and organisations to see their posts here, or browse the latest posts.
+              </EmptyState>
+            }
+          />
         </View>
-      ) : null}
-      {opened.has("trending") ? (
-        <View style={{ flex: 1, display: feed === "trending" ? "flex" : "none" }}>
-          <FeedList feed={redraw} active={feed === "trending"} empty={<EmptyState title="Nothing trending yet">Posts with the most conversation this week show here.</EmptyState>} />
+        <View key="latest" style={{ flex: 1 }}>
+          {opened.has("latest") ? (
+            <FeedList feed={latestFeed} active={feed === "latest"} fresh={latestFresh} insert={suggestions} empty={<EmptyState title="Nothing here yet">Be the first to post something.</EmptyState>} />
+          ) : null}
         </View>
-      ) : null}
+        <View key="trending" style={{ flex: 1 }}>
+          {opened.has("trending") ? (
+            <FeedList feed={redraw} active={feed === "trending"} empty={<EmptyState title="Nothing trending yet">Posts with the most conversation this week show here.</EmptyState>} />
+          ) : null}
+        </View>
+      </PagerView>
     </View>
   );
 }
