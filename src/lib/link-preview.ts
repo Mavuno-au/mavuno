@@ -2,8 +2,10 @@ import "server-only";
 import { lookup } from "node:dns";
 import { isIP } from "node:net";
 import { Agent, fetch } from "undici";
+import { z } from "zod";
 import { isPublicAddress } from "@/lib/network";
 import type { LinkPreview } from "@/lib/domain";
+import { embedFor, type Embed } from "@/lib/embeds";
 
 const MAX_BYTES = 512 * 1024;
 const MAX_REDIRECTS = 3;
@@ -97,7 +99,49 @@ async function readCapped(body: AsyncIterable<Uint8Array>) {
 // a busy or broken server. Anything that can't or mustn't be fetched is "none".
 export type LinkFetch = { kind: "found"; preview: LinkPreview } | { kind: "none"; reason: string } | { kind: "retry"; reason: string };
 
+// Video and music pages put their tags far into the page (YouTube's are about
+// 770 KB in, past MAX_BYTES), so these sites' cards come from their oEmbed
+// answer instead: a few hundred bytes with the title, channel and thumbnail.
+const OEMBED: Record<Embed["provider"], string> = {
+  YouTube: "https://www.youtube.com/oembed?format=json&url=",
+  Vimeo: "https://vimeo.com/api/oembed.json?url=",
+  Spotify: "https://open.spotify.com/oembed?url=",
+  SoundCloud: "https://soundcloud.com/oembed?format=json&url=",
+  TikTok: "https://www.tiktok.com/oembed?url=",
+  Loom: "https://www.loom.com/v1/oembed?url=",
+};
+
+const oembedAnswer = z.object({
+  title: z.string().optional().catch(undefined),
+  author_name: z.string().optional().catch(undefined),
+  thumbnail_url: z.string().optional().catch(undefined),
+});
+
+async function fromOembed(href: string, provider: Embed["provider"]): Promise<LinkPreview | null> {
+  try {
+    const response = await fetch(`${OEMBED[provider]}${encodeURIComponent(href)}`, {
+      dispatcher: agent,
+      redirect: "manual",
+      signal: AbortSignal.timeout(5000),
+      headers: { "user-agent": "MavunoBot/1.0 (+link previews)", accept: "application/json", "accept-language": "en-AU,en;q=0.9" },
+    });
+    if (!response.ok || !response.body) {
+      await response.body?.cancel();
+      return null;
+    }
+    const answer = oembedAnswer.parse(JSON.parse(await readCapped(response.body)));
+    const title = clip(answer.title ? decode(answer.title) : undefined, 200);
+    if (!title) return null;
+    return { url: href, title, description: clip(answer.author_name ? decode(answer.author_name) : undefined, 300), image: imageUrl([answer.thumbnail_url], href), siteName: provider };
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchLinkPreview(href: string): Promise<LinkFetch> {
+  const embed = embedFor(href);
+  const answered = embed ? await fromOembed(href, embed.provider) : null;
+  if (answered) return { kind: "found", preview: answered };
   let url = new URL(href);
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     if (url.protocol !== "https:" && url.protocol !== "http:") return { kind: "none", reason: "Not a web address" };
