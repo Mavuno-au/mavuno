@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, View } from "react-native";
+import { ActivityIndicator, ScrollView, View } from "react-native";
 import { LANGUAGES, type LanguageCode } from "@/lib/catalogue";
 import { knownLanguages, LANGUAGE_CHOICES } from "@/lib/choices";
 import { isLanguage } from "@/lib/profile-form";
+import { reasonOf, type Reason } from "@/data/errors";
 import { loadPrivateSettings } from "@/data/profiles";
 import { reloadViewer, useViewer } from "@/data/session";
 import { updateLanguages } from "@/data/settings";
-import { Button } from "@/ui/controls";
+import { Button, LoadFailed } from "@/ui/controls";
 import { ChipPicker, FieldError, Group, SelectRow, ToggleRow } from "@/ui/form";
 import { BackButton, Header } from "@/ui/header";
 import { Text } from "@/ui/text";
@@ -20,24 +21,32 @@ type Form = { languages: LanguageCode[]; translationLanguage: LanguageCode | nul
 export default function LanguageSettings() {
   const palette = usePalette();
   const viewer = useViewer();
-  const [form, setForm] = useState<Form | null>(null);
+  const [settings, setSettings] = useState<Omit<Form, "languages"> | null>(null);
+  // Null until a language is ticked: the ones on the profile. The viewer is
+  // read again on every return to the app, which mustn't undo the ticks.
+  const [picked, setPicked] = useState<LanguageCode[] | null>(null);
+  const [failed, setFailed] = useState<Reason | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const viewerId = viewer?.id ?? null;
-  const spoken = viewer?.languages;
+  const form: Form | null = settings && { ...settings, languages: picked ?? knownLanguages(viewer?.languages ?? []) };
+  const setForm = ({ languages, ...rest }: Form) => {
+    setPicked(languages);
+    setSettings(rest);
+  };
 
   useEffect(() => {
     if (!viewerId) return;
-    void loadPrivateSettings(viewerId)
-      .then((settings) =>
-        setForm({
-          languages: knownLanguages(spoken ?? []),
-          translationLanguage: settings.translationLanguage && isLanguage(settings.translationLanguage) ? settings.translationLanguage : null,
-          feedLanguagesOnly: settings.feedLanguagesOnly,
+    void loadPrivateSettings(viewerId).then(
+      (loaded) =>
+        setSettings({
+          translationLanguage: loaded.translationLanguage && isLanguage(loaded.translationLanguage) ? loaded.translationLanguage : null,
+          feedLanguagesOnly: loaded.feedLanguagesOnly,
         }),
-      )
-      .catch(() => Alert.alert("Couldn't load your settings", "Check your connection, then try again."));
-  }, [viewerId, spoken]);
+      (problem: unknown) => setFailed(reasonOf(problem)),
+    );
+  }, [viewerId, attempt]);
 
   async function save() {
     if (!viewerId || !form) return;
@@ -53,7 +62,16 @@ export default function LanguageSettings() {
   return (
     <View style={{ flex: 1, backgroundColor: palette.shell }}>
       <Header title="Languages" left={<BackButton fallback="/settings" />} />
-      {!form ? (
+      {failed && !form ? (
+        <LoadFailed
+          title="Your settings didn't load"
+          reason={failed}
+          onRetry={() => {
+            setFailed(null);
+            setAttempt((count) => count + 1);
+          }}
+        />
+      ) : !form ? (
         <ActivityIndicator style={{ marginTop: 40 }} color={palette.inkMuted} accessibilityLabel="Loading" />
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 24, paddingBottom: 48 }}>

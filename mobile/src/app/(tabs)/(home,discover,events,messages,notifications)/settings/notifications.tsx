@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, AppState, Linking, ScrollView, View } from "react-native";
+import { reasonOf, type Reason } from "@/data/errors";
 import { askForPush, loadPushOff, PUSH_GROUPS, pushAvailable, pushPermission, savePushOff, type PushKind, type PushPermission } from "@/data/push";
 import { useViewer } from "@/data/session";
+import { LoadFailed } from "@/ui/controls";
 import { Group, Row, ToggleRow } from "@/ui/form";
 import { BackButton, Header } from "@/ui/header";
 import { Text } from "@/ui/text";
@@ -15,13 +17,13 @@ export default function NotificationSettings() {
   const viewerId = viewer?.id ?? null;
   const [off, setOff] = useState<string[] | null>(null);
   const [permission, setPermission] = useState<PushPermission | null>(null);
+  const [failed, setFailed] = useState<Reason | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!viewerId) return;
-    void loadPushOff(viewerId)
-      .then(setOff)
-      .catch(() => Alert.alert("Couldn't load your settings", "Check your connection, then try again."));
-  }, [viewerId]);
+    void loadPushOff(viewerId).then(setOff, (error: unknown) => setFailed(reasonOf(error)));
+  }, [viewerId, attempt]);
 
   // Coming back from iOS Settings shows what was chosen there.
   useEffect(() => {
@@ -48,7 +50,16 @@ export default function NotificationSettings() {
   return (
     <View style={{ flex: 1, backgroundColor: palette.shell }}>
       <Header title="Notifications" left={<BackButton fallback="/settings" />} />
-      {!off || !permission ? (
+      {failed && !off ? (
+        <LoadFailed
+          title="Your settings didn't load"
+          reason={failed}
+          onRetry={() => {
+            setFailed(null);
+            setAttempt((count) => count + 1);
+          }}
+        />
+      ) : !off || !permission ? (
         <ActivityIndicator style={{ marginTop: 40 }} color={palette.inkMuted} accessibilityLabel="Loading" />
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 24, paddingBottom: 48 }}>

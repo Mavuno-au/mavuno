@@ -7,35 +7,55 @@ import type { Notification } from "@/lib/notifications";
 import { APPEAL_DAYS, appealDeadline, appealIsOpen, ruleOf } from "@/lib/rules";
 import { CONTACT_EMAIL } from "@/lib/site";
 import { siteLink } from "@/data/env";
+import { reasonOf, type Reason } from "@/data/errors";
 import { loadModerationNotice } from "@/data/notifications";
-import { Button, EmptyState } from "@/ui/controls";
+import { Button, EmptyState, LoadFailed } from "@/ui/controls";
 import { BackButton, Header } from "@/ui/header";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
 import { openLink } from "@/util/links";
 import { timeZone } from "@/util/time";
 
+type Loaded = { kind: "loading" } | { kind: "failed"; reason: Reason } | { kind: "ready"; notice: Notification | null };
+
 // The website's appeal page (src/app/(app)/appeals/[id]): the decision and its
 // rule, how to appeal, and what happens next, with one button.
 export default function Appeal() {
   const palette = usePalette();
   const noticeId = z.coerce.number().int().positive().safeParse(useLocalSearchParams().id).data ?? null;
-  const [loaded, setLoaded] = useState<{ id: number | null; notice: Notification | null | "loading" }>({ id: null, notice: "loading" });
+  const [loaded, setLoaded] = useState<{ id: number | null; state: Loaded }>({ id: null, state: { kind: "loading" } });
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (noticeId === null) return;
     let current = true;
-    void loadModerationNotice(noticeId)
-      .then((notice) => current && setLoaded({ id: noticeId, notice }))
-      .catch(() => current && setLoaded({ id: noticeId, notice: null }));
+    void loadModerationNotice(noticeId).then(
+      (notice) => current && setLoaded({ id: noticeId, state: { kind: "ready", notice } }),
+      (error: unknown) => current && setLoaded({ id: noticeId, state: { kind: "failed", reason: reasonOf(error) } }),
+    );
     return () => {
       current = false;
     };
-  }, [noticeId]);
+  }, [noticeId, attempt]);
 
-  const notice = noticeId === null ? null : loaded.id === noticeId ? loaded.notice : "loading";
+  const state: Loaded = noticeId === null ? { kind: "ready", notice: null } : loaded.id === noticeId ? loaded.state : { kind: "loading" };
   const header = <Header title="Appeal a decision" left={<BackButton fallback="/notifications" />} />;
-  if (notice === "loading") {
+  if (state.kind === "failed") {
+    return (
+      <View style={{ flex: 1, backgroundColor: palette.surface }}>
+        {header}
+        <LoadFailed
+          title="This notice didn't load"
+          reason={state.reason}
+          onRetry={() => {
+            setLoaded({ id: null, state: { kind: "loading" } });
+            setAttempt((count) => count + 1);
+          }}
+        />
+      </View>
+    );
+  }
+  if (state.kind === "loading") {
     return (
       <View style={{ flex: 1, backgroundColor: palette.surface }}>
         {header}
@@ -43,6 +63,7 @@ export default function Appeal() {
       </View>
     );
   }
+  const notice = state.notice;
   if (!notice?.notice) {
     return (
       <View style={{ flex: 1, backgroundColor: palette.surface }}>

@@ -72,11 +72,12 @@ export type TeamMember = { id: string; username: string; displayName: string; av
 
 // An organisation's team, owners first as the database lists them.
 export async function loadTeam(orgId: string): Promise<TeamMember[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("organisation_members")
     .select("role, accepted_at, person:profiles!organisation_members_user_id_fkey(id, username, display_name, avatar_url, colour:effective_colour)")
     .eq("org_id", orgId)
     .order("created_at");
+  if (error) throw requestError("Team", error);
   return teamRows
     .catch([])
     .parse(data ?? [])
