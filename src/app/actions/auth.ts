@@ -118,6 +118,8 @@ export async function updatePassword(_: Result | null, form: FormData): Promise<
 
 export async function signOut() {
   const supabase = await createClient();
+  // Signing out ends every session, so no phone should keep getting this member's pushes either.
+  await supabase.rpc("unregister_my_push_tokens");
   await supabase.auth.signOut();
   redirect("/");
 }
