@@ -10,6 +10,7 @@ import { loadConversations } from "@/data/messages";
 import { useViewer } from "@/data/session";
 import { supabase } from "@/data/supabase";
 import { ConversationAvatar } from "@/messages/conversation-avatar";
+import { PushOffer } from "@/notifications/push-offer";
 import { Button, EmptyState, IconButton, LoadFailed, RowSkeleton, Segmented } from "@/ui/controls";
 import { Header } from "@/ui/header";
 import { ActionSheet } from "@/ui/sheet";
@@ -130,6 +131,7 @@ export default function Messages() {
           />
         )}
       </View>
+      {box === "inbox" ? <PushOffer /> : null}
       {box === "requests" && shown.length > 0 ? (
         <Text variant="small" tone="muted" style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: palette.wash }}>
           From people you don't follow. They won't know you've seen a request until you accept it.

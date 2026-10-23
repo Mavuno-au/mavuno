@@ -2,6 +2,7 @@ import type { RealtimePostgresInsertPayload } from "@supabase/supabase-js";
 import { createContext, use, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AppState } from "react-native";
 import { z } from "zod";
+import { setBadge } from "@/data/push";
 import { supabase } from "@/data/supabase";
 
 type Counts = { notifications: number; messages: number };
@@ -52,6 +53,10 @@ export function CountsProvider({ viewerId, children }: { viewerId: string | null
       void supabase.removeChannel(channel);
     };
   }, [viewerId, refresh]);
+
+  // The app icon shows the two badges added up, and nothing once signed out.
+  const total = viewerId ? counts.notifications + counts.messages : 0;
+  useEffect(() => setBadge(total), [total]);
 
   const clear = useCallback((kind: keyof Counts) => setCounts((current) => (current[kind] === 0 ? current : { ...current, [kind]: 0 })), []);
   const store = useMemo(() => ({ ...counts, clear, refresh }), [counts, clear, refresh]);

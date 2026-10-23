@@ -8,6 +8,7 @@ import { loadNotifications, markNotificationsRead } from "@/data/notifications";
 import { useViewer } from "@/data/session";
 import { useList } from "@/data/use-list";
 import { NotificationRow } from "@/notifications/notification-row";
+import { PushOffer } from "@/notifications/push-offer";
 import { EmptyState, NotificationSkeleton, Pills } from "@/ui/controls";
 import { Header } from "@/ui/header";
 import { PagedList } from "@/ui/list";
@@ -122,6 +123,7 @@ export default function Notifications() {
           />
         </View>
       </View>
+      <PushOffer />
       <View style={{ flex: 1 }}>
         <PagedList
           list={list}

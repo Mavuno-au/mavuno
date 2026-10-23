@@ -16,7 +16,7 @@ Mavuno ("harvest" in Swahili) is a social network for that community. Members po
 - **Spaces:** city spaces with the city's photo, and interest spaces.
 - **Events and opportunities:** jobs, internships, scholarships, grants, mentoring, business and volunteering.
 - **Messages:** one to one and groups, with requests, reactions, read receipts, photos and link cards.
-- **Notifications:** in-app, grouped.
+- **Notifications:** in-app, grouped, and pushed to the phone app once the member allows it, with a switch for each kind. Likes and new followers arrive at most once an hour, and a push never includes what a message says.
 - **Invites:** each member has a link, mavuno.au/join/<username>, to share or send on WhatsApp. Someone who joins with it and the member follow each other, and the member is told so they can say welcome. Who invited whom is seen only by those two. No rewards, leaderboards or limits.
 - **Languages:** posts carry their language; members can translate posts.
 - **Safety:** mute, block, reports, review after a report (and of new members' content when an admin turns it on), the community rules accepted before the first post, moderation tools: removals that name the rule, suspensions from an hour to 30 days, bans that outlive the account, appeals, and a record of every decision.
@@ -42,4 +42,4 @@ Plain, warm and direct, in Australian English. Sentence case, no em dashes, no h
 
 ## Deliberately excluded
 
-Ads, follower counts as status games, plain reposts without commentary, editing posts, precise location, and email or push notifications for now.
+Ads, follower counts as status games, plain reposts without commentary, editing posts, precise location, and email notifications for now.

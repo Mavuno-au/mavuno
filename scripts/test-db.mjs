@@ -2979,6 +2979,187 @@ console.log("\nAn under-16 deactivation covers what the person wrote as an organ
   check("and reinstating brings them back", (await statuses()) === "published,published,published", await statuses());
 }
 
+console.log("\nPush notifications");
+{
+  const writer = await createUser("push-writer@example.com", { username: "push_writer", display_name: "Wanjiru Kamau" });
+  const fan = await createUser("push-fan@example.com", { username: "push_fan", display_name: "Femi Adeyemi" });
+  const other = await createUser("push-other@example.com", { username: "push_other", display_name: "Oto Bello" });
+  const third = await createUser("push-third@example.com", { username: "push_third" });
+  const phone = "ExponentPushToken[writer-phone]";
+  const sent = async () => {
+    await superuser();
+    return (await q("select id, url, headers, body from net.http_request_queue order by id")).map((r) => ({ ...r, body: r.body }));
+  };
+  const pushesTo = async (token) => (await sent()).flatMap((r) => (Array.isArray(r.body) ? r.body : [])).filter((m) => m.to === token);
+  const clear = async () => {
+    await superuser();
+    await q("delete from net.http_request_queue");
+  };
+
+  await anon();
+  await fails("guests can't register a phone", "select public.register_push_token($1)", [phone], /permission denied/);
+  await as(writer);
+  await fails("only Expo push tokens are taken", "select public.register_push_token('not a token')", [], /push_tokens_token_check/);
+  await q("select public.register_push_token($1)", [phone]);
+  await q("select public.register_push_token($1)", [phone]);
+  await fails("members can't read push tokens", "select * from public.push_tokens", [], /permission denied/);
+  await fails("members can't send pushes themselves", "select public.send_due_pushes()", [], /permission denied/);
+  await fails("members can't queue pushes", "select public.queue_push($1, 'reply', 'x', $1)", [writer], /permission denied/);
+  await superuser();
+  check("registering twice keeps one row", (await one("select count(*)::int as n from public.push_tokens where profile_id = $1", [writer])).n === 1);
+
+  // A reply goes out at once, with the start of the reply and where to go.
+  await clear();
+  await as(writer);
+  const original = await post("Who's coming to the Logan market on Saturday?");
+  await as(fan);
+  const answer = await post("Me!   I'll bring\nthe suya", "en", null, original);
+  let pushes = await pushesTo(phone);
+  check("a reply is pushed straight away", pushes.length === 1 && pushes[0].title === "Femi Adeyemi replied" && pushes[0].body === "Me! I'll bring the suya", pushes);
+  check("tapping it opens the reply, for that member only", pushes[0]?.data?.path === `/post/${answer}` && pushes[0]?.data?.recipient === writer, pushes[0]);
+  check("it carries the unread count for the icon", pushes[0]?.badge === 1, pushes[0]);
+  const request = (await sent())[0];
+  check("it goes to Expo's push service", request?.url === "https://exp.host/--/api/v2/push/send" && request?.headers?.Authorization === undefined, request);
+  await superuser();
+  await q("insert into vault.decrypted_secrets (name, decrypted_secret) values ('expo_push_access_token', 'expo-secret')");
+
+  // Likes: the first at once, the rest gathered for an hour.
+  await clear();
+  await as(fan);
+  await q("insert into public.likes (user_id, post_id) values ($1, $2)", [fan, original]);
+  pushes = await pushesTo(phone);
+  check("the first like is pushed at once", pushes.length === 1 && pushes[0].body === "Femi Adeyemi liked your post" && pushes[0].collapseId === `like:${original}`, pushes);
+  check("with the access token once there is one", (await sent())[0]?.headers?.Authorization === "Bearer expo-secret", (await sent())[0]?.headers);
+  await clear();
+  await as(other);
+  await q("insert into public.likes (user_id, post_id) values ($1, $2)", [other, original]);
+  await as(third);
+  await q("insert into public.likes (user_id, post_id) values ($1, $2)", [third, original]);
+  check("later likes wait", (await pushesTo(phone)).length === 0);
+  await superuser();
+  row = await one("select merged, send_after > now() + interval '50 minutes' as later from public.push_outbox where recipient_id = $1 and group_key = $2 and sent_at is null", [writer, `like:${original}`]);
+  check("and wait as one, an hour after the last", row?.merged === 2 && row?.later === true, row);
+  await q("update public.push_outbox set send_after = now() where recipient_id = $1 and sent_at is null", [writer]);
+  await q("select public.send_due_pushes()");
+  pushes = await pushesTo(phone);
+  check("then go out together", pushes.length === 1 && pushes[0].body === "push_third and 1 other liked your post", pushes);
+
+  // The member's switches.
+  await as(writer);
+  await q("update public.profile_settings set push_off = '{follow}' where id = $1", [writer]);
+  await as(fan);
+  await q("update public.profile_settings set push_off = '{}' where id = $1", [writer]);
+  await superuser();
+  check("members can't change someone else's switches", (await one("select push_off from public.profile_settings where id = $1", [writer])).push_off === "{follow}");
+  await clear();
+  await as(fan);
+  await q("insert into public.follows (follower_id, followee_id) values ($1, $2)", [fan, writer]);
+  await superuser();
+  check("a kind switched off isn't queued", (await pushesTo(phone)).length === 0 && (await one("select count(*)::int as n from public.push_outbox where recipient_id = $1 and kind = 'follow'", [writer])).n === 0);
+
+  // Messages: never their words; requests say so; muted conversations stay quiet.
+  await clear();
+  await as(other);
+  const chat = (await one("select public.start_direct_conversation($1) as id", [writer])).id;
+  await q("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'My bank PIN is 1234')", [chat, other]);
+  pushes = await pushesTo(phone);
+  check("a message request is pushed without its words", pushes.length === 1 && pushes[0].title === "Oto Bello" && pushes[0].body === "Wants to send you a message" && !JSON.stringify(pushes).includes("PIN"), pushes);
+  check("and opens the conversation", pushes[0]?.data?.path === `/conversation/${chat}`, pushes[0]);
+  await as(writer);
+  await q("select public.respond_to_message_request($1, true)", [chat]);
+  await clear();
+  await as(other);
+  await q("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Thanks for accepting')", [chat, other]);
+  await q("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'See you there')", [chat, other]);
+  await q("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Bring chairs')", [chat, other]);
+  pushes = await pushesTo(phone);
+  check("a message is pushed at once and the next waits a minute", pushes.length === 1 && pushes[0].title === "Oto Bello" && pushes[0].body === "Sent you a message", pushes);
+  await superuser();
+  await q("update public.push_outbox set send_after = now() where recipient_id = $1 and sent_at is null", [writer]);
+  await q("select public.send_due_pushes()");
+  pushes = await pushesTo(phone);
+  check("messages that waited go as one", pushes.at(-1)?.body === "Sent you 2 messages" && pushes.at(-1)?.collapseId === `accepted:${chat}` && pushes.length === 2, pushes);
+  await as(writer);
+  await q("update public.conversation_participants set muted = true where conversation_id = $1 and user_id = $2", [chat, writer]);
+  await clear();
+  await superuser();
+  await q("update public.push_outbox set sent_at = now() - interval '2 minutes' where recipient_id = $1", [writer]);
+  await as(other);
+  await q("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Hello?')", [chat, other]);
+  check("a muted conversation isn't pushed", (await pushesTo(phone)).length === 0);
+  await as(writer);
+  await q("update public.conversation_participants set muted = false where conversation_id = $1 and user_id = $2", [chat, writer]);
+  await q("insert into public.mutes (muter_id, muted_id) values ($1, $2)", [writer, other]);
+  await as(other);
+  await q("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Still there?')", [chat, other]);
+  check("nor is a muted person's message", (await pushesTo(phone)).length === 0);
+
+  // A group message to everyone in one request.
+  await as(third);
+  await q("select public.register_push_token('ExponentPushToken[third-phone]')");
+  await as(other);
+  await q("select public.register_push_token('ExponentPushToken[other-phone]')");
+  await as(writer);
+  const crew = (await one("select public.create_group_conversation('Market crew', $1::uuid[]) as id", [`{${other},${third}}`])).id;
+  await superuser();
+  await q("update public.conversation_participants set status = 'accepted' where conversation_id = $1", [crew]);
+  await clear();
+  await as(writer);
+  await q("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Stall 14')", [crew, writer]);
+  const group = await sent();
+  check(
+    "a group message reaches everyone in one request",
+    group.length === 1 && group[0].body.length === 2 && group[0].body.every((m) => m.title === "Market crew" && m.body === "Wanjiru Kamau sent a message"),
+    group,
+  );
+
+  // Expo's answers.
+  await clear();
+  const spare = "ExponentPushToken[writer-tablet]";
+  await as(writer);
+  await q("select public.register_push_token($1)", [spare]);
+  await as(third);
+  await post(`Hello @push_writer`);
+  await superuser();
+  const send = await one("select id, tokens from public.push_requests where kind = 'send' order by created_at desc, id desc limit 1");
+  check("both phones get the mention", send?.tokens?.length === 2, send);
+  const tickets = send.tokens.map((token) => (token === spare ? { status: "error", details: { error: "DeviceNotRegistered" } } : { status: "ok", id: "ticket-1" }));
+  await q("insert into net._http_response (id, status_code, content) values ($1, 200, $2)", [send.id, JSON.stringify({ data: tickets })]);
+  await q("select public.settle_pushes()");
+  check("a phone Expo no longer knows is forgotten", (await q("select token from public.push_tokens where profile_id = $1", [writer])).map((r) => r.token).join() === phone);
+  check("the other's ticket is kept for its receipt", (await one("select token from public.push_tickets where id = 'ticket-1'"))?.token === phone);
+  await clear();
+  await q("update public.push_tickets set created_at = now() - interval '16 minutes'");
+  await q("select public.settle_pushes()");
+  const asked = (await sent()).find((r) => r.url.endsWith("/getReceipts"));
+  check("receipts are asked for after 15 minutes", JSON.stringify(asked?.body) === JSON.stringify({ ids: ["ticket-1"] }), asked);
+  const receipts = await one("select id from public.push_requests where kind = 'receipts'");
+  await q("insert into net._http_response (id, status_code, content) values ($1, 200, $2)", [receipts.id, JSON.stringify({ data: { "ticket-1": { status: "error", details: { error: "DeviceNotRegistered" } } } })]);
+  await q("select public.settle_pushes()");
+  check("a receipt saying the phone is gone forgets it", (await one("select count(*)::int as n from public.push_tokens where profile_id = $1", [writer])).n === 0);
+  check("and its ticket and request are cleared", (await one("select (select count(*) from public.push_tickets) + (select count(*) from public.push_requests where kind = 'receipts')::int as n")).n === 0);
+
+  // Signing out and deleting.
+  await as(fan);
+  await q("select public.register_push_token('ExponentPushToken[shared-phone]')");
+  await as(other);
+  await q("select public.register_push_token('ExponentPushToken[shared-phone]')");
+  await superuser();
+  check("a phone follows whoever signed in on it last", (await one("select profile_id from public.push_tokens where token = 'ExponentPushToken[shared-phone]'")).profile_id === other);
+  await as(other);
+  row = await one("select public.export_my_data() -> 'push_devices' as devices");
+  check("the export lists phones without their tokens", row.devices.length === 2 && !JSON.stringify(row.devices).includes("shared-phone"), row);
+  await anon();
+  await q("select public.unregister_push_token('ExponentPushToken[shared-phone]')");
+  await superuser();
+  check("signing out removes the phone, even with an expired session", (await one("select count(*)::int as n from public.push_tokens where token = 'ExponentPushToken[shared-phone]'")).n === 0);
+  await as(fan);
+  await q("select public.register_push_token('ExponentPushToken[fan-phone]')");
+  await superuser();
+  await q("delete from auth.users where id = $1", [fan]);
+  check("deleting the account deletes its phones", (await one("select count(*)::int as n from public.push_tokens where token = 'ExponentPushToken[fan-phone]'")).n === 0);
+}
+
 console.log("\nDemo seed");
 const seeded = new PGlite({ extensions: { pg_trgm, pgcrypto } });
 await seeded.exec(stubs);

@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import { View } from "react-native";
 import { CountsProvider } from "@/data/counts";
 import "@/data/preferences";
+import { PushNotifications } from "@/data/push";
 import { SessionProvider, useSession } from "@/data/session";
 import { ShadowProvider } from "@/data/shadow";
 import { FONTS } from "@/ui/text";
@@ -106,6 +107,7 @@ function Navigator({ fontsReady }: { fontsReady: boolean }) {
               </Stack.Protected>
             </Stack>
             <ToastHost />
+            <PushNotifications viewerId={member ? session.session.user.id : null} />
           </View>
         </CountsProvider>
       </ShadowProvider>

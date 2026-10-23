@@ -4,14 +4,14 @@ An Expo app in TypeScript (Expo SDK 58, React Native 0.88, Expo Router). It sign
 
 ## What it does
 
-Every member screen in the iPhone designs. Moderation and operations stay on the website, for staff; push notifications aren't built yet.
+Every member screen in the iPhone designs. Moderation and operations stay on the website, for staff.
 
 - **Joining:** date of birth first (under 16 sees a support screen for a day and nothing is kept), then name, a username checked as you type with free ones offered, email and password. Invite links (`mavuno.au/join/<username>`) show who invited you. Then the website's four onboarding steps: about you, people to follow, spaces to join and how Mavuno works.
 - **Signing in** with a password or an emailed link, and password resets by email. Email-only for now; Apple and Google sign-in come later.
 - **Home:** Following, Latest and Trending, with the newest replies under each post and a pill for posts published since you looked.
 - **Posting:** the full composer, posting as yourself or an organisation you help run, with mentions, up to four photos with descriptions, polls, link cards, scheduling, a language and kept drafts. Replies, quotes, saves, pins, delete with Undo, translations and a photo viewer.
 - **Messages:** inbox, requests and archived, direct and group conversations with photos, replies, reactions, typing and read receipts, all live.
-- **Notifications** grouped as on the website, with filters and the badge on the tab.
+- **Notifications** grouped as on the website, with filters and the badge on the tab. Push notifications once the member allows them (the app asks on the Notifications and Messages tabs, not at first launch), a switch for each kind in Settings › Notifications, the unread count on the app icon, and a tap opens the post, profile, event or conversation.
 - **Profiles:** follow, message, followers you know, team, followers and following, edit profile with photo and banner, and Invite friends.
 - **Discover:** search, people, organisations, topics, spaces, Nearby, events with RSVP and Add to calendar, and opportunities with saving. Members can start a space, host an event and post an opportunity.
 - **Settings:** account (username, email, password, download your data, delete account), privacy, languages, appearance, muted and blocked, and organisations with their teams.
@@ -60,6 +60,18 @@ No Expo account or EAS is needed.
 3. Under Signing & Capabilities, choose your team. The bundle ID is `au.mavuno.app`. Then choose Product › Archive, and in the Organizer choose Distribute App › App Store Connect.
 
 Before the first upload, you need an Apple Developer account and the app created in App Store Connect. The app signs in with email only, so it doesn't need Sign in with Apple yet. App Review guideline 4.8 requires it once Google sign-in or another third-party sign-in is added (see `../docs/MOBILE_API.md`).
+
+## Push notifications
+
+The database sends them through Expo's push service, which is free and works with builds made in Xcode (see `../supabase/migrations/20261023040121_push_notifications.sql`). Until the steps below are done, the app never offers them and Settings › Notifications says they aren't available.
+
+1. **Expo project:** sign in at expo.dev (free) and create a project with the slug `mavuno`, or run `npx eas-cli init` here. Put its ID in `app.json` as `expo.extra.eas.projectId`. This only registers the app with Expo; builds still go through Xcode.
+2. **Apple push key:** in Apple Developer › Keys, make a key with Apple Push Notifications service and download the `.p8`. Add it to the project at expo.dev under Credentials › iOS › `au.mavuno.app` › Push key. (`npx eas-cli credentials` does the same from here; neither involves EAS Build.)
+3. **Xcode:** after `npx expo prebuild`, the target has the Push Notifications capability (the `expo-notifications` plugin adds it). Automatic signing turns it on for the App ID.
+4. **Database:** `pg_net` and `pg_cron` must be on (Database › Extensions), as for background tasks. Pushes that wait (grouped likes, follows, messages) go out on the minute.
+5. **Optional:** turn on enhanced push security at expo.dev, make an access token, and store it in Vault as `expo_push_access_token`.
+
+Test with a real iPhone or the Simulator: allow notifications in the app, then like one of that member's posts from another account.
 
 ## Checks
 
