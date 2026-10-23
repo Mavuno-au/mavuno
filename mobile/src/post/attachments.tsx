@@ -186,6 +186,22 @@ export function QuotedBlock({ quoted }: { quoted: QuotedPost }) {
   const palette = usePalette();
   const now = useNow();
   const block = useBlock();
+  const [shown, setShown] = useState(false);
+  if (quoted.kind === "muted") {
+    if (shown) return <QuotedBlock quoted={quoted.post} />;
+    return (
+      <View style={[block, { marginTop: 10, borderStyle: "dashed", borderColor: palette.rail, paddingHorizontal: 12, paddingVertical: 4, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }]}>
+        <Text variant="subhead" tone="muted" style={{ flexShrink: 1 }}>
+          Post by someone you muted.
+        </Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Show the post by someone you muted" onPress={() => setShown(true)} hitSlop={8} style={{ minHeight: 44, justifyContent: "center" }}>
+          <Text variant="subhead" tone="primary" style={{ fontFamily: font.medium }}>
+            Show
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
   if (quoted.kind !== "post") {
     return (
       <View style={[block, { marginTop: 10, borderStyle: "dashed", borderColor: palette.rail, paddingHorizontal: 12, paddingVertical: 10 }]}>

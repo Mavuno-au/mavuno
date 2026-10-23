@@ -33,7 +33,7 @@ export async function loadProfile(username: string, viewerId: string): Promise<P
   const profile = profileRowSchema.parse(data);
   if (profile.id === viewerId) return { kind: "profile", profile, relationship: { self: true, following: false, followsYou: false, muted: false, canMessage: false, invite: null } };
 
-  const [following, followsYou, muted, blockedByViewer, blockedEitherWay, canMessage, invites] = await Promise.all([
+  const [following, followsYou, muted, blockedByViewer, blockedEitherWay, canMessage, invites, hidden] = await Promise.all([
     supabase.from("follows").select("follower_id").match({ follower_id: viewerId, followee_id: profile.id }).maybeSingle(),
     supabase.from("follows").select("follower_id").match({ follower_id: profile.id, followee_id: viewerId }).maybeSingle(),
     supabase.from("mutes").select("muter_id").match({ muter_id: viewerId, muted_id: profile.id }).maybeSingle(),
@@ -41,12 +41,15 @@ export async function loadProfile(username: string, viewerId: string): Promise<P
     supabase.rpc("is_blocked_with_viewer", { p_profile_id: profile.id }),
     supabase.rpc("can_message", { p_user_id: profile.id }),
     supabase.from("invites").select("member_id, invited_by").or(`member_id.eq.${profile.id},invited_by.eq.${profile.id}`),
+    // Deactivated as under 16: gone from view, as on the website.
+    supabase.rpc("profile_hidden", { p_profile_id: profile.id }),
   ]);
   // A failed read can't stand for "no": a follow read as missing offers Follow
   // to someone already followed, and the count would move from the wrong base.
-  for (const read of [following, followsYou, muted, blockedByViewer, blockedEitherWay, canMessage, invites]) {
+  for (const read of [following, followsYou, muted, blockedByViewer, blockedEitherWay, canMessage, invites, hidden]) {
     if (read.error) throw requestError("Profile", read.error);
   }
+  if (hidden.data === true) return { kind: "missing" };
   if (blockedEitherWay.data === true) return { kind: "unavailable", id: profile.id, username: profile.username, blockedByViewer: Boolean(blockedByViewer.data) };
 
   const between = inviteRows.catch([]).parse(invites.data ?? []);

@@ -101,6 +101,8 @@ export async function signOut(notice: Notice | null = null) {
   // A deleted account has no session left on the server to end. Otherwise
   // every device signs out, which is what "Sign out" promises.
   const scope = notice === "deleted" ? "local" : "global";
+  // Every session ends, so no phone should keep getting this member's pushes.
+  if (scope === "global") await supabase.rpc("unregister_my_push_tokens");
   const { error } = await supabase.auth.signOut({ scope });
   if (!error || scope === "local") return;
   // When the server can't be reached this phone usually signs out anyway but
