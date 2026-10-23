@@ -1,12 +1,11 @@
-import "expo-sqlite/localStorage/install";
 import { createClient } from "@supabase/supabase-js";
 import { AppState } from "react-native";
 import { env } from "@/data/env";
+import { sessionStore } from "@/data/session-store";
 
 export const supabase = createClient(env.supabaseUrl, env.supabaseKey, {
   auth: {
-    // The session survives restarts in the app's own storage.
-    storage: localStorage,
+    storage: sessionStore,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,

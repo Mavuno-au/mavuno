@@ -27,7 +27,7 @@ The app imports the website's plain modules from `../src/lib` as `@/lib/*` rathe
 
 - `metro.config.js` watches `../src/lib`. Packages those files import, such as zod, resolve from this folder's `node_modules`, so there is only one copy of each.
 - `tsconfig.json` maps `@/lib/*` to the website and `@/*` to `src/`. Don't add a `src/lib` folder here, because the website's would shadow it.
-- The website's typecheck and lint skip `mobile/`. Run `npm run check` here after changing a shared module, and `pnpm check` at the root.
+- The website's typecheck and lint skip `mobile/`. Run `npm run check` here after changing a shared module, and `pnpm check` at the root. CI runs the app's typecheck and lint whenever `mobile/` or `src/lib/` changes (`.github/workflows/mobile.yml`).
 
 ## Run it in the iOS Simulator
 
