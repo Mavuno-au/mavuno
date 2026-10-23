@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { revealsEmail, toUsername, usernameSchema } from "./schemas";
+import { emailSchema, revealsEmail, signInError, toUsername, usernameSchema } from "./schemas";
 
 describe("toUsername", () => {
   it.each([
@@ -32,5 +32,19 @@ describe("revealsEmail", () => {
     ["kwame", "kwame@live.com", false],
   ])("%s with %s → %s", (username, email, reveals) => {
     expect(revealsEmail(username, email)).toBe(reveals);
+  });
+});
+
+describe("emailSchema", () => {
+  it("trims and lowercases before checking the address", () => {
+    expect(emailSchema.parse("  Amara@Example.com ")).toBe("amara@example.com");
+    expect(emailSchema.safeParse("not an address").success).toBe(false);
+  });
+});
+
+describe("signInError", () => {
+  it("tells a rate limit apart from a wrong password", () => {
+    expect(signInError("over_request_rate_limit")).toMatch(/Too many sign-in attempts/);
+    expect(signInError("invalid_credentials")).toBe("That email and password don't match.");
   });
 });

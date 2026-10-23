@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-export const emailSchema = z.email("Enter a valid email address.").transform((value) => value.trim().toLowerCase());
+// Trimmed first: autocorrect and pasting leave spaces the address check would refuse.
+export const emailSchema = z.string().trim().toLowerCase().pipe(z.email("Enter a valid email address."));
 
 export const passwordSchema = z.string().min(8, "Use at least 8 characters.").max(72, "Use at most 72 characters.");
 
@@ -8,7 +9,11 @@ export const signInSchema = z.object({ email: emailSchema, password: z.string().
 
 // What a failed password sign-in tells the person, from Supabase Auth's error code.
 export const signInError = (code: string | undefined) =>
-  code === "email_not_confirmed" ? "Confirm your email first. Check your inbox for the link." : "That email and password don't match.";
+  code === "email_not_confirmed"
+    ? "Confirm your email first. Check your inbox for the link."
+    : code === "over_request_rate_limit"
+      ? "Too many sign-in attempts right now. Wait a few minutes and try again."
+      : "That email and password don't match.";
 
 export const usernameSchema = z
   .string()

@@ -102,7 +102,8 @@ export async function requestPasswordReset(_: Result | null, form: FormData): Pr
   const parsed = emailSchema.safeParse(form.get("email"));
   if (!parsed.success) return fail(firstIssue(parsed.error));
   const supabase = await createClient();
-  await supabase.auth.resetPasswordForEmail(parsed.data, { redirectTo: emailLink("/reset-password") });
+  const { error } = await supabase.auth.resetPasswordForEmail(parsed.data, { redirectTo: emailLink("/reset-password") });
+  if (error?.status === 429) return fail("We're sending a lot of emails right now. Wait a few minutes and try again.");
   // Same answer whether or not the account exists.
   return done;
 }
