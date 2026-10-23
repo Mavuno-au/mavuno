@@ -4,7 +4,6 @@ import { Bookmark, Building2, CalendarClock, FileText, Globe, KeyRound, LifeBuoy
 import { Alert, Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CONTACT_EMAIL } from "@/lib/site";
-import { clearDrafts } from "@/data/drafts";
 import { siteLink } from "@/data/env";
 import { signOut, useViewer } from "@/data/session";
 import { Avatar } from "@/ui/avatar";
@@ -30,10 +29,7 @@ export default function Settings() {
       {
         text: "Sign out",
         style: "destructive",
-        onPress: () => {
-          clearDrafts();
-          void signOut();
-        },
+        onPress: () => void signOut(),
       },
     ]);
   }

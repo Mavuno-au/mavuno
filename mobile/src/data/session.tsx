@@ -4,6 +4,7 @@ import { AppState } from "react-native";
 import { z } from "zod";
 import { DISPLAY_TIME_ZONE } from "@/lib/format";
 import { toViewer, VIEWER_SELECT, type Viewer } from "@/lib/viewer-row";
+import { clearDrafts } from "@/data/drafts";
 import { supabase } from "@/data/supabase";
 import { createEvent } from "@/util/events";
 
@@ -111,6 +112,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         // SIGNED_OUT without a sign-out of our own means the refresh token was refused.
         const notice = event === "SIGNED_OUT" && leaving !== "chosen" ? (leaving ?? "expired") : null;
         leaving = null;
+        // However the member left (Sign out, deleting the account, a refused
+        // session), the next person on this phone doesn't see their drafts.
+        if (event === "SIGNED_OUT") clearDrafts();
         setState({ kind: "signed-out", notice });
         return;
       }
