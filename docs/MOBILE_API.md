@@ -52,6 +52,16 @@ JSON `{ targetId }`, the id of a post, message, event or opportunity the app jus
 
 `{ minimumBuild, storeUrl }`, a static file (`src/lib/app-release.ts`), no session. The app asks for it when it opens and when it comes back after a while; a build older than `minimumBuild` shows Update required with a link to `storeUrl`. Raise `minimumBuild` and deploy when a change would break the builds people still have.
 
+## Push notifications
+
+The database sends them; the app only registers the phone. See `mobile/README.md` for the Expo and Apple setup.
+
+- Once the member allows notifications, call `rpc("register_push_token", { p_token })` with the Expo push token (`ExponentPushToken[…]`), on every launch. A phone has one token; whoever signed in on it last gets its pushes, and a member keeps at most ten phones.
+- On sign-out, call `rpc("unregister_push_token", { p_token })`. Guests may call it, so a session that expired can still stop its pushes. Deleting the account deletes its tokens.
+- The kinds a member switched off are `profile_settings.push_off`, an array of `push_kind` (`reply`, `mention`, `quote`, `like`, `follow`, `joined`, `event_rsvp`, `org_added`, `moderation`, `message`, `message_request`). It holds on every phone. Unknown kinds are kept when saving.
+- Each push has `data.path` (`/post/<id>`, `/event/<id>`, `/profile/<username>`, `/conversation/<id>`, `/notifications` or `/settings/organisations`) and `data.recipient`, the profile it was sent to. Open the path only when the recipient is the signed-in member, and only after checking it against that list.
+- `badge` is the unread notification groups plus unread messages and requests, near enough; set the exact number with `setBadgeCountAsync` from `unread_notification_count` and `unread_message_count` whenever they're read.
+
 ## Age check before sign-up
 
 The website asks for a date of birth before anyone chooses email or Google, compares it with `meets_minimum_age`, and keeps it in an httpOnly cookie for at most 30 minutes because Google sign-in leaves the site and comes back. The app does the same without a cookie and without a new server route:

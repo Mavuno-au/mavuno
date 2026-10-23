@@ -1,6 +1,6 @@
 import Constants from "expo-constants";
 import { router, type Href } from "expo-router";
-import { Bookmark, Building2, CalendarClock, FileText, Globe, KeyRound, LifeBuoy, LogOut, Mail, Palette, Scale, Shield, ShieldCheck, Trash, UserPlus } from "lucide-react-native";
+import { Bell, Bookmark, Building2, CalendarClock, FileText, Globe, KeyRound, LifeBuoy, LogOut, Mail, Palette, Scale, Shield, ShieldCheck, Trash, UserPlus } from "lucide-react-native";
 import { Alert, Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CONTACT_EMAIL } from "@/lib/site";
@@ -59,6 +59,7 @@ export default function Settings() {
         </Group>
         <Group>
           <Row icon={icon(KeyRound)} label="Account" onPress={go("/settings/account")} />
+          <Row icon={icon(Bell)} label="Notifications" onPress={go("/settings/notifications")} />
           <Row icon={icon(ShieldCheck)} label="Privacy" onPress={go("/settings/privacy")} />
           <Row icon={icon(Globe)} label="Languages" onPress={go("/settings/languages")} />
           <Row icon={icon(Palette)} label="Appearance" onPress={go("/settings/appearance")} />

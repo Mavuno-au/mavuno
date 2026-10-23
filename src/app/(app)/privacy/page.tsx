@@ -50,7 +50,7 @@ export default function PrivacyPage() {
           <li>Posts, replies, quotes, photos and their descriptions, polls, events, opportunities, spaces, and posts you schedule for later.</li>
           <li>Private messages and photos you send in them.</li>
           <li>Who you follow, mute and block; your likes, saved posts, poll votes and event RSVPs; spaces you join; reports you make.</li>
-          <li>Your settings: who can message you, read receipts, whether you appear in Nearby and suggestions, and your languages.</li>
+          <li>Your settings: who can message you, read receipts, whether you appear in Nearby and suggestions, your languages, and which notifications the app sends you.</li>
         </ul>
         <h3>Collected automatically</h3>
         <ul>
@@ -144,6 +144,11 @@ export default function PrivacyPage() {
             reported in the last week, against you or an organisation whose team you're on), the text and images of your posts, events, opportunities and spaces, and changes to your profile, are sent to it to check for harmful content.
             Anything it flags waits for a moderator. Private messages are never sent to it, and OpenAI doesn't use what we send to train its models.
           </li>
+          <li>
+            <strong>Expo</strong>, in the United States, delivers the app's notifications if you turn them on. Each one passes through Expo and then Apple (on iPhone) or Google (on Android) to reach
+            your phone. It carries an address for your phone and the notification's words: who did what, and for replies, mentions and quotes the start of that post, which is public anyway. What a
+            message says is never in a notification.
+          </li>
           <li>Videos from YouTube and similar sites only load from them when you press play.</li>
         </ul>
         <p>We stay responsible for how these providers handle your information. They may only use it to provide their service to us.</p>
@@ -174,6 +179,10 @@ export default function PrivacyPage() {
             Photos from deleted posts, from messages that are removed or whose conversation is deleted, and from deleted accounts are removed from storage within a day.
           </li>
           <li>Translations we've saved are deleted after 7 days.</li>
+          <li>
+            The address we notify your phone at is deleted when you sign out of the app, delete your account, or when Apple or Google tell us the phone no longer takes notifications. A
+            notification is deleted a day after it's sent.
+          </li>
           <li>We keep a record of moderation decisions (what was decided and why) so decisions stay consistent and can be reviewed.</li>
           <li>
             One exception to erasing everything: if your account is banned, or you delete it while it's suspended, we keep a scrambled form (a keyed hash) of your email address and any
@@ -195,6 +204,11 @@ export default function PrivacyPage() {
           <li>It opens your photos only when you choose ones to add, and photos are re-encoded before they're stored, as on the website.</li>
           <li>It can add an event you choose to your calendar. On iPhone it can't read your calendar; Android asks for calendar access to add one.</li>
           <li>Your sign-in is kept on your phone encrypted, with its key in the phone's secure storage (the Keychain on iPhone), so it isn't readable from a backup. Signing out, or deleting your account, removes it and your unsent drafts from the phone. Appearance choices, such as your theme, stay on the phone.</li>
+          <li>
+            It only sends notifications after you allow them, and asks when you open Notifications or Messages, not when you first open the app. In Settings, Notifications you choose which kinds
+            you get; that choice is kept with your account, so it holds on every phone. Muted people and muted conversations never notify you. The number on the app's icon is your unread
+            notifications and messages.
+          </li>
           <li>You can report, mute and block people, and delete your account, from inside the app.</li>
         </ul>
 

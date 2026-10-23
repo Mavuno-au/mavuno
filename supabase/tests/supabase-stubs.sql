@@ -113,3 +113,36 @@ $$;
 alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
 alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
 alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
+
+-- pg_net: requests are written down, never sent. Tests put the answers in
+-- net._http_response, as pg_net's worker would.
+create schema net;
+create table net.http_request_queue (
+  id bigserial primary key,
+  method text,
+  url text,
+  headers jsonb,
+  body jsonb,
+  timeout_milliseconds integer
+);
+create table net._http_response (
+  id bigint primary key,
+  status_code integer,
+  content_type text,
+  headers jsonb,
+  content text,
+  timed_out boolean,
+  error_msg text,
+  created timestamptz default now()
+);
+create function net.http_post(
+  url text,
+  body jsonb default '{}'::jsonb,
+  params jsonb default '{}'::jsonb,
+  headers jsonb default '{"Content-Type": "application/json"}'::jsonb,
+  timeout_milliseconds integer default 5000
+) returns bigint language sql as $$
+  insert into net.http_request_queue (method, url, headers, body, timeout_milliseconds)
+  values ('POST', url, headers, body, timeout_milliseconds)
+  returning id
+$$;

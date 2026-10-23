@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "au.mavuno.app",
-      "buildNumber": "6",
+      "buildNumber": "7",
       "deploymentTarget": "17.0",
       "appleTeamId": "CUV78PLLP3",
       "supportsTablet": false,
@@ -60,6 +60,7 @@
       ],
       "@react-native-community/datetimepicker",
       "expo-sharing",
+      "expo-notifications",
       [
         "expo-image-picker",
         {
