@@ -27,7 +27,6 @@ import {
   setReaction,
   removeMember,
 } from "@/data/messages";
-import { setRelation } from "@/data/relations";
 import { useViewer } from "@/data/session";
 import { supabase } from "@/data/supabase";
 import { pickImages, uploadImage, type PickedImage } from "@/data/upload";
@@ -40,6 +39,7 @@ import { ActionSheet, type SheetAction } from "@/ui/sheet";
 import { Text, type } from "@/ui/text";
 import { HAIRLINE, usePalette } from "@/ui/theme";
 import { toast, useToastFloor } from "@/ui/toast";
+import { useBlock } from "@/util/safety";
 import { timeZone } from "@/util/time";
 
 // The website's thread (src/components/messages/thread-view.tsx), timings included.
@@ -140,6 +140,7 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
   const composerFloor = useToastFloor(access.kind !== "request");
   // Stable, so it doesn't make the channel again.
   const { refresh: refreshCounts } = useCounts();
+  const { confirmBlock } = useBlock();
 
   useEffect(() => {
     shown.current = messages;
@@ -403,7 +404,18 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
     ...(conversation.other
       ? [
           { label: `Report @${conversation.other.username}`, destructive: true, onPress: () => conversation.other && router.push({ pathname: "/report", params: { type: "profile", id: conversation.other.id } }) },
-          { label: `Block @${conversation.other.username}`, destructive: true, onPress: () => conversation.other && confirmBlock(viewerId, conversation.other) },
+          {
+            label: `Block @${conversation.other.username}`,
+            destructive: true,
+            onPress: () => {
+              const other = conversation.other;
+              if (!other) return;
+              confirmBlock(other, () => {
+                toast(`Blocked @${other.username}`);
+                router.back();
+              });
+            },
+          },
         ]
       : []),
     ...(conversation.kind === "group"
@@ -443,7 +455,7 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
           </Text>
         </Pressable>
       </Header>
-      {access.kind === "request" ? <RequestBanner conversation={conversation} viewerId={viewerId} onChanged={onChanged} /> : null}
+      {access.kind === "request" ? <RequestBanner conversation={conversation} onChanged={onChanged} /> : null}
       {first.kind === "failed" ? (
         <LoadFailed
           title="Messages didn't load"
@@ -624,26 +636,6 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
   );
 }
 
-function confirmBlock(viewerId: string, person: { id: string; username: string }) {
-  Alert.alert(
-    `Block @${person.username}?`,
-    "You'll stop following each other, and unblocking later won't bring those follows back. Neither of you can message, follow or reply to the other, and you won't see each other's posts. They won't be told.",
-    [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Block",
-        style: "destructive",
-        onPress: () =>
-          void setRelation("block", viewerId, person.id, true).then((result) => {
-            if (!result.ok) return Alert.alert("Couldn't block", result.error);
-            toast(`Blocked @${person.username}`);
-            router.back();
-          }),
-      },
-    ],
-  );
-}
-
 type MessageAction = { label: string; onPress: () => void; destructive?: boolean };
 
 // What pressing and holding a message offers besides reactions: reply, copy,
@@ -716,16 +708,17 @@ function HoldMenu({ message, viewerId, actions, onClose, onReact }: { message: M
 
 // People you don't follow can send one message. Accepting opens the
 // conversation; declining is private, and they aren't told.
-function RequestBanner({ conversation, viewerId, onChanged }: { conversation: Conversation; viewerId: string; onChanged: () => void }) {
+function RequestBanner({ conversation, onChanged }: { conversation: Conversation; onChanged: () => void }) {
   const palette = usePalette();
   const [busy, setBusy] = useState(false);
   const from = conversation.access.kind === "request" ? conversation.access.from : null;
   const name = from?.displayName ?? "Someone";
+  const { block } = useBlock();
 
   async function respond(choice: "accept" | "decline" | "block") {
     setBusy(true);
     if (choice === "block" && from) {
-      const blocked = await setRelation("block", viewerId, from.id, true);
+      const blocked = await block(from.id);
       if (!blocked.ok) {
         setBusy(false);
         return Alert.alert("Couldn't block", blocked.error);
