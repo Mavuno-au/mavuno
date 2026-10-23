@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getViewer } from "@/lib/viewer";
 import { joinPath, safeNext } from "@/lib/safe-redirect";
 import { SignInForm } from "../auth-forms";
+import { Agreement } from "../agreement";
 import { GoogleButton } from "../google-button";
 
 export const metadata: Metadata = { title: "Sign in" };
@@ -34,6 +35,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
       <p className="text-center text-sm text-ink-muted">
         New here? <Link href={joinPath(next)} className="font-medium text-primary hover:underline">Create an account</Link>
       </p>
+      <Agreement />
     </div>
   );
 }
