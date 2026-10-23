@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "au.mavuno.app",
-      "buildNumber": "7",
+      "buildNumber": "8",
       "deploymentTarget": "17.0",
       "appleTeamId": "CUV78PLLP3",
       "supportsTablet": false,

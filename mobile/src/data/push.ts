@@ -258,7 +258,15 @@ export function PushNotifications({ viewerId }: { viewerId: string | null }) {
   useEffect(() => {
     if (!viewerId) return;
     void retryPendingUnregister().then(() => registerPush());
-    const tokens = Notifications.addPushTokenListener(() => void registerPush());
+    // iOS sends this event every time a token is asked for, registering
+    // included, so only a token that differs from the last is registered;
+    // otherwise each registration sets off the next, without end.
+    let lastToken: unknown = null;
+    const tokens = Notifications.addPushTokenListener((token) => {
+      const previous = lastToken;
+      lastToken = token.data;
+      if (previous !== null && previous !== token.data) void registerPush();
+    });
     const appState = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;
       void pushPermission().then((permission) => {

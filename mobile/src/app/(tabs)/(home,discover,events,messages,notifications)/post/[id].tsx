@@ -61,9 +61,13 @@ export default function PostScreen() {
     setStored((previous) => (previous.id === forId ? { id: forId, state: change(previous.state) } : previous));
   }, []);
 
+  // Only the latest read lands, so one started before a reply can't hide it.
+  const request = useRef(0);
   const fetchThread = useCallback((forId: string) => {
+    const current = ++request.current;
     loadThread(forId).then(
       (thread) =>
+        current === request.current &&
         setStored({
           id: forId,
           state:
@@ -71,7 +75,7 @@ export default function PostScreen() {
               ? { kind: "missing" }
               : { kind: "ready", thread, parts: thread.continuation.kind === "thread" ? thread.continuation.parts : [], partsMore: "idle", replies: thread.replies, next: thread.next, more: "idle" },
         }),
-      (error: unknown) => setStored({ id: forId, state: { kind: "failed", reason: reasonOf(error) } }),
+      (error: unknown) => current === request.current && setStored({ id: forId, state: { kind: "failed", reason: reasonOf(error) } }),
     );
   }, []);
 
@@ -85,11 +89,11 @@ export default function PostScreen() {
     return onRelationChanged(() => fetchThread(postId));
   }, [postId, fetchThread]);
 
-  // A reply the member just wrote here joins the conversation.
+  // A reply or quote the member just wrote here shows at once, with the counts it changed.
   useEffect(() => {
     if (!postId) return;
     return onPostCreated((created) => {
-      if (created.parentId === postId) fetchThread(postId);
+      if (created.parentId === postId || created.quoteId === postId) fetchThread(postId);
     });
   }, [postId, fetchThread]);
 

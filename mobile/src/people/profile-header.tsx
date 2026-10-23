@@ -1,3 +1,4 @@
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import { BadgeCheck, Building2, CalendarDays, Globe, Languages, Link2, MapPin, MessageCircle, Sprout } from "lucide-react-native";
 import { useState, type ReactNode } from "react";
@@ -14,8 +15,9 @@ import { RichText } from "@/post/rich-text";
 import { Avatar, ColourDot } from "@/ui/avatar";
 import { Button, Chip } from "@/ui/controls";
 import { font, Text } from "@/ui/text";
-import { usePalette } from "@/ui/theme";
+import { identityColour, usePalette } from "@/ui/theme";
 import { openLabelledLink } from "@/util/links";
+import { openPhotos } from "@/util/photos";
 import { timeZone } from "@/util/time";
 
 // What the website's profile header shows (src/app/(app)/u/[username]/profile-header.tsx),
@@ -58,131 +60,161 @@ export function ProfileHeader({
   ].filter(Boolean);
 
   return (
-    <View style={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: 14, gap: 12 }}>
-      <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12 }}>
-        <Avatar person={person} size={relationship.self ? 64 : 76} ring />
-        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", flexShrink: 1 }}>
-          {relationship.self ? (
-            <>
-              <Button label="Edit profile" variant="outline" size="medium" onPress={() => router.push({ pathname: "/edit-profile", params: { id: profile.id } })} />
-              <Button label="Invite friends" size="medium" onPress={() => router.push("/invite")} />
-            </>
-          ) : (
-            <>
-              {manages ? <Button label="Edit profile" variant="outline" size="medium" onPress={() => router.push({ pathname: "/edit-profile", params: { id: profile.id } })} /> : null}
-              {relationship.canMessage ? <MessageButton profileId={profile.id} /> : null}
-              <FollowButton profileId={profile.id} name={profile.display_name} following={social.following} followsYou={relationship.followsYou} />
-            </>
-          )}
-        </View>
-      </View>
-      {chips.length > 0 ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{chips}</View> : null}
-
-      <View style={{ gap: 3 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-          <Text variant="title" accessibilityRole="header" style={{ flexShrink: 1 }}>
-            {profile.display_name}
-          </Text>
-          {profile.org_verified ? (
-            <View accessible accessibilityLabel="Verified organisation">
-              <BadgeCheck size={22} color={palette.primary} />
-            </View>
-          ) : null}
-        </View>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <ColourDot colour={profile.colour} size={7} />
-          <Text variant="meta" tone="muted" style={{ fontSize: 15, lineHeight: 20 }}>
-            @{profile.username}
-          </Text>
-        </View>
-      </View>
-
-      {profile.headline ? (
-        <Text variant="callout" style={{ fontFamily: font.medium, writingDirection: "auto" }}>
-          {profile.headline}
-        </Text>
-      ) : null}
-      {profile.bio ? <RichText body={profile.bio} /> : null}
-
-      <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 16, rowGap: 8 }}>
-        {profile.city ? (
-          <Fact icon={icon(MapPin)}>
-            <Text variant="callout" tone="primary" accessibilityRole="link" onPress={() => router.push(`/space/${profile.city?.slug ?? ""}`)}>
-              {profile.city.name}, {profile.city.state}
-            </Text>
-          </Fact>
-        ) : null}
-        {profile.heritage ? <Fact icon={icon(Sprout)}>{profile.heritage}</Fact> : null}
-        {profile.pronouns ? <Fact>{profile.pronouns}</Fact> : null}
-        {work || profile.industry ? <Fact icon={icon(Building2)}>{[work, profile.industry].filter(Boolean).join(" · ")}</Fact> : null}
-        {profile.languages.length > 0 ? <Fact icon={icon(Languages)}>{profile.languages.map(languageName).join(", ")}</Fact> : null}
-        {links.map((link) => (
-          <Fact key={link.url} icon={icon(link.url === profile.website ? Globe : Link2)}>
-            <Text variant="callout" tone="primary" accessibilityRole="link" numberOfLines={1} onPress={() => openLabelledLink(link.url, link.label)}>
-              {link.label}
-            </Text>
-          </Fact>
-        ))}
-        <Fact icon={icon(CalendarDays)}>{`Joined ${new Date(profile.created_at).toLocaleDateString("en-AU", { month: "long", year: "numeric", timeZone })}`}</Fact>
-      </View>
-
-      {openTo.length > 0 ? (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-          <Text variant="subhead" tone="muted">
-            Open to
-          </Text>
-          {openTo.map((option) => (
-            <Chip key={option.value} tone="primary">
-              {option.label}
-            </Chip>
-          ))}
-        </View>
-      ) : null}
-
-      {team.length > 0 ? (
-        <View style={{ gap: 6 }}>
-          <Text variant="subhead" tone="muted">
-            Team
-          </Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {team
-              .filter((member) => !member.invited)
-              .map((member) => (
-                <Pressable
-                  key={member.id}
-                  accessibilityRole="link"
-                  accessibilityLabel={`${member.displayName}, ${member.role}`}
-                  onPress={() => router.push(`/profile/${member.username}`)}
-                  style={{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: 36, paddingLeft: 4, paddingRight: 10, borderRadius: 18, backgroundColor: palette.wash }}
-                >
-                  <Avatar person={member} size={28} />
-                  <Text variant="subhead">{member.displayName.split(/\s+/)[0]}</Text>
-                </Pressable>
-              ))}
+    <View>
+      <Banner url={profile.banner_url} colour={profile.colour} name={profile.display_name} />
+      <View style={{ paddingHorizontal: 16, paddingBottom: 14, gap: 12 }}>
+        <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12, marginTop: -36 }}>
+          <Pressable
+            disabled={!profile.avatar_url}
+            accessibilityRole="imagebutton"
+            accessibilityLabel={`${profile.display_name}'s photo`}
+            accessibilityElementsHidden={!profile.avatar_url}
+            onPress={() => (profile.avatar_url ? openPhotos([{ url: profile.avatar_url, alt: "" }], 0) : undefined)}
+          >
+            <Avatar person={person} size={relationship.self ? 64 : 76} ring />
+          </Pressable>
+          <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", flexShrink: 1 }}>
+            {relationship.self ? (
+              <>
+                <Button label="Edit profile" variant="outline" size="medium" onPress={() => router.push({ pathname: "/edit-profile", params: { id: profile.id } })} />
+                <Button label="Invite friends" size="medium" onPress={() => router.push("/invite")} />
+              </>
+            ) : (
+              <>
+                {manages ? <Button label="Edit profile" variant="outline" size="medium" onPress={() => router.push({ pathname: "/edit-profile", params: { id: profile.id } })} /> : null}
+                {relationship.canMessage ? <MessageButton profileId={profile.id} /> : null}
+                <FollowButton profileId={profile.id} name={profile.display_name} following={social.following} followsYou={relationship.followsYou} />
+              </>
+            )}
           </View>
         </View>
-      ) : null}
+        {chips.length > 0 ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{chips}</View> : null}
 
-      <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 18, rowGap: 4 }}>
-        <Count value={profile.posts_count} label={profile.posts_count === 1 ? "post" : "posts"} />
-        <Count value={profile.following_count} label="following" onPress={() => router.push({ pathname: "/connections/[username]", params: { username: profile.username, direction: "following" } })} />
-        <Count value={social.followers} label={social.followers === 1 ? "follower" : "followers"} onPress={() => router.push({ pathname: "/connections/[username]", params: { username: profile.username, direction: "followers" } })} />
-      </View>
-      {known ? (
-        <Pressable accessibilityRole="link" onPress={() => router.push({ pathname: "/connections/[username]", params: { username: profile.username, direction: "followers" } })} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <View style={{ flexDirection: "row" }}>
-            {known.people.map((friend, index) => (
-              <View key={friend.id} style={{ marginLeft: index === 0 ? 0 : -8, borderRadius: 14, borderWidth: 2, borderColor: palette.surface }}>
-                <Avatar person={friend} size={24} />
+        <View style={{ gap: 3 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <Text variant="title" accessibilityRole="header" style={{ flexShrink: 1 }}>
+              {profile.display_name}
+            </Text>
+            {profile.org_verified ? (
+              <View accessible accessibilityLabel="Verified organisation">
+                <BadgeCheck size={22} color={palette.primary} />
               </View>
+            ) : null}
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <ColourDot colour={profile.colour} size={7} />
+            <Text variant="meta" tone="muted" style={{ fontSize: 15, lineHeight: 20 }}>
+              @{profile.username}
+            </Text>
+          </View>
+        </View>
+
+        {profile.headline ? (
+          <Text variant="callout" style={{ fontFamily: font.medium, writingDirection: "auto" }}>
+            {profile.headline}
+          </Text>
+        ) : null}
+        {profile.bio ? <RichText body={profile.bio} /> : null}
+
+        <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 16, rowGap: 8 }}>
+          {profile.city ? (
+            <Fact icon={icon(MapPin)}>
+              <Text variant="callout" tone="primary" accessibilityRole="link" onPress={() => router.push(`/space/${profile.city?.slug ?? ""}`)}>
+                {profile.city.name}, {profile.city.state}
+              </Text>
+            </Fact>
+          ) : null}
+          {profile.heritage ? <Fact icon={icon(Sprout)}>{profile.heritage}</Fact> : null}
+          {profile.pronouns ? <Fact>{profile.pronouns}</Fact> : null}
+          {work || profile.industry ? <Fact icon={icon(Building2)}>{[work, profile.industry].filter(Boolean).join(" · ")}</Fact> : null}
+          {profile.languages.length > 0 ? <Fact icon={icon(Languages)}>{profile.languages.map(languageName).join(", ")}</Fact> : null}
+          {links.map((link) => (
+            <Fact key={link.url} icon={icon(link.url === profile.website ? Globe : Link2)}>
+              <Text variant="callout" tone="primary" accessibilityRole="link" numberOfLines={1} onPress={() => openLabelledLink(link.url, link.label)}>
+                {link.label}
+              </Text>
+            </Fact>
+          ))}
+          <Fact icon={icon(CalendarDays)}>{`Joined ${new Date(profile.created_at).toLocaleDateString("en-AU", { month: "long", year: "numeric", timeZone })}`}</Fact>
+        </View>
+
+        {openTo.length > 0 ? (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+            <Text variant="subhead" tone="muted">
+              Open to
+            </Text>
+            {openTo.map((option) => (
+              <Chip key={option.value} tone="primary">
+                {option.label}
+              </Chip>
             ))}
           </View>
-          <Text variant="subhead" tone="muted" style={{ flex: 1 }}>
-            Followed by {followedBy(known)}
-          </Text>
-        </Pressable>
-      ) : null}
+        ) : null}
+
+        {team.length > 0 ? (
+          <View style={{ gap: 6 }}>
+            <Text variant="subhead" tone="muted">
+              Team
+            </Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {team
+                .filter((member) => !member.invited)
+                .map((member) => (
+                  <Pressable
+                    key={member.id}
+                    accessibilityRole="link"
+                    accessibilityLabel={`${member.displayName}, ${member.role}`}
+                    onPress={() => router.push(`/profile/${member.username}`)}
+                    style={{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: 36, paddingLeft: 4, paddingRight: 10, borderRadius: 18, backgroundColor: palette.wash }}
+                  >
+                    <Avatar person={member} size={28} />
+                    <Text variant="subhead">{member.displayName.split(/\s+/)[0]}</Text>
+                  </Pressable>
+                ))}
+            </View>
+          </View>
+        ) : null}
+
+        <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 18, rowGap: 4 }}>
+          <Count value={profile.posts_count} label={profile.posts_count === 1 ? "post" : "posts"} />
+          <Count value={profile.following_count} label="following" onPress={() => router.push({ pathname: "/connections/[username]", params: { username: profile.username, direction: "following" } })} />
+          <Count value={social.followers} label={social.followers === 1 ? "follower" : "followers"} onPress={() => router.push({ pathname: "/connections/[username]", params: { username: profile.username, direction: "followers" } })} />
+        </View>
+        {known ? (
+          <Pressable accessibilityRole="link" onPress={() => router.push({ pathname: "/connections/[username]", params: { username: profile.username, direction: "followers" } })} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View style={{ flexDirection: "row" }}>
+              {known.people.map((friend, index) => (
+                <View key={friend.id} style={{ marginLeft: index === 0 ? 0 : -8, borderRadius: 14, borderWidth: 2, borderColor: palette.surface }}>
+                  <Avatar person={friend} size={24} />
+                </View>
+              ))}
+            </View>
+            <Text variant="subhead" tone="muted" style={{ flex: 1 }}>
+              Followed by {followedBy(known)}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
     </View>
+  );
+}
+
+// The member's banner, or a wash of their colour when they haven't added one,
+// as on the website. Tapping it opens it full screen, as on Bluesky.
+function Banner({ url, colour, name }: { url: string | null; colour: ProfileRow["colour"]; name: string }) {
+  const palette = usePalette();
+  const fill = { position: "absolute", left: 0, right: 0, top: 0, bottom: 0 } as const;
+  if (!url) {
+    return (
+      <View style={{ height: 120, backgroundColor: palette.wash }}>
+        <View style={[fill, { backgroundColor: identityColour(palette, colour), opacity: 0.22 }]} />
+      </View>
+    );
+  }
+  return (
+    <Pressable accessibilityRole="imagebutton" accessibilityLabel={`${name}'s banner`} onPress={() => openPhotos([{ url, alt: "" }], 0)} style={{ height: 120, backgroundColor: palette.wash }}>
+      <Image source={url} style={fill} contentFit="cover" transition={150} accessible={false} />
+    </Pressable>
   );
 }
 
