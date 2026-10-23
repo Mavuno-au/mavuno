@@ -27,7 +27,7 @@ The app imports the website's plain modules from `../src/lib` as `@/lib/*` rathe
 
 - `metro.config.js` watches `../src/lib`. Packages those files import, such as zod, resolve from this folder's `node_modules`, so there is only one copy of each.
 - `tsconfig.json` maps `@/lib/*` to the website and `@/*` to `src/`. Don't add a `src/lib` folder here, because the website's would shadow it.
-- The website's typecheck and lint skip `mobile/`. Run `npm run check` here after changing a shared module, and `pnpm check` at the root.
+- The website's typecheck and lint skip `mobile/`. Run `npm run check` here after changing a shared module, and `pnpm check` at the root. CI runs the app's typecheck and lint whenever `mobile/` or `src/lib/` changes (`.github/workflows/mobile.yml`).
 
 ## Run it in the iOS Simulator
 
@@ -55,11 +55,11 @@ You can also test on your own iPhone with Expo Go: run `npx expo start` and scan
 
 No Expo account or EAS is needed.
 
-1. Run `npx expo prebuild --platform ios`. The `ios/` folder is generated from `app.json` and is not committed. Change `app.json` and run prebuild again rather than editing `ios/`.
+1. Run `npx expo prebuild --platform ios --clean`. The `ios/` folder is generated from `app.json` and `package.json` and is not committed. Change `app.json` and run prebuild again rather than editing `ios/`. Run it again after every pull before archiving: an `ios/` folder from before a native package was added (such as `expo-crypto`, which keeps the sign-in encrypted) builds without it, and the app crashes on launch. Raise `ios.buildNumber` in `app.json` for each upload.
 2. Open `ios/Mavuno.xcworkspace` in Xcode.
 3. Under Signing & Capabilities, choose your team. The bundle ID is `au.mavuno.app`. Then choose Product › Archive, and in the Organizer choose Distribute App › App Store Connect.
 
-Before the first upload, you need an Apple Developer account, the app created in App Store Connect, and Sign in with Apple. Sign in with Apple is required as soon as Google sign-in is offered (see `../docs/MOBILE_API.md`).
+Before the first upload, you need an Apple Developer account and the app created in App Store Connect. The app signs in with email only, so it doesn't need Sign in with Apple yet. App Review guideline 4.8 requires it once Google sign-in or another third-party sign-in is added (see `../docs/MOBILE_API.md`).
 
 ## Checks
 

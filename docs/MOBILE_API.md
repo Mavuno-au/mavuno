@@ -14,6 +14,7 @@ Authorization: Bearer <session.access_token>
 - The token is checked with Supabase (`auth.getClaims`, the same check the cookie path uses) and the route then acts as that member, so row level security applies as it does on the website.
 - A request with an `Authorization` header is judged by that header alone. A token that is missing, malformed or expired is a 401; it never falls back to a cookie. Requests without the header keep using the website's session cookie, unchanged.
 - `supabase-js` refreshes the session on its own. On a 401, call `supabase.auth.refreshSession()` once and retry.
+- The session is kept sealed with AES-GCM in the app's storage, with its key in the Keychain or Android Keystore, this device only (`mobile/src/data/session-store.ts`). A phone restored from a backup signs in again.
 - Native apps don't need CORS, so the routes send no CORS headers.
 
 ## API routes
