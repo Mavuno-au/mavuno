@@ -90,7 +90,8 @@ export default function EventScreen() {
     read();
   }
 
-  // The iOS calendar sheet, instead of downloading a calendar file.
+  // The iOS calendar sheet, instead of downloading a calendar file. From iOS
+  // 17 (the app's minimum) it needs no calendar permission.
   async function addToCalendar() {
     try {
       await createEventInCalendarAsync({
@@ -102,7 +103,7 @@ export default function EventScreen() {
         timeZone: event.timezone,
       });
     } catch {
-      Alert.alert("Couldn't open your calendar", "Check that Mavuno may add events in Settings, then try again.");
+      Alert.alert("Couldn't open your calendar", "Try again in a moment.");
     }
   }
 

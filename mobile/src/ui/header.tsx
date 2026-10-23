@@ -24,7 +24,7 @@ export function Header({ title, left, right, children, inset = true, border = tr
     setSides((current) => (current[side] === width ? current : { ...current, [side]: width }));
   };
   return (
-    <View style={{ paddingTop: inset ? insets.top : 4, backgroundColor: palette.surface, borderBottomWidth: border ? HAIRLINE : 0, borderBottomColor: palette.hairline }}>
+    <View style={{ paddingTop: inset ? insets.top : 4, paddingLeft: insets.left, paddingRight: insets.right, backgroundColor: palette.surface, borderBottomWidth: border ? HAIRLINE : 0, borderBottomColor: palette.hairline }}>
       <View style={{ minHeight: 52, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
         <View onLayout={measure("left")} style={{ minWidth: 44, flexDirection: "row" }}>
           {left}

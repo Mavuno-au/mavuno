@@ -333,7 +333,7 @@ function Composer({ mode, initialText, placeholder }: { mode: Mode; initialText:
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: palette.surface }}>
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, paddingLeft: insets.left, paddingRight: insets.right, backgroundColor: palette.surface }}>
       <SheetHeader
         title={title}
         onCancel={close}

@@ -49,7 +49,8 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // /api/health and /api/version carry no session: one is for an uptime
-  // monitor, the other a static file the browser asks for after a failed poll.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon|apple-icon|manifest.webmanifest|robots.txt|sitemap.xml|api/health|api/version|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  // /api/health, /api/version and /api/app-release carry no session: one is
+  // for an uptime monitor, the others static files the browser asks for after
+  // a failed poll and the app asks for when it opens.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon|apple-icon|manifest.webmanifest|robots.txt|sitemap.xml|api/health|api/version|api/app-release|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };
