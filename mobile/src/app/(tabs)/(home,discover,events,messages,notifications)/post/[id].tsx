@@ -259,7 +259,7 @@ export default function PostScreen() {
         keyExtractor={keyOf}
         renderItem={render}
         maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
-        onEndReached={moreReplies}
+        onEndReached={state.more === "failed" ? undefined : moreReplies}
         onEndReachedThreshold={2}
         ListFooterComponent={
           <View style={{ minHeight: thread.ancestors.length > 0 ? Math.max(height - 360, 0) : 0 }}>

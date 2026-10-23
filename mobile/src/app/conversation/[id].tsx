@@ -117,7 +117,7 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
   const [first, setFirst] = useState<{ kind: "loading" } | { kind: "failed"; reason: Reason } | { kind: "ready" }>(empty ? { kind: "ready" } : { kind: "loading" });
   // Try again rereads the first page; the conversation itself already loaded.
   const [attempt, setAttempt] = useState(0);
-  const [older, setOlder] = useState<{ next: string | null; loading: boolean }>({ next: null, loading: false });
+  const [older, setOlder] = useState<{ next: string | null; loading: boolean; failed: boolean }>({ next: null, loading: false, failed: false });
   const [members, setMembers] = useState<Member[]>(conversation.members);
   const [typing, setTyping] = useState<Record<string, number>>({});
   const [pending, setPending] = useState<Pending[]>([]);
@@ -156,7 +156,7 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
         if (!current) return;
         for (const message of page.messages) known.current.add(message.id);
         setMessages(page.messages);
-        setOlder({ next: page.next, loading: false });
+        setOlder({ next: page.next, loading: false, failed: false });
         setFirst({ kind: "ready" });
       },
       (error: unknown) => current && setFirst({ kind: "failed", reason: reasonOf(error) }),
@@ -256,14 +256,14 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
 
   const loadOlder = () => {
     if (!older.next || older.loading) return;
-    setOlder((current) => ({ ...current, loading: true }));
+    setOlder((current) => ({ ...current, loading: true, failed: false }));
     loadMessages(id, older.next).then(
       (page) => {
         for (const message of page.messages) known.current.add(message.id);
         setMessages((current) => [...page.messages.filter((message) => !current.some((item) => item.id === message.id)), ...current]);
-        setOlder({ next: page.next, loading: false });
+        setOlder({ next: page.next, loading: false, failed: false });
       },
-      () => setOlder((current) => ({ ...current, loading: false })),
+      () => setOlder((current) => ({ ...current, loading: false, failed: true })),
     );
   };
 
@@ -439,7 +439,8 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
           inverted
           data={reversed}
           keyExtractor={(item) => item.id}
-          onEndReached={loadOlder}
+          // A failed page waits for Try again, or the spinner going away would fire this again at once.
+          onEndReached={older.failed ? undefined : loadOlder}
           onEndReachedThreshold={1}
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
@@ -457,7 +458,17 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
               ) : null}
             </View>
           }
-          ListFooterComponent={first.kind === "loading" || older.loading ? <ActivityIndicator style={{ paddingVertical: 16 }} color={palette.inkMuted} accessibilityLabel="Loading messages" /> : undefined}
+          ListFooterComponent={
+            first.kind === "loading" || older.loading ? (
+              <ActivityIndicator style={{ paddingVertical: 16 }} color={palette.inkMuted} accessibilityLabel="Loading messages" />
+            ) : older.failed ? (
+              <Pressable accessibilityRole="button" onPress={loadOlder} style={{ minHeight: 48, alignItems: "center", justifyContent: "center" }}>
+                <Text variant="subhead" tone="primary">
+                  Couldn't load earlier messages. Try again.
+                </Text>
+              </Pressable>
+            ) : undefined
+          }
           ListEmptyComponent={
             first.kind === "ready" && access.kind !== "request" ? (
               <View style={{ transform: [{ scaleY: -1 }] }}>

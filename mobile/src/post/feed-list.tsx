@@ -75,7 +75,8 @@ export function FeedList({ feed, empty, end = "You're all caught up.", header, l
           )
         }
         ListFooterComponent={ready && rows.length > 0 ? <Footer more={ready.more} next={ready.next} end={end} onRetry={loadMore} /> : undefined}
-        onEndReached={loadMore}
+        // A failed page waits for Try again: the footer changes height when it fails, which would fire this again at once.
+        onEndReached={ready?.more === "failed" ? undefined : loadMore}
         onEndReachedThreshold={2}
         onScroll={setScrolledDown ? (event) => setScrolledDown(event.nativeEvent.contentOffset.y > height / 2) : undefined}
         scrollEventThrottle={200}
