@@ -2717,6 +2717,210 @@ console.log("\nInvite links");
   check("a member who leaves takes their invite with them", (await invite(google)) === undefined);
 }
 
+console.log("\nSecurity gaps: sanctions, team invitations, the automatic check, files, bans and mutes");
+{
+  const service = () => db.exec("reset role; select set_config('request.jwt.claim.sub', '', false); set role service_role;");
+  const boss = await createUser("gaps-admin@example.com", { username: "gaps_admin" });
+  await superuser();
+  await q("update public.profile_settings set site_role = 'admin' where id = $1", [boss]);
+  await q("insert into vault.decrypted_secrets (name, decrypted_secret) values ('identity_pepper', 'test-pepper') on conflict do nothing");
+
+  // 1. Suspended and banned members cannot edit through can_act_as, can_manage_org or space moderation.
+  const host = await createUser("gaps-host@example.com", { username: "gaps_host" });
+  const helper = await createUser("gaps-helper@example.com", { username: "gaps_helper" });
+  const sanctioned = [];
+  for (const [kind, sanction] of [
+    ["suspended", "update public.profile_settings set suspended_until = now() + interval '1 day' where id = $1"],
+    ["banned", "update public.profile_settings set banned_at = now(), suspended_until = 'infinity' where id = $1"],
+  ]) {
+    const person = await createUser(`gaps-${kind}@example.com`, { username: `gaps_${kind}` });
+    await as(host);
+    const party = (await one("insert into public.events (host_id, created_by, title, starts_at, city_id, venue_name) values ($1, $1, 'Open day', now() + interval '3 days', $2, 'Hall') returning id", [host, brisbane])).id;
+    await as(person);
+    const org = (await one("select public.create_organisation($1, 'Sanction Test Org') as id", [`gaps_${kind}_org`])).id;
+    const event = (await one("insert into public.events (host_id, created_by, title, starts_at, city_id, venue_name) values ($1, $2, 'Meetup', now() + interval '3 days', $3, 'Hall') returning id", [org, person, brisbane])).id;
+    const job = (await one("insert into public.opportunities (poster_id, created_by, type, title, description, apply_url) values ($1, $1, 'job', 'Helper', 'Weekend market', 'https://jobs.example/apply') returning id", [person])).id;
+    const space = (await one("select public.create_space($1, 'Sanction test space', 'For testing', 'interest') as id", [`gaps-${kind}-space`])).id;
+    await q("insert into public.event_rsvps (event_id, user_id, status) values ($1, $2, 'interested')", [party, person]);
+    await superuser();
+    await q(sanction, [person]);
+    await as(person);
+    await fails(`a ${kind} member cannot edit their profile`, "update public.profiles set display_name = 'Renamed' where id = $1", [person], /row-level security/);
+    await fails(`or an organisation they run`, "update public.profiles set display_name = 'Renamed' where id = $1", [org], /row-level security/);
+    await fails(`or their event`, "update public.events set title = 'Changed' where id = $1", [event], /row-level security/);
+    await fails(`or their opportunity`, "update public.opportunities set title = 'Changed' where id = $1", [job], /row-level security/);
+    await fails(`or add someone to their team`, "insert into public.organisation_members (org_id, user_id, role) values ($1, $2, 'editor')", [org, helper], /row-level security/);
+    await q("update public.spaces set description = 'Changed' where id = $1", [space]);
+    check(`or edit their space`, (await one("select description from public.spaces where id = $1", [space])).description === "For testing");
+    check(`and is no longer a moderator of it`, (await one("select public.is_space_moderator($1) as m", [space])).m === false);
+    await fails(`or change their RSVP`, "update public.event_rsvps set status = 'going' where event_id = $1 and user_id = $2", [party, person], /row-level security/);
+    sanctioned.push({ person, org, event });
+  }
+  await superuser();
+  await q("update public.profile_settings set suspended_until = null where id = $1", [sanctioned[0].person]);
+  await as(sanctioned[0].person);
+  await q("update public.events set title = 'Back again' where id = $1", [sanctioned[0].event]);
+  check("a lifted suspension restores editing", (await one("select title from public.events where id = $1", [sanctioned[0].event])).title === "Back again");
+
+  // 2. Team invitations cannot be used to send notifications over and over.
+  const inviter = await createUser("gaps-inviter@example.com", { username: "gaps_inviter" });
+  const invitee = await createUser("gaps-invitee@example.com", { username: "gaps_invitee" });
+  await as(inviter);
+  const club = (await one("select public.create_organisation('gaps_club', 'Gaps Club') as id")).id;
+  for (let i = 0; i < 3; i++) {
+    await q("insert into public.organisation_members (org_id, user_id, role) values ($1, $2, 'editor')", [club, invitee]);
+    await q("delete from public.organisation_members where org_id = $1 and user_id = $2", [club, invitee]);
+  }
+  await superuser();
+  check("inviting the same person again doesn't notify them again", (await one("select count(*)::int as n from public.notifications where recipient_id = $1 and type = 'org_added'", [invitee])).n === 1);
+  await as(inviter);
+  for (let i = 3; i < 20; i++) {
+    await q("insert into public.organisation_members (org_id, user_id, role) values ($1, $2, 'editor')", [club, invitee]);
+    await q("delete from public.organisation_members where org_id = $1 and user_id = $2", [club, invitee]);
+  }
+  await fails("the 21st team invitation of the day is refused", "insert into public.organisation_members (org_id, user_id, role) values ($1, $2, 'editor')", [club, invitee], /invited a lot of people/);
+
+  // 3. The automatic check reads everything a newcomer publishes.
+  const fresh = await createUser("gaps-fresh@example.com", { username: "gaps_fresh" });
+  const checkQueued = async (type, id) => {
+    await superuser();
+    return (await q("select 1 from public.background_tasks where kind = 'automatic_check' and target_type = $1 and target_id = $2", [type, id])).length === 1;
+  };
+  const forget = async (id) => {
+    await superuser();
+    await q("delete from public.background_tasks where target_id = $1", [id]);
+  };
+  const subject = async (type, id) => {
+    await service();
+    return (await one("select public.automatic_check_subject($1, $2) as s", [type, id])).s;
+  };
+  await as(fresh);
+  const pictured = await post("A photo", "en", null, null, null, null, null, JSON.stringify([{ path: `${fresh}/posts/p.webp`, url: `${OWN_MEDIA}${fresh}/posts/p.webp`, width: 10, height: 10, alt: "Alt text with a slur" }]));
+  check("the check reads image descriptions", (await subject("post", pictured))?.text.includes("Alt text with a slur"));
+  await as(fresh);
+  const carded = await post("Look https://news.example/a", "en", null, null, null, null, "https://news.example/a");
+  await forget(carded);
+  await service();
+  await q("select public.set_link_preview($1, 'https://news.example/a', $2)", [carded, JSON.stringify({ url: "https://news.example/a", title: "Card title", description: "Card words", image: "https://news.example/card.png" })]);
+  check("a link card queues the check again", await checkQueued("post", carded));
+  let s = await subject("post", carded);
+  check("and the check reads the card's text and image", s?.text.includes("Card title") && s.text.includes("Card words") && s.images.includes("https://news.example/card.png"), s);
+  await as(fresh);
+  const linked = (await one("insert into public.events (host_id, created_by, title, starts_at, city_id, venue_name, online_url, ticket_url) values ($1, $1, 'Webinar', now() + interval '3 days', $2, 'Online', 'https://meet.example/room', 'https://tickets.example/buy') returning id", [fresh, brisbane])).id;
+  s = await subject("event", linked);
+  check("the check reads an event's links", s?.text.includes("https://meet.example/room") && s.text.includes("https://tickets.example/buy"), s);
+  await as(fresh);
+  const tagged = (await one("insert into public.opportunities (poster_id, created_by, type, title, description, apply_url, apply_email, tags) values ($1, $1, 'job', 'Driver', 'Weekend driving work', 'https://apply.example/x', 'jobs@apply.example', '{easymoney}') returning id", [fresh])).id;
+  s = await subject("opportunity", tagged);
+  check("the check reads an opportunity's tags and how to apply", s?.text.includes("easymoney") && s.text.includes("https://apply.example/x") && s.text.includes("jobs@apply.example"), s);
+  await forget(tagged);
+  await as(fresh);
+  await q("update public.opportunities set tags = '{newtag}' where id = $1", [tagged]);
+  check("changing an opportunity's tags checks it again", await checkQueued("opportunity", tagged));
+
+  await forget(fresh);
+  await as(fresh);
+  await q("update public.profiles set bio = 'Bio with abuse', headline = 'Headline words', avatar_url = $2 where id = $1", [fresh, `${OWN_MEDIA}${fresh}/avatars/me.webp`]);
+  check("a newcomer's profile edit is queued for the check", await checkQueued("profile", fresh));
+  s = await subject("profile", fresh);
+  check("the check reads a profile's words and pictures", s?.text.includes("Bio with abuse") && s.text.includes("Headline words") && s.images.includes(`${OWN_MEDIA}${fresh}/avatars/me.webp`), s);
+  await as(fresh);
+  const den = (await one("select public.create_space('gaps-den', 'Den name', 'Den description', 'interest') as id")).id;
+  check("a newcomer's space is queued for the check", await checkQueued("space", den));
+  s = await subject("space", den);
+  check("the check reads a space's name and description", s?.text.includes("Den name") && s.text.includes("Den description"), s);
+  await service();
+  await q("select public.automatic_hold('profile', $1, '{harassment}')", [fresh]);
+  await q("select public.automatic_hold('space', $1, '{hate}')", [den]);
+  await as(mod);
+  rows = await q("select target_type, target_profile_id from public.report_queue where target_id = any($1)", [[fresh, den]]);
+  check("a flagged profile or space goes to the moderators' reports", rows.length === 2 && rows.every((r) => r.target_profile_id === fresh), rows);
+  await forget(fresh);
+  await as(fresh);
+  await q("update public.profiles set bio = 'Calm bio' where id = $1", [fresh]);
+  check("an edit to a flagged profile is checked again", (await checkQueued("profile", fresh)) && (await subject("profile", fresh))?.text.includes("Calm bio"));
+  await q("select public.automatic_hold('profile', $1, '{hate}')", [fresh]);
+  await as(mod);
+  row = await one("select report_count, snapshot from public.report_queue where target_id = $1", [fresh]);
+  check("flagging it again refreshes the same report", row?.report_count === 1 && row.snapshot.includes("Calm bio"), row);
+
+  await as(fresh);
+  const raced = await post("Race https://news.example/b", "en", null, null, null, null, "https://news.example/b");
+  await service();
+  const claimed = (await q("select id, kind from public.claim_background_tasks(10, $1)", [raced])).find((t) => t.kind === "automatic_check");
+  await q("select public.set_link_preview($1, 'https://news.example/b', $2)", [raced, JSON.stringify({ url: "https://news.example/b", title: "Late card" })]);
+  await q("select public.finish_background_task($1)", [claimed.id]);
+  check("a check queued again while it runs isn't lost when the run finishes", await checkQueued("post", raced));
+
+  // 4. Deleting an account or organisation, or changing a picture, queues its files for erasure.
+  const leaver = await createUser("gaps-leaver@example.com", { username: "gaps_leaver" });
+  await as(leaver);
+  const leaverOrg = (await one("select public.create_organisation('gaps_leaver_org', 'Leaver Org') as id")).id;
+  const partingOrg = (await one("select public.create_organisation('gaps_parting_org', 'Parting Org') as id")).id;
+  await superuser();
+  const files = [`${leaver}/avatars/a.webp`, `${leaver}/banners/b.webp`, `${leaver}/events/c.webp`, `${leaverOrg}/avatars/o.webp`, `${partingOrg}/avatars/p.webp`];
+  await q("insert into storage.objects (bucket_id, name) select 'media', unnest($1::text[])", [files]);
+  const queued = async (paths) => {
+    await superuser();
+    return (await one("select count(*)::int as n from public.storage_cleanup where bucket = 'media' and path = any($1)", [paths])).n;
+  };
+  await as(leaver);
+  await q("update public.profiles set avatar_url = $2 where id = $1", [leaver, `${OWN_MEDIA}${leaver}/avatars/a.webp`]);
+  await q("update public.profiles set avatar_url = $2 where id = $1", [leaver, `${OWN_MEDIA}${leaver}/avatars/a2.webp`]);
+  check("a replaced profile photo is queued for erasure", (await queued([`${leaver}/avatars/a.webp`])) === 1);
+  await as(leaver);
+  const covered = (await one("insert into public.events (host_id, created_by, title, starts_at, city_id, venue_name, cover_url) values ($1, $1, 'Covered', now() + interval '3 days', $2, 'Hall', $3) returning id", [leaver, brisbane, `${OWN_MEDIA}${leaver}/events/c.webp`])).id;
+  await q("delete from public.events where id = $1", [covered]);
+  check("a deleted event's cover is queued for erasure", (await queued([`${leaver}/events/c.webp`])) === 1);
+  await as(leaver);
+  await q("select public.delete_organisation($1)", [partingOrg]);
+  check("deleting an organisation queues its files", (await queued([`${partingOrg}/avatars/p.webp`])) === 1);
+  await as(leaver);
+  await q("select public.delete_my_account()");
+  check("deleting an account queues its files and those of organisations it owned alone", (await queued(files)) === files.length);
+
+  // 5. A ban hides what the person published as an organisation.
+  const writer = await createUser("gaps-writer@example.com", { username: "gaps_writer" });
+  await as(writer);
+  const masthead = (await one("select public.create_organisation('gaps_masthead', 'Masthead') as id")).id;
+  const orgPost = await post("Written as the organisation", "en", masthead);
+  const orgEvent = (await one("insert into public.events (host_id, created_by, title, starts_at, city_id, venue_name) values ($1, $2, 'Org night', now() + interval '3 days', $3, 'Hall') returning id", [masthead, writer, brisbane])).id;
+  const orgJob = (await one("insert into public.opportunities (poster_id, created_by, type, title, description, apply_url) values ($1, $2, 'job', 'Org job', 'Details of the role', 'https://jobs.example/org') returning id", [masthead, writer])).id;
+  await superuser();
+  await q("update public.events set status = 'published' where id = $1", [orgEvent]);
+  await q("update public.opportunities set status = 'published' where id = $1", [orgJob]);
+  const statuses = async () => {
+    await superuser();
+    return [
+      (await one("select status from public.posts where id = $1", [orgPost])).status,
+      (await one("select status from public.events where id = $1", [orgEvent])).status,
+      (await one("select status from public.opportunities where id = $1", [orgJob])).status,
+    ].join();
+  };
+  await as(boss);
+  await q("select public.moderate_ban($1, 'Fraud', 'honesty')", [writer]);
+  check("a ban hides posts, events and opportunities written as an organisation", (await statuses()) === "rejected,rejected,rejected", await statuses());
+  await as(boss);
+  await q("select public.moderate_lift_suspension($1)", [writer]);
+  check("and lifting it brings them back", (await statuses()) === "published,published,published", await statuses());
+
+  // 6. A mute covers someone writing as an organisation.
+  const quiet = await createUser("gaps-quiet@example.com", { username: "gaps_quiet" });
+  const loud = await createUser("gaps-loud@example.com", { username: "gaps_loud" });
+  await as(loud);
+  const megaphone = (await one("select public.create_organisation('gaps_megaphone', 'Megaphone') as id")).id;
+  await as(quiet);
+  const calm = await post("A calm post");
+  await q("insert into public.mutes (muter_id, muted_id) values ($1, $2)", [quiet, loud]);
+  await as(loud);
+  await post("Replying as the organisation", "en", megaphone, calm);
+  await post("Quoting as the organisation", "en", megaphone, null, calm);
+  await post("Mentioning @gaps_quiet as the organisation", "en", megaphone);
+  await superuser();
+  rows = await q("select type from public.notifications where recipient_id = $1 and actor_id = $2", [quiet, megaphone]);
+  check("someone muted writing as an organisation sends no replies, quotes or mentions", rows.length === 0, rows);
+}
+
 console.log("\nDemo seed");
 const seeded = new PGlite({ extensions: { pg_trgm, pgcrypto } });
 await seeded.exec(stubs);
