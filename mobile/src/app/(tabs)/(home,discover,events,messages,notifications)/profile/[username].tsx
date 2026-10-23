@@ -104,7 +104,7 @@ export default function ProfileScreen() {
 
   const profile = state.kind === "loaded" && state.page.kind === "profile" ? state.page : null;
   const profileId = profile?.profile.id ?? "";
-  const posts = useFeed((cursor) => loadFeed({ kind: "profile", profileId, tab }, cursor), `${profileId}:${tab}`, { enabled: profileId !== "", takesPosts: mine });
+  const posts = useFeed((cursor) => loadFeed({ kind: "profile", profileId, tab }, cursor), `${profileId}:${tab}`, { enabled: profileId !== "", takesPosts: mine ? () => true : undefined });
   // Pulling to refresh, or tapping the tab, reads the header and pinned post again too.
   const { refresh: refreshPosts } = posts;
   const refresh = useCallback(() => {

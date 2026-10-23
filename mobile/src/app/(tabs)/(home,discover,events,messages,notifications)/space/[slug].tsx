@@ -57,7 +57,7 @@ export default function SpaceScreen() {
 
   const state = loaded?.slug === slug ? loaded.state : undefined;
   const space = state?.kind === "ready" ? state.space : null;
-  const feed = useFeed((cursor) => loadFeed({ kind: "space", spaceId: space?.id ?? "" }, cursor), `space:${space?.id ?? ""}`, { enabled: space !== null, takesPosts: true });
+  const feed = useFeed((cursor) => loadFeed({ kind: "space", spaceId: space?.id ?? "" }, cursor), `space:${space?.id ?? ""}`, { enabled: space !== null, takesPosts: (post) => post.spaceId === space?.id });
 
   if (state?.kind !== "ready" || !space) {
     return (

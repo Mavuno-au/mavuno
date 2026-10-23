@@ -141,6 +141,15 @@ export function useReturnChain<Key extends string>(keys: readonly Key[], onDone?
   };
 }
 
+// VoiceOver reads an error out once, though the sheet's scroll and the error
+// itself both ask: iOS gives accessibilityRole="alert" no announcement.
+let announced = { text: "", at: 0 };
+function announce(text: string) {
+  if (text === announced.text && Date.now() - announced.at < 1000) return;
+  announced = { text, at: Date.now() };
+  AccessibilityInfo.announceForAccessibility(text);
+}
+
 // A sheet's error sits above its fields and Save is in the header, so the
 // form scrolls back up to show it, and VoiceOver reads it out.
 export function useErrorScroll(error: string | null) {
@@ -148,7 +157,7 @@ export function useErrorScroll(error: string | null) {
   useEffect(() => {
     if (!error) return;
     scroll.current?.scrollTo({ y: 0, animated: true });
-    AccessibilityInfo.announceForAccessibility(error);
+    announce(error);
   }, [error]);
   return scroll;
 }
@@ -156,6 +165,9 @@ export function useErrorScroll(error: string | null) {
 // Red with an icon, so it doesn't rely on colour alone.
 export function FieldError({ children }: { children: ReactNode }) {
   const palette = usePalette();
+  useEffect(() => {
+    if (typeof children === "string") announce(children);
+  }, [children]);
   return (
     <View accessibilityRole="alert" style={{ flexDirection: "row", alignItems: "flex-start", gap: 6 }}>
       <CircleAlert size={16} color={palette.destructive} style={{ marginTop: 1 }} />
@@ -354,6 +366,8 @@ export function SheetHeader({ title, onCancel, action, cancelLabel = "Cancel" }:
       {action ? (
         <Pressable
           accessibilityRole="button"
+          // The label gives way to a spinner while it works; the name stays.
+          accessibilityLabel={action.label}
           accessibilityHint={action.hint}
           accessibilityState={{ disabled: action.disabled || action.busy, busy: action.busy }}
           disabled={action.disabled || action.busy}

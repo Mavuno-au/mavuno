@@ -28,4 +28,5 @@ export const { emit: emitRelationChanged, on: onRelationChanged } = createEvent(
 export const { emit: emitProfileChanged, on: onProfileChanged } = createEvent<string>();
 
 // A post the member just wrote, so the lists it belongs in can show it at once.
-export const { emit: emitPostCreated, on: onPostCreated } = createEvent<{ id: string; parentId: string | null; quoteId: string | null }>();
+export type CreatedPost = { id: string; parentId: string | null; quoteId: string | null; spaceId: string | null; topics: string[] };
+export const { emit: emitPostCreated, on: onPostCreated } = createEvent<CreatedPost>();

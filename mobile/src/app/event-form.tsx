@@ -107,10 +107,15 @@ export default function EventForm() {
 
   useEffect(() => {
     if (!editing || !viewerId) return;
-    void loadEvent(editing, viewerId).then((found) => {
-      if (found) setForm(formOf(found.event));
-      else setError("This event couldn't be loaded.");
-    });
+    void loadEvent(editing, viewerId).then(
+      (found) => {
+        if (!found) return setError("This event couldn't be loaded.");
+        setForm(formOf(found.event));
+        // A new cover goes in the host's folder, as on the website, not the editor's.
+        setHostId(found.event.hostId);
+      },
+      () => setError("This event didn't load. Check your connection and try again."),
+    );
   }, [editing, viewerId]);
 
   // Where it is and how to get in follow one another; the title and the

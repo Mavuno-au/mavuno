@@ -20,6 +20,9 @@ import { haptics } from "@/util/haptics";
 
 type HomeFeed = FeedKind | "trending";
 
+// Following and Latest show every top-level post the member makes.
+const everyPost = () => true;
+
 const FEEDS = [
   { key: "following", label: "Following" },
   { key: "latest", label: "Latest" },
@@ -54,8 +57,8 @@ export default function Home() {
   // Kept out of the feed's key, so a redraw keeps the posts on screen while
   // the new draw loads, and keeps them if it fails.
   const seed = useRef(newTrendingSeed());
-  const following = useFeed((cursor) => loadFeed({ kind: "following" }, cursor), "following", { takesPosts: true });
-  const latest = useFeed((cursor) => loadFeed({ kind: "latest" }, cursor), "latest", { enabled: opened.has("latest"), takesPosts: true });
+  const following = useFeed((cursor) => loadFeed({ kind: "following" }, cursor), "following", { takesPosts: everyPost });
+  const latest = useFeed((cursor) => loadFeed({ kind: "latest" }, cursor), "latest", { enabled: opened.has("latest"), takesPosts: everyPost });
   const trending = useFeed((cursor) => loadFeed({ kind: "trending", seed: seed.current }, cursor), "trending", { enabled: opened.has("trending") });
   const [followingFresh, dismissFollowing] = useNewPosts({ feed: "following", ...checkable(following.state), active: feed === "following", away: true });
   const [latestFresh, dismissLatest] = useNewPosts({ feed: "latest", ...checkable(latest.state), active: feed === "latest" });
