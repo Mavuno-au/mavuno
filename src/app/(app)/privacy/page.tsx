@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/page";
 import { Note, Prose } from "@/components/ui/prose";
-import { CONTACT_EMAIL, LEGAL_UPDATED, OPERATOR } from "@/lib/site";
+import { CONTACT_EMAIL, OPERATOR, PRIVACY_UPDATED } from "@/lib/site";
 
 export const metadata: Metadata = { title: "Privacy", description: "What Mavuno collects about you, why, who can see it, where it's stored, and how to get it or delete it." };
 
@@ -11,7 +11,7 @@ const mail = <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>;
 export default function PrivacyPage() {
   return (
     <>
-      <PageHeader title="Privacy policy" meta={`Last updated ${LEGAL_UPDATED}`} />
+      <PageHeader title="Privacy policy" meta={`Last updated ${PRIVACY_UPDATED}`} />
       <Prose>
         <p>
           This policy explains what personal information Mavuno collects, why, who can see it, where it's kept and the choices you have. Mavuno is run by {OPERATOR} ("we"). We follow the Australian
@@ -105,6 +105,7 @@ export default function PrivacyPage() {
           <li>Posts, events and opportunities from an account reported in the past week are held for a moderator to check before they're public, unless the report was dismissed. During a wave of spam we may also hold new members' posts for a while.</li>
           <li>Anything reported by three different people is hidden until a moderator reviews it.</li>
           <li>The same post shared three or more times within an hour waits for a moderator.</li>
+          <li>Until you have a track record, an automatic check (OpenAI, described below) looks at what you publish, and anything it flags waits for a moderator.</li>
           <li>Limits on how often you can post or send message requests to people you don't know, to stop spam.</li>
         </ul>
         <p>
@@ -139,8 +140,9 @@ export default function PrivacyPage() {
             <strong>Fathom Analytics</strong>, if enabled: anonymous visit counts processed in the United States. Fathom uses no cookies and can't identify you.
           </li>
           <li>
-            <strong>OpenAI</strong>, in the United States, only if we turn on automatic safety checks: the text and images of posts from newer members are sent to it to check for harmful content, and
-            anything it flags waits for a moderator.
+            <strong>OpenAI</strong>, in the United States, for automatic safety checks. Until you have a track record (a member for a week, with three things published and nothing
+            reported in the last week), the text and images of your posts, events, opportunities and spaces, and changes to your profile, are sent to it to check for harmful content.
+            Anything it flags waits for a moderator. Private messages are never sent to it, and OpenAI doesn't use what we send to train its models.
           </li>
           <li>Videos from YouTube and similar sites only load from them when you press play.</li>
         </ul>
@@ -185,6 +187,16 @@ export default function PrivacyPage() {
           You need to be 16 or older to have a Mavuno account. If we believe an account belongs to someone under 16, we'll deactivate it and delete its information. Any information collected to check
           someone's age is used only for that check and then destroyed. If your account was closed by mistake, email {mail}.
         </p>
+
+        <h2>The Mavuno app</h2>
+        <p>The iPhone and Android app uses the same account, and everything above applies to it. A few things are different:</p>
+        <ul>
+          <li>It has no analytics, advertising or tracking tools. Google Analytics and its cookies are only on the website.</li>
+          <li>It opens your photos only when you choose ones to add, and photos are re-encoded before they're stored, as on the website.</li>
+          <li>It can add an event you choose to your calendar. It can't read your calendar.</li>
+          <li>Your sign-in, drafts and app settings are kept on your phone, and signing out or deleting your account in the app removes them.</li>
+          <li>You can report, mute and block people, and delete your account, from inside the app.</li>
+        </ul>
 
         <h2>Cookies and browser storage</h2>
         <ul>

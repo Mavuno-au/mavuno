@@ -13,7 +13,8 @@ export default function AuthLayout({ children }: LayoutProps<"/">) {
       <p className="mt-6 text-center text-sm text-ink-muted">
         By joining you agree to the <Link href="/rules" className="text-primary hover:underline">community rules</Link>,{" "}
         <Link href="/terms" className="text-primary hover:underline">terms</Link> and{" "}
-        <Link href="/privacy" className="text-primary hover:underline">privacy policy</Link>.
+        <Link href="/privacy" className="text-primary hover:underline">privacy policy</Link>. Until you have a track record, what you publish is checked for harm by
+        OpenAI; your messages never are.
       </p>
     </div>
   );
