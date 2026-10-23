@@ -2,6 +2,7 @@ import { useIsFocused } from "expo-router";
 import { ArrowUp, CloudOff } from "lucide-react-native";
 import { useCallback, useEffect, useRef, type ReactElement, type ReactNode } from "react";
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, useWindowDimensions, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { PostRow as Row } from "@/lib/domain";
 import { count } from "@/lib/format";
 import type { FeedState } from "@/data/use-feed";
@@ -33,6 +34,7 @@ export function FeedList({ feed, empty, end = "You're all caught up.", header, l
   const { state, loadMore, refresh, retry } = feed;
   const palette = usePalette();
   const { height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const list = useRef<FlatList<Row>>(null);
   const ready = state.kind === "ready" ? state : null;
   const leadingIds = new Set(leading.map((row) => row.id));
@@ -83,7 +85,7 @@ export function FeedList({ feed, empty, end = "You're all caught up.", header, l
         initialNumToRender={Math.ceil(height / 100)}
         maxToRenderPerBatch={5}
         windowSize={9}
-        contentContainerStyle={{ flexGrow: 1, minHeight: height * 1.5, paddingBottom: ready?.stale ? 80 : 0 }}
+        contentContainerStyle={{ flexGrow: 1, minHeight: height * 1.5, paddingBottom: ready?.stale ? 80 : 0, paddingLeft: insets.left, paddingRight: insets.right }}
         style={{ backgroundColor: palette.surface }}
       />
       {fresh > 0 ? <NewPostsPill count={fresh} onPress={toTop} /> : null}

@@ -48,6 +48,10 @@ The member's data as a JSON file (`Content-Disposition: attachment`). Three time
 
 JSON `{ targetId }`, the id of a post, message, event or opportunity the app just created or edited. Answers 202 at once and then fetches its link card and runs its automatic check (both queued by the database), as the website's server actions do with `after()`. Only for something the signed-in member created or sent; anything else answers 404, including a listing a teammate created that this member edited. Without it the tasks still run within about two minutes, when the database next wakes `/api/tasks`. 30 a minute. (`GET /api/tasks` is the cron's and takes the cron secret, not a member's token.)
 
+### `GET /api/app-release`
+
+`{ minimumBuild, storeUrl }`, a static file (`src/lib/app-release.ts`), no session. The app asks for it when it opens and when it comes back after a while; a build older than `minimumBuild` shows Update required with a link to `storeUrl`. Raise `minimumBuild` and deploy when a change would break the builds people still have.
+
 ## Age check before sign-up
 
 The website asks for a date of birth before anyone chooses email or Google, compares it with `meets_minimum_age`, and keeps it in an httpOnly cookie for at most 30 minutes because Google sign-in leaves the site and comes back. The app does the same without a cookie and without a new server route:

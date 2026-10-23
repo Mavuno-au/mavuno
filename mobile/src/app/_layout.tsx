@@ -7,16 +7,24 @@ import { useEffect } from "react";
 import { View } from "react-native";
 import { CountsProvider } from "@/data/counts";
 import "@/data/preferences";
+import { useRequiredUpdate } from "@/data/release";
 import { SessionProvider, useSession } from "@/data/session";
 import { ShadowProvider } from "@/data/shadow";
+import { AppCrash, ScreenCrash } from "@/ui/crash";
 import { FONTS } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
 import { ToastHost } from "@/ui/toast";
+import { UpdateRequired } from "@/ui/update-required";
 import { NowProvider } from "@/util/time";
 
 // The launch screen stays up until the fonts and the stored session are ready,
 // so nothing flashes in the wrong font or the wrong screen.
 void SplashScreen.preventAutoHideAsync();
+
+// A render error shows Something went wrong rather than closing the app: in
+// place of the screen that threw, or of everything when the frame itself did.
+export const ErrorBoundary = AppCrash;
+export const unstable_settings = { screenErrorBoundary: ScreenCrash };
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts(FONTS);
@@ -33,6 +41,7 @@ function Navigator({ fontsReady }: { fontsReady: boolean }) {
   const session = useSession();
   const palette = usePalette();
   const ready = fontsReady && session.kind !== "loading";
+  const update = useRequiredUpdate();
 
   useEffect(() => {
     // Behind every screen, so a swipe back or a rotation never shows white in dark mode.
@@ -44,6 +53,7 @@ function Navigator({ fontsReady }: { fontsReady: boolean }) {
   }, [ready]);
 
   if (!ready) return null;
+  if (update) return <UpdateRequired release={update} />;
   const signedIn = session.kind === "signed-in";
   const viewer = signedIn ? session.viewer : null;
   const active = signedIn && session.standing.kind === "active";
