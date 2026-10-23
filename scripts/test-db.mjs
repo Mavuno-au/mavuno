@@ -1439,6 +1439,34 @@ console.log("\nConversation");
   check("guests see profile cards", (await one("select follows_you from public.profile_preview('conv_writer')")).follows_you === false);
 }
 
+console.log("\nTrending over days");
+{
+  const user = (name) => createUser(`${name}@example.com`, { username: name });
+  const writer = await user("days_writer");
+  const people = [await user("days_one"), await user("days_two"), await user("days_three"), await user("days_four")];
+
+  await as(writer);
+  const older = await post("Who's going to the Ethiopian new year picnic?");
+  await superuser();
+  await q("update public.posts set created_at = now() - interval '2 days', published_at = now() - interval '2 days' where id = $1", [older]);
+  for (const person of people.slice(0, 3)) {
+    await as(person);
+    await q("insert into public.likes (user_id, post_id) values ($1, $2)", [person, older]);
+  }
+  await as(people[3]);
+  await post("We'll bring the injera", "en", null, older);
+  await as(writer);
+  const fresh = await post("Morning all");
+
+  const hot = async (id) => (await one("select hot_score from public.posts where id = $1", [id])).hot_score;
+  check("a two-day-old conversation outranks a new post nobody has engaged with", (await hot(older)) > (await hot(fresh)), { older: await hot(older), fresh: await hot(fresh) });
+
+  // The product metrics below count every post from the last few days.
+  await superuser();
+  await q("delete from public.posts where root_id = $1", [older]);
+  await q("delete from public.posts where id in ($1, $2)", [older, fresh]);
+}
+
 console.log("\nOperations");
 {
   // Members from earlier sections joined recently; move them out of both ranges
