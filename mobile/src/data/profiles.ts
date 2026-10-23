@@ -170,17 +170,14 @@ export async function checkUsername(username: string): Promise<Result<{ availabl
 
 const mediaPath = (url: string | null) => (url?.startsWith(MEDIA_URL) ? url.slice(MEDIA_URL.length) : null);
 
-// The website's setProfileImage: point the profile at the new file, then
-// remove the one it replaced.
+// The website's setProfileImage: point the profile at the new file. The
+// database queues the one it replaced for erasure, only if it changed.
 export async function setProfileImage(profileId: string, kind: "avatar" | "banner", url: string | null): Promise<Result> {
   if (url && !mediaPath(url)) return fail("That image can't be used.");
   const column = kind === "avatar" ? "avatar_url" : "banner_url";
-  const { data: before } = await supabase.from("profiles").select(`url:${column}`).eq("id", profileId).maybeSingle();
   const { data, error } = await supabase.from("profiles").update({ [column]: url }).eq("id", profileId).select("id");
   if (error) return failFrom(error);
   if (!data.length) return fail("You can't edit this profile.");
-  const previous = mediaPath(z.object({ url: z.string().nullable() }).catch({ url: null }).parse(before).url);
-  if (previous && previous !== mediaPath(url)) await supabase.storage.from("media").remove([previous]);
   return done;
 }
 

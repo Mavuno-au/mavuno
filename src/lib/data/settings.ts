@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { parsePeople, profileCardSchema, CITY_PHOTO_COLUMNS, cityPhotoSchema } from "@/lib/domain";
 import { publicEnv } from "@/lib/env";
-import { createClient, type Supabase } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import type { Viewer } from "@/lib/viewer";
 import { EDITABLE, editableRow, SETTINGS_COLUMNS, settingsRow } from "@/lib/profile-form";
 
@@ -79,32 +79,3 @@ const MEDIA_MARKER = `${publicEnv.supabaseUrl}/storage/v1/object/public/media/`;
 
 export const mediaPath = (url: string | null) => (url?.startsWith(MEDIA_MARKER) ? url.slice(MEDIA_MARKER.length) : null);
 
-const MEDIA_KINDS = ["posts", "avatars", "banners", "events"] as const;
-const PAGE = 1000;
-
-async function listFolder(supabase: Supabase, folder: string, offset = 0): Promise<string[]> {
-  const { data } = await supabase.storage.from("media").list(folder, { limit: PAGE, offset });
-  const paths = (data ?? []).map((file) => `${folder}/${file.name}`);
-  return paths.length === PAGE ? [...paths, ...(await listFolder(supabase, folder, offset + PAGE))] : paths;
-}
-
-// Uses the viewer's own session: storage only lets people delete files under
-// the profiles they act as.
-export async function removeProfileMedia(profileIds: string[]) {
-  const supabase = await createClient();
-  const folders = profileIds.flatMap((profileId) => MEDIA_KINDS.map((kind) => `${profileId}/${kind}`));
-  const paths = (await Promise.all(folders.map((folder) => listFolder(supabase, folder)))).flat();
-  for (let start = 0; start < paths.length; start += PAGE) {
-    await supabase.storage.from("media").remove(paths.slice(start, start + PAGE));
-  }
-}
-
-// Organisations the person owns alone are deleted with their account.
-export async function soleOwnedOrganisations(viewer: Viewer) {
-  const owned = viewer.organisations.filter((org) => org.role === "owner").map((org) => org.id);
-  if (owned.length === 0) return [];
-  const supabase = await createClient();
-  const { data } = await supabase.from("organisation_members").select("org_id, user_id").in("org_id", owned).eq("role", "owner");
-  const owners = z.array(z.object({ org_id: z.uuid(), user_id: z.uuid() })).parse(data ?? []);
-  return owned.filter((orgId) => owners.every((row) => row.org_id !== orgId || row.user_id === viewer.id));
-}

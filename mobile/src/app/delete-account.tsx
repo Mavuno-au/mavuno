@@ -34,7 +34,7 @@ export default function DeleteAccount() {
     Keyboard.dismiss();
     setError(null);
     setBusy(true);
-    const result = await deleteAccount(session.session.user.id);
+    const result = await deleteAccount();
     // Success needs nothing here: the session ends and the app moves to Welcome.
     if (!result.ok) {
       setBusy(false);

@@ -3,7 +3,6 @@
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { removeProfileMedia } from "@/lib/data/settings";
 import { done, fail, failFrom, type Result } from "@/lib/result";
 import { firstIssue, usernameSchema } from "@/lib/schemas";
 import { newOrganisationSchema } from "@/lib/profile-form";
@@ -92,7 +91,6 @@ export async function deleteOrganisation(orgId: string): Promise<Result> {
   const viewer = await getViewer();
   const org = viewer?.organisations.find((candidate) => candidate.id === id.parse(orgId));
   if (org?.role !== "owner") return fail("Only owners can delete an organisation.");
-  await removeProfileMedia([org.id]);
   const supabase = await createClient();
   const { error } = await supabase.rpc("delete_organisation", { p_org_id: org.id });
   if (error) return failFrom(error);
