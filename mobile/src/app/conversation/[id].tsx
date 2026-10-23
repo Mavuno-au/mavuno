@@ -563,7 +563,7 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
               <Text variant="small" tone="muted" numberOfLines={1} style={{ flex: 1 }}>
                 Replying to {authorName(replyTo.senderId)}: {replyTo.content.kind === "message" ? replyTo.content.body || "Photo" : "Message removed"}
               </Text>
-              <Pressable accessibilityRole="button" accessibilityLabel="Cancel reply" onPress={() => setReplyTo(null)} hitSlop={8}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Cancel reply" onPress={() => setReplyTo(null)} hitSlop={14}>
                 <X size={16} color={palette.inkMuted} />
               </Pressable>
             </View>
