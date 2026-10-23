@@ -141,7 +141,7 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong>OpenAI</strong>, in the United States, for automatic safety checks. Until you have a track record (a member for a week, with three things published and nothing
-            reported in the last week), the text and images of your posts, events, opportunities and spaces, and changes to your profile, are sent to it to check for harmful content.
+            reported in the last week, against you or an organisation whose team you're on), the text and images of your posts, events, opportunities and spaces, and changes to your profile, are sent to it to check for harmful content.
             Anything it flags waits for a moderator. Private messages are never sent to it, and OpenAI doesn't use what we send to train its models.
           </li>
           <li>Videos from YouTube and similar sites only load from them when you press play.</li>
@@ -191,10 +191,10 @@ export default function PrivacyPage() {
         <h2>The Mavuno app</h2>
         <p>The iPhone and Android app uses the same account, and everything above applies to it. A few things are different:</p>
         <ul>
-          <li>It has no analytics, advertising or tracking tools. Google Analytics and its cookies are only on the website.</li>
+          <li>The app itself has no analytics, advertising or tracking tools. Website pages it opens in its built-in browser, such as an event's page, are the website and use its Google Analytics.</li>
           <li>It opens your photos only when you choose ones to add, and photos are re-encoded before they're stored, as on the website.</li>
-          <li>It can add an event you choose to your calendar. It can't read your calendar.</li>
-          <li>Your sign-in, drafts and app settings are kept on your phone, and signing out or deleting your account in the app removes them.</li>
+          <li>It can add an event you choose to your calendar. On iPhone it can't read your calendar; Android asks for calendar access to add one.</li>
+          <li>Your sign-in is kept on your phone encrypted, with its key in the phone's secure storage (the Keychain on iPhone), so it isn't readable from a backup. Signing out, or deleting your account, removes it and your unsent drafts from the phone. Appearance choices, such as your theme, stay on the phone.</li>
           <li>You can report, mute and block people, and delete your account, from inside the app.</li>
         </ul>
 
