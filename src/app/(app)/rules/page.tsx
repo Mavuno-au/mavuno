@@ -106,7 +106,10 @@ export default function RulesPage() {
         </ul>
 
         <h3>What happens when a rule is broken</h3>
-        <p>We act in proportion to the harm, and we always tell you what we did and which rule it was under:</p>
+        <p>
+          Mavuno has zero tolerance for objectionable content and abusive members. We act on every report within 24 hours. We act in proportion to the harm, and we always tell you what we did
+          and which rule it was under:
+        </p>
         <ul>
           <li>For most first problems, we remove the content and send you a notice explaining why.</li>
           <li>For repeated breaks, we suspend the account for a set time.</li>

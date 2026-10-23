@@ -61,7 +61,7 @@ function RulesSheet({ open, busy, error, onAccept, onClose }: { open: boolean; b
             Before your first post
           </Text>
           <Text variant="callout" tone="muted">
-            Mavuno works because people can trust what they read here. These are the five community rules. Breaking them can mean a removed post, a suspension or a ban.
+            Mavuno works because people can trust what they read here. These are the five community rules. We have zero tolerance for objectionable content and abusive members: breaking them can mean a removed post, a suspension or a ban, and we act on every report within 24 hours.
           </Text>
           <View style={{ gap: 14 }}>
             {RULE_LINES.map((rule, index) => (
