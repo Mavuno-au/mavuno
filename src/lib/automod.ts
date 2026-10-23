@@ -28,13 +28,12 @@ export function flaggedCategories(results: ModerationResults): string[] {
 
 type Part = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
 
-// The text goes with the first image; every other image is checked on its
-// own, as a request is only documented to take one.
+// The text and each image go on their own (a request is only documented to
+// take one image). An image the service can't fetch, such as a link card's
+// picture on a site the poster controls, then can't stop the text being checked.
 export function moderationInputs(text: string, images: string[]): Part[][] {
-  const pictures = images.map((url): Part => ({ type: "image_url", image_url: { url } }));
-  if (!text) return pictures.map((picture) => [picture]);
-  const [first, ...rest] = pictures;
-  return [[{ type: "text", text }, ...(first ? [first] : [])], ...rest.map((picture) => [picture])];
+  const pictures = images.map((url): Part[] => [{ type: "image_url", image_url: { url } }]);
+  return text ? [[{ type: "text", text }], ...pictures] : pictures;
 }
 
 // Null when the request failed, so the check can be tried again.

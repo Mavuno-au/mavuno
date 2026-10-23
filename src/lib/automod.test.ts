@@ -30,8 +30,8 @@ describe("flaggedCategories", () => {
 describe("moderationInputs", () => {
   const image = (url: string) => ({ type: "image_url", image_url: { url } });
 
-  it("sends the text with the first image and each other image alone", () => {
-    expect(moderationInputs("Hello", ["https://a", "https://b"])).toEqual([[{ type: "text", text: "Hello" }, image("https://a")], [image("https://b")]]);
+  it("sends the text and each image alone", () => {
+    expect(moderationInputs("Hello", ["https://a", "https://b"])).toEqual([[{ type: "text", text: "Hello" }], [image("https://a")], [image("https://b")]]);
   });
 
   it("handles posts with only text or only images", () => {
@@ -80,7 +80,10 @@ describe("checkContent", () => {
 
   it("holds what one image flagged even if another request failed", async () => {
     rpc.mockResolvedValueOnce({ data: { text: "Words", images: ["https://a", "https://b"] }, error: null });
-    fetchMock.mockResolvedValueOnce(Response.json({ results: [result({ violence: 0.7 })] })).mockResolvedValueOnce(new Response("", { status: 500 }));
+    fetchMock
+      .mockResolvedValueOnce(Response.json({ results: [result({ violence: 0.01 })] }))
+      .mockResolvedValueOnce(Response.json({ results: [result({ violence: 0.7 })] }))
+      .mockResolvedValueOnce(new Response("", { status: 500 }));
     expect(await checkContent("post", POST)).toEqual({ kind: "done" });
     expect(rpc).toHaveBeenLastCalledWith("automatic_hold", { p_target_type: "post", p_target_id: POST, p_categories: ["violence"] });
   });
