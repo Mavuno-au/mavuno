@@ -303,7 +303,15 @@ export function PollView({ post, poll }: { post: Post; poll: Poll }) {
     }
     const fresh = await loadPost(post.id).catch(() => null);
     setVoting(null);
-    if (fresh?.kind === "post" && fresh.poll) setPoll(post.id, fresh.poll);
+    if (fresh?.kind === "post" && fresh.poll) return setPoll(post.id, fresh.poll);
+    // The vote counted even if the poll couldn't be read again, so it closes
+    // to further taps, which the database would refuse.
+    setPoll(post.id, {
+      ...poll,
+      myVote: optionId,
+      votes: poll.votes + 1,
+      options: poll.options.map((option) => (option.id === optionId && option.votes !== null ? { ...option, votes: option.votes + 1 } : option)),
+    });
   }
 
   return (
