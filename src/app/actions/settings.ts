@@ -6,7 +6,7 @@ import { z } from "zod";
 import { done, fail, failFrom, ok, type Result } from "@/lib/result";
 import { emailSchema, firstIssue, usernameSchema } from "@/lib/schemas";
 import { languageSettingsSchema, passwordChangeSchema, privacySchema, profileSchema, type ProfileChanges } from "@/lib/profile-form";
-import { mediaPath, removeProfileMedia, soleOwnedOrganisations } from "@/lib/data/settings";
+import { mediaPath } from "@/lib/data/settings";
 import { createClient, type Supabase } from "@/lib/supabase/server";
 import { getViewer } from "@/lib/viewer";
 import { safeNext } from "@/lib/safe-redirect";
@@ -42,20 +42,17 @@ export async function checkUsername(username: string): Promise<Result<{ availabl
 
 const imageSchema = z.object({ profileId: id, kind: z.enum(["avatar", "banner"]), url: z.url().nullable() });
 
-// The upload happens in the browser; this points the profile at the new file
-// and removes the one it replaces.
+// The upload happens in the browser; this points the profile at the new file.
+// The database queues the one it replaces for erasure, only if it changed.
 export async function setProfileImage(input: z.input<typeof imageSchema>): Promise<Result> {
   const parsed = imageSchema.safeParse(input);
   if (!parsed.success || (parsed.data.url && !mediaPath(parsed.data.url))) return fail("That image can't be used.");
   const { profileId, kind, url } = parsed.data;
   const column = kind === "avatar" ? "avatar_url" : "banner_url";
   const supabase = await createClient();
-  const { data: before } = await supabase.from("profiles").select(`url:${column}`).eq("id", profileId).maybeSingle();
   const { data, error } = await supabase.from("profiles").update({ [column]: url }).eq("id", profileId).select("id");
   if (error) return failFrom(error);
   if (!data?.length) return fail("You can't edit this profile.");
-  const previous = mediaPath(z.object({ url: z.string().nullable() }).catch({ url: null }).parse(before).url);
-  if (previous) await supabase.storage.from("media").remove([previous]);
   refresh();
   return done;
 }
@@ -140,9 +137,9 @@ export async function deleteAccount(_: Result | null, form: FormData): Promise<R
   const confirm = z.string().trim().toLowerCase().safeParse(form.get("confirm"));
   if (confirm.data !== viewer.username) return fail(`Type ${viewer.username} to confirm.`);
 
+  // The database queues every file under the account, and under organisations
+  // it owned alone, for erasure as the rows go.
   const supabase = await createClient();
-  await removeProfileMedia([viewer.id, ...(await soleOwnedOrganisations(viewer))]);
-
   const { error } = await supabase.rpc("delete_my_account");
   if (error) return failFrom(error);
   await supabase.auth.signOut({ scope: "local" });

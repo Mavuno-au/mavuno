@@ -23,7 +23,7 @@ import {
   type SpaceTab,
 } from "@/lib/community";
 import { parsePeople, profileCardSchema } from "@/lib/domain";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createGuestClient } from "@/lib/supabase/server";
 import type { Viewer } from "@/lib/viewer";
 
 export * from "@/lib/community";
@@ -102,19 +102,19 @@ export async function loadUpcomingEvents(scope: EventScope, category: EventCateg
 
 export const loadEvent = cache(async (eventId: string, viewer: Viewer | null) => {
   if (!id.safeParse(eventId).success) return null;
-  const supabase = await createClient();
-  const [{ data: row }, { data: attendees }, mine] = await Promise.all([
+  // Without a viewer (a guest, or the share image, which is cached for everyone) as a guest sees it.
+  const supabase = viewer ? await createClient() : createGuestClient();
+  // Who is going and the online link are for members only.
+  const [{ data: row }, attendees, mine, onlineUrl] = await Promise.all([
     supabase.from("events").select(EVENT).eq("id", eventId).maybeSingle(),
-    supabase.from("event_rsvps").select(`user:profiles(${CARD})`).eq("event_id", eventId).eq("status", "going").order("created_at").limit(12),
+    viewer ? supabase.rpc("event_attendees", { p_event_id: eventId }).select(CARD) : null,
     viewer ? supabase.from("event_rsvps").select("status").eq("event_id", eventId).eq("user_id", viewer.id).maybeSingle() : null,
+    viewer ? supabase.rpc("event_online_url", { p_event_id: eventId }) : null,
   ]);
   if (!row) return null;
   return {
-    event: eventRow.parse(row),
-    attendees: z
-      .array(z.object({ user: profileCardSchema }))
-      .parse(attendees ?? [])
-      .map((rsvp) => rsvp.user),
+    event: { ...eventRow.parse(row), onlineUrl: z.string().nullable().parse(onlineUrl?.data ?? null) },
+    attendees: z.array(profileCardSchema).parse(attendees?.data ?? []),
     myRsvp: z.object({ status: rsvpSchema }).nullable().parse(mine?.data ?? null)?.status ?? null,
   };
 });

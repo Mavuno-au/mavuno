@@ -1,7 +1,7 @@
 import * as Clipboard from "expo-clipboard";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ellipsis, Link2, SearchX, Settings, Share, SquarePen, UserX } from "lucide-react-native";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { View } from "react-native";
 import { usernameSchema } from "@/lib/schemas";
 import type { Post } from "@/lib/domain";
@@ -18,7 +18,7 @@ import { ActionSheet } from "@/ui/sheet";
 import { Text } from "@/ui/text";
 import { HAIRLINE, usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
-import { onPostCreated, onRelationChanged } from "@/util/events";
+import { onPostCreated, onProfileChanged, onRelationChanged } from "@/util/events";
 import { profileLink, shareLink } from "@/util/links";
 import { useSafetyActions } from "@/util/safety";
 
@@ -78,11 +78,23 @@ export default function ProfileScreen() {
     return onRelationChanged(() => fetchProfile(username));
   }, [username, fetchProfile]);
 
-  // Pinning, editing and posting change what the profile shows.
+  const loadedId = state.kind === "loaded" && state.page.kind === "profile" ? state.page.profile.id : null;
+  // The member's own profile, or one they post as. Only these can show a post they just wrote.
+  const mine = loadedId !== null && (loadedId === viewerId || (viewer?.organisations.some((organisation) => organisation.id === loadedId) ?? false));
+
+  // Editing and posting change what the profile shows.
   useEffect(() => {
-    if (!username) return;
+    if (!username || !mine) return;
     return onPostCreated(() => fetchProfile(username));
-  }, [username, fetchProfile]);
+  }, [username, mine, fetchProfile]);
+
+  // Pinning or unpinning a post changes the pinned post above the feed.
+  useEffect(() => {
+    if (!username || !loadedId) return;
+    return onProfileChanged((id) => {
+      if (id === loadedId) fetchProfile(username);
+    });
+  }, [username, loadedId, fetchProfile]);
 
   const retry = () => {
     if (!username) return;
@@ -92,7 +104,14 @@ export default function ProfileScreen() {
 
   const profile = state.kind === "loaded" && state.page.kind === "profile" ? state.page : null;
   const profileId = profile?.profile.id ?? "";
-  const feed = useFeed((cursor) => loadFeed({ kind: "profile", profileId, tab }, cursor), `${profileId}:${tab}`, { enabled: profileId !== "", takesPosts: true });
+  const posts = useFeed((cursor) => loadFeed({ kind: "profile", profileId, tab }, cursor), `${profileId}:${tab}`, { enabled: profileId !== "", takesPosts: mine ? () => true : undefined });
+  // Pulling to refresh, or tapping the tab, reads the header and pinned post again too.
+  const { refresh: refreshPosts } = posts;
+  const refresh = useCallback(() => {
+    refreshPosts();
+    if (username) fetchProfile(username);
+  }, [refreshPosts, username, fetchProfile]);
+  const feed = useMemo(() => ({ ...posts, refresh }), [posts, refresh]);
   const manages = profile !== null && (viewer?.organisations.some((organisation) => organisation.id === profile.profile.id && organisation.role !== "editor") ?? false);
 
   const share = profile ? (

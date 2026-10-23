@@ -8,6 +8,17 @@ type Matcher = (url: URL) => Embed | null;
 
 const YOUTUBE_ID = /^[\w-]{11}$/;
 
+// YouTube's own ways of writing a start time: "90", "90s", "1m30s", "1h2m3s".
+function seconds(time: string | null) {
+  const match = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?$/.exec(time ?? "");
+  if (!match) return 0;
+  return Number(match[1] ?? 0) * 3600 + Number(match[2] ?? 0) * 60 + Number(match[3] ?? 0);
+}
+
+// Pages under soundcloud.com/<name>/ that aren't a track or set.
+const SOUNDCLOUD_PAGES = new Set(["charts", "discover", "jobs", "mobile", "pages", "pro", "search", "settings", "stations", "stream", "terms-of-use", "upload", "you"]);
+const SOUNDCLOUD_TABS = new Set(["albums", "followers", "following", "likes", "popular-tracks", "reposts", "sets", "tracks"]);
+
 const matchers: Matcher[] = [
   (url) => {
     const host = url.hostname.replace(/^(www|m|music)\./, "");
@@ -17,17 +28,26 @@ const matchers: Matcher[] = [
       id = url.searchParams.get("v") ?? url.pathname.match(/^\/(?:shorts|live|embed)\/([\w-]+)/)?.[1] ?? null;
     }
     if (!id || !YOUTUBE_ID.test(id)) return null;
-    const start = Number.parseInt(url.searchParams.get("t") ?? "", 10);
-    const query = Number.isFinite(start) && start > 0 ? `?start=${start}` : "";
+    // The player loads on a tap, so it starts playing rather than asking for a second one.
+    const start = seconds(url.searchParams.get("t") ?? url.searchParams.get("start"));
     return {
       provider: "YouTube",
-      src: `https://www.youtube-nocookie.com/embed/${id}${query}`,
+      src: `https://www.youtube-nocookie.com/embed/${id}?autoplay=1${start > 0 ? `&start=${start}` : ""}`,
       shape: url.pathname.startsWith("/shorts") ? "portrait" : "video",
     };
   },
   (url) => {
-    const id = url.hostname.replace(/^www\./, "") === "vimeo.com" ? url.pathname.match(/^\/(\d+)/)?.[1] : null;
-    return id ? { provider: "Vimeo", src: `https://player.vimeo.com/video/${id}?dnt=1`, shape: "video" } : null;
+    const host = url.hostname.replace(/^www\./, "");
+    const match =
+      host === "vimeo.com"
+        ? /^(?:\/channels\/[\w-]+|\/groups\/[\w-]+\/videos)?\/(\d+)(?:\/([0-9a-f]+))?\/?$/.exec(url.pathname)
+        : host === "player.vimeo.com"
+          ? /^\/video\/(\d+)\/?$/.exec(url.pathname)
+          : null;
+    if (!match) return null;
+    // An unlisted video plays only with the hash its link carries.
+    const hash = match[2] ?? url.searchParams.get("h") ?? "";
+    return { provider: "Vimeo", src: `https://player.vimeo.com/video/${match[1]}?dnt=1&autoplay=1${/^[0-9a-f]+$/.test(hash) ? `&h=${hash}` : ""}`, shape: "video" };
   },
   (url) => {
     if (url.hostname !== "open.spotify.com") return null;
@@ -35,9 +55,11 @@ const matchers: Matcher[] = [
     return match ? { provider: "Spotify", src: `https://open.spotify.com/embed/${match[1]}/${match[2]}`, shape: "audio" } : null;
   },
   (url) => {
-    if (url.hostname.replace(/^(www|m)\./, "") !== "soundcloud.com" || url.pathname.split("/").filter(Boolean).length < 2) return null;
-    const track = encodeURIComponent(`https://soundcloud.com${url.pathname}`);
-    return { provider: "SoundCloud", src: `https://w.soundcloud.com/player/?url=${track}&visual=false`, shape: "audio" };
+    if (url.hostname.replace(/^(www|m)\./, "") !== "soundcloud.com") return null;
+    const match = /^\/([\w-]+)\/(?:(sets)\/)?([\w-]+)\/?$/.exec(url.pathname);
+    if (!match?.[1] || !match[3] || SOUNDCLOUD_PAGES.has(match[1]) || (!match[2] && SOUNDCLOUD_TABS.has(match[3]))) return null;
+    const track = encodeURIComponent(`https://soundcloud.com${url.pathname.replace(/\/$/, "")}`);
+    return { provider: "SoundCloud", src: `https://w.soundcloud.com/player/?url=${track}&visual=false&auto_play=true`, shape: "audio" };
   },
   (url) => {
     const id = url.hostname.replace(/^(www|m)\./, "") === "tiktok.com" ? url.pathname.match(/\/video\/(\d+)/)?.[1] : null;

@@ -11,6 +11,7 @@ import { useViewer } from "@/components/shell/viewer-context";
 import { OPPORTUNITY_TYPES } from "@/lib/catalogue";
 import type { City } from "@/lib/data/shell";
 import type { OpportunityType } from "@/lib/domain";
+import { reach } from "@/lib/version";
 
 export type OpportunityDraft = {
   type: OpportunityType;
@@ -56,7 +57,7 @@ export function OpportunityForm({ target, cities }: { target: Target; cities: Ci
     const data = new FormData(event.currentTarget);
     setError(null);
     startTransition(async () => {
-      const result = target.kind === "create" ? await createOpportunity(data) : await updateOpportunity(target.opportunityId, data);
+      const result = await reach(target.kind === "create" ? createOpportunity(data) : updateOpportunity(target.opportunityId, data));
       if (!result.ok) {
         setError(result.error);
         return;

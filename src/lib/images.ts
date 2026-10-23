@@ -11,7 +11,8 @@ export type Encoded = { data: Buffer; width: number; height: number };
 // Decodes the image and encodes only its pixels as WebP. Sharp writes no
 // metadata unless asked, so EXIF, XMP and the location a phone camera records
 // are left behind whatever the upload carried. Returns null for anything that
-// isn't a still JPEG, PNG, WebP or GIF.
+// isn't a JPEG, PNG, WebP or GIF; an animated one keeps its first frame, as
+// the composer tells the person.
 export async function reencode(input: ArrayBuffer, maxWidth: number): Promise<Encoded | null> {
   try {
     const image = sharp(input, { limitInputPixels: MAX_EDGE * MAX_EDGE, autoOrient: true });

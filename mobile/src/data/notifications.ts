@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { findFilter, notificationGroupSchema, notificationSchema, type Notification, type NotificationFilterKey, type NotificationGroup } from "@/lib/notifications";
 import { done, failFrom, type Result } from "@/lib/result";
+import { lenient } from "@/data/community";
 import { requestError } from "@/data/errors";
 import { supabase } from "@/data/supabase";
 import { timeZone } from "@/util/time";
@@ -8,19 +9,10 @@ import { timeZone } from "@/util/time";
 // The website's notification actions (src/app/actions/notifications.ts),
 // against the same database functions. Follows are grouped by the reader's
 // day, so the phone's time zone goes with each request.
-export const NOTIFICATION_PAGE = 20;
+const NOTIFICATION_PAGE = 20;
 
-export type NotificationCursor = { kind: "first" } | { kind: "before"; at: string; key: string } | { kind: "after"; at: string };
-export type NotificationPage = { groups: NotificationGroup[]; next: { at: string; key: string } | null };
-
-const lenientGroups = (data: unknown) =>
-  z
-    .array(z.unknown())
-    .parse(data ?? [])
-    .flatMap((row) => {
-      const parsed = notificationGroupSchema.safeParse(row);
-      return parsed.success ? [parsed.data] : [];
-    });
+type NotificationCursor = { kind: "first" } | { kind: "before"; at: string; key: string } | { kind: "after"; at: string };
+type NotificationPage = { groups: NotificationGroup[]; next: { at: string; key: string } | null };
 
 export async function loadNotifications(recipientId: string, filter: NotificationFilterKey, cursor: NotificationCursor): Promise<NotificationPage> {
   const { types } = findFilter(filter);
@@ -34,7 +26,7 @@ export async function loadNotifications(recipientId: string, filter: Notificatio
     p_limit: NOTIFICATION_PAGE,
   });
   if (error) throw requestError("Notifications", error);
-  const groups = lenientGroups(data);
+  const groups = lenient(notificationGroupSchema, data);
   const last = groups.at(-1);
   return { groups, next: groups.length === NOTIFICATION_PAGE && last ? { at: last.latestAt, key: last.key } : null };
 }

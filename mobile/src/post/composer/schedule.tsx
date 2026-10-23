@@ -9,7 +9,7 @@ import { Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
 
 // The schedule rules from src/lib/schedule.ts, on a Date the picker gives.
-export const draftOf = (when: Date) => ({ date: localDate(when), hour: when.getHours(), minute: when.getMinutes() });
+const draftOf = (when: Date) => ({ date: localDate(when), hour: when.getHours(), minute: when.getMinutes() });
 export const problemWith = (when: Date, now = new Date()) => scheduleProblem(draftOf(when), now);
 
 // Posts can be scheduled in 5-minute steps, up to 30 days ahead, in the

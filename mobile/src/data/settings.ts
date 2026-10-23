@@ -6,6 +6,7 @@ import { languageSettingsSchema, newOrganisationSchema, passwordChangeSchema, pr
 import { done, fail, failFrom, ok, type Result } from "@/lib/result";
 import { emailSchema, firstIssue, usernameSchema } from "@/lib/schemas";
 import { siteFetch } from "@/data/api";
+import { siteLink } from "@/data/env";
 import { requestError } from "@/data/errors";
 import { updateSettings } from "@/data/profiles";
 import { supabase } from "@/data/supabase";
@@ -15,7 +16,8 @@ import { supabase } from "@/data/supabase";
 
 const id = z.uuid();
 const CARD = "id, username, display_name, avatar_url, colour:effective_colour, account_type, org_verified, headline";
-const confirmLink = (next: string) => `https://mavuno.au/auth/confirm?next=${encodeURIComponent(next)}`;
+// The build's own site, as auth.ts does, so a staging build's link doesn't go to production.
+const confirmLink = (next: string) => siteLink(`/auth/confirm?next=${encodeURIComponent(next)}`);
 
 export async function updatePrivacy(viewerId: string, input: z.input<typeof privacySchema>): Promise<Result> {
   const parsed = privacySchema.safeParse(input);
@@ -53,17 +55,27 @@ export async function changePassword(password: string, confirm: string): Promise
 
 // GET /api/export, saved to a file and handed to the share sheet.
 export async function exportData(): Promise<Result> {
+  let data: string;
   try {
     const response = await siteFetch("/api/export");
     if (response.status === 429) return fail("You can download your data three times an hour. Try again later.");
     if (!response.ok) return fail((await response.text()) || "Your data couldn't be prepared. Try again.");
-    const file = new File(Paths.cache, `mavuno-export-${new Date().toISOString().slice(0, 10)}.json`);
+    data = await response.text();
+  } catch {
+    return fail("Couldn't reach Mavuno. Check your connection and try again.");
+  }
+  const file = new File(Paths.cache, `mavuno-export-${new Date().toISOString().slice(0, 10)}.json`);
+  try {
     if (file.exists) file.delete();
-    await file.write(await response.text());
+    await file.write(data);
     await Sharing.shareAsync(file.uri, { mimeType: "application/json", dialogTitle: "Your Mavuno data", UTI: "public.json" });
     return done;
   } catch {
-    return fail("Couldn't reach Mavuno. Check your connection and try again.");
+    return fail("Your data couldn't be saved or shared. Try again.");
+  } finally {
+    // It holds everything about the member, and would outlive signing out
+    // and even deleting the account. Wherever it was shared has its own copy.
+    if (file.exists) file.delete();
   }
 }
 

@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { Rss, SquarePen, UserPlus } from "lucide-react-native";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 import { feedTime } from "@/lib/feeds";
 import { loadFeed, newTrendingSeed } from "@/data/posts";
@@ -8,7 +8,7 @@ import { usePreferences } from "@/data/preferences";
 import { useViewer } from "@/data/session";
 import { useFeed, type FeedState } from "@/data/use-feed";
 import { setFollowingFresh, useNewPosts, type FeedKind } from "@/data/use-new-posts";
-import { WhoToFollow } from "@/people/who-to-follow";
+import { useSuggestions, WhoToFollow } from "@/people/who-to-follow";
 import { FeedList } from "@/post/feed-list";
 import { Avatar } from "@/ui/avatar";
 import { Wordmark } from "@/ui/brand";
@@ -19,6 +19,9 @@ import { emitSoftReset } from "@/util/events";
 import { haptics } from "@/util/haptics";
 
 type HomeFeed = FeedKind | "trending";
+
+// Following and Latest show every top-level post the member makes.
+const everyPost = () => true;
 
 const FEEDS = [
   { key: "following", label: "Following" },
@@ -33,6 +36,16 @@ function checkable(state: FeedState) {
   return { since: top ? feedTime(top) : null, busy: state.kind !== "ready" || state.refreshing };
 }
 
+function withDismiss(list: ReturnType<typeof useFeed>, dismiss: () => void) {
+  return {
+    ...list,
+    refresh: () => {
+      dismiss();
+      list.refresh();
+    },
+  };
+}
+
 export default function Home() {
   const palette = usePalette();
   const viewer = useViewer();
@@ -44,34 +57,35 @@ export default function Home() {
   // Kept out of the feed's key, so a redraw keeps the posts on screen while
   // the new draw loads, and keeps them if it fails.
   const seed = useRef(newTrendingSeed());
-  const following = useFeed((cursor) => loadFeed({ kind: "following" }, cursor), "following", { takesPosts: true });
-  const latest = useFeed((cursor) => loadFeed({ kind: "latest" }, cursor), "latest", { enabled: opened.has("latest"), takesPosts: true });
+  const following = useFeed((cursor) => loadFeed({ kind: "following" }, cursor), "following", { takesPosts: everyPost });
+  const latest = useFeed((cursor) => loadFeed({ kind: "latest" }, cursor), "latest", { enabled: opened.has("latest"), takesPosts: everyPost });
   const trending = useFeed((cursor) => loadFeed({ kind: "trending", seed: seed.current }, cursor), "trending", { enabled: opened.has("trending") });
   const [followingFresh, dismissFollowing] = useNewPosts({ feed: "following", ...checkable(following.state), active: feed === "following", away: true });
   const [latestFresh, dismissLatest] = useNewPosts({ feed: "latest", ...checkable(latest.state), active: feed === "latest" });
   useEffect(() => setFollowingFresh(followingFresh > 0), [followingFresh]);
   useEffect(() => () => setFollowingFresh(false), []);
 
-  // Trending leaves it out, as on the website.
+  // Trending leaves it out, as on the website. What each list is given is
+  // memoised, so a change to one feed doesn't render the others' rows again.
   const { whoToFollow } = usePreferences();
-  const suggestions = viewer && whoToFollow ? { after: 5, node: <WhoToFollow viewerId={viewer.id} /> } : undefined;
+  const viewerId = viewer && whoToFollow ? viewer.id : null;
+  const people = useSuggestions(viewerId);
+  const suggestions = useMemo(() => (viewerId ? { after: 5, node: <WhoToFollow viewerId={viewerId} suggestions={people} /> } : undefined), [viewerId, people]);
 
   // A refresh, however it starts, answers the new-posts pill.
-  const withDismiss = (list: typeof following, dismiss: () => void) => ({
-    ...list,
-    refresh: () => {
-      dismiss();
-      list.refresh();
-    },
-  });
+  const followingFeed = useMemo(() => withDismiss(following, dismissFollowing), [following, dismissFollowing]);
+  const latestFeed = useMemo(() => withDismiss(latest, dismissLatest), [latest, dismissLatest]);
   // Refreshing Trending draws it again.
-  const redraw = {
-    ...trending,
-    refresh: () => {
-      seed.current = newTrendingSeed();
-      trending.refresh();
-    },
-  };
+  const redraw = useMemo(
+    () => ({
+      ...trending,
+      refresh: () => {
+        seed.current = newTrendingSeed();
+        trending.refresh();
+      },
+    }),
+    [trending],
+  );
 
   // Tapping the feed already shown scrolls it back to the top and refreshes it.
   const show = (next: HomeFeed) => {
@@ -126,7 +140,7 @@ export default function Home() {
       </View>
       <View style={{ flex: 1, display: feed === "following" ? "flex" : "none" }}>
         <FeedList
-          feed={withDismiss(following, dismissFollowing)}
+          feed={followingFeed}
           active={feed === "following"}
           fresh={followingFresh}
           insert={suggestions}
@@ -148,7 +162,7 @@ export default function Home() {
       </View>
       {opened.has("latest") ? (
         <View style={{ flex: 1, display: feed === "latest" ? "flex" : "none" }}>
-          <FeedList feed={withDismiss(latest, dismissLatest)} active={feed === "latest"} fresh={latestFresh} insert={suggestions} empty={<EmptyState title="Nothing here yet">Be the first to post something.</EmptyState>} />
+          <FeedList feed={latestFeed} active={feed === "latest"} fresh={latestFresh} insert={suggestions} empty={<EmptyState title="Nothing here yet">Be the first to post something.</EmptyState>} />
         </View>
       ) : null}
       {opened.has("trending") ? (

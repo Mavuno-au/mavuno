@@ -7,6 +7,7 @@ import { setOpportunitySaved } from "@/app/actions/opportunities";
 import { useSignedIn } from "@/components/community/use-signed-in";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { reach } from "@/lib/version";
 
 export function SaveOpportunity({ opportunityId, saved: initial }: { opportunityId: string; saved: boolean }) {
   const signedIn = useSignedIn();
@@ -17,7 +18,7 @@ export function SaveOpportunity({ opportunityId, saved: initial }: { opportunity
     const next = !saved;
     setSaved(next);
     startTransition(async () => {
-      const result = await setOpportunitySaved(opportunityId, next);
+      const result = await reach(setOpportunitySaved(opportunityId, next));
       if (!result.ok) {
         setSaved(!next);
         toast.error(result.error);

@@ -8,6 +8,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { FormError, Input, Textarea } from "@/components/ui/field";
 import { Note } from "@/components/ui/prose";
 import { LIMITS, REPORT_REASONS, type ReportReason } from "@/lib/catalogue";
+import { reach } from "@/lib/version";
 
 type Target = Pick<Report, "targetType" | "targetId">;
 
@@ -73,7 +74,7 @@ export function ReportDialog({ target, onClose, what }: { target: Target | null;
   function submit() {
     if (!target || !reason) return;
     startTransition(async () => {
-      const result = await reportContent({ ...target, reason, details, contact: legal ? contact : undefined });
+      const result = await reach(reportContent({ ...target, reason, details, contact: legal ? contact : undefined }));
       if (!result.ok) {
         setError(result.error);
         return;

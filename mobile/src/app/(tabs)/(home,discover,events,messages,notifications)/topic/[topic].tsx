@@ -16,7 +16,7 @@ export default function Topic() {
     .string()
     .regex(/^[a-z][a-z0-9_]{1,39}$/)
     .safeParse(String(useLocalSearchParams().topic ?? "").toLowerCase()).data;
-  const feed = useFeed((cursor) => loadFeed({ kind: "topic", topic: topic ?? "" }, cursor), `topic:${topic ?? ""}`, { enabled: Boolean(topic), takesPosts: true });
+  const feed = useFeed((cursor) => loadFeed({ kind: "topic", topic: topic ?? "" }, cursor), `topic:${topic ?? ""}`, { enabled: Boolean(topic), takesPosts: (post) => topic !== undefined && post.topics.includes(topic) });
   return (
     <View style={{ flex: 1, backgroundColor: palette.surface }}>
       <Header

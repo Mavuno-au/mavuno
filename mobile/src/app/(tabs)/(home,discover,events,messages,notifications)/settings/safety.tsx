@@ -1,12 +1,13 @@
 import { router } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, View } from "react-native";
+import { reasonOf, type Reason } from "@/data/errors";
 import { setRelation } from "@/data/relations";
 import { useViewer } from "@/data/session";
 import { loadSafetyLists, type Relation } from "@/data/settings";
 import { siteLink } from "@/data/env";
 import { Avatar } from "@/ui/avatar";
-import { Button } from "@/ui/controls";
+import { Button, LoadFailed } from "@/ui/controls";
 import { Group, Row } from "@/ui/form";
 import { BackButton, Header } from "@/ui/header";
 import { Text } from "@/ui/text";
@@ -19,13 +20,12 @@ export default function SafetySettings() {
   const palette = usePalette();
   const viewer = useViewer();
   const [lists, setLists] = useState<{ muted: Relation[]; blocked: Relation[] } | null>(null);
+  const [failed, setFailed] = useState<Reason | null>(null);
   const viewerId = viewer?.id ?? null;
 
   const read = useCallback(() => {
     if (!viewerId) return;
-    void loadSafetyLists(viewerId)
-      .then(setLists)
-      .catch(() => Alert.alert("Couldn't load these", "Check your connection, then try again."));
+    void loadSafetyLists(viewerId).then(setLists, (error: unknown) => setFailed(reasonOf(error)));
   }, [viewerId]);
 
   useEffect(read, [read]);
@@ -57,7 +57,16 @@ export default function SafetySettings() {
   return (
     <View style={{ flex: 1, backgroundColor: palette.shell }}>
       <Header title="Muted and blocked" left={<BackButton fallback="/settings" />} />
-      {!lists ? (
+      {failed && !lists ? (
+        <LoadFailed
+          title="These didn't load"
+          reason={failed}
+          onRetry={() => {
+            setFailed(null);
+            read();
+          }}
+        />
+      ) : !lists ? (
         <ActivityIndicator style={{ marginTop: 40 }} color={palette.inkMuted} accessibilityLabel="Loading" />
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 24, paddingBottom: 48 }}>

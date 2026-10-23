@@ -11,6 +11,7 @@ import { ShareDialog, type Shared } from "@/components/community/share-dialog";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { useActsAs } from "@/components/shell/viewer-context";
+import { reach } from "@/lib/version";
 
 const LISTINGS = {
   event: {
@@ -48,7 +49,7 @@ export function ListingControls({ kind, id, ownerId, published, ended }: { kind:
 
   function end() {
     startTransition(async () => {
-      const result = await listing.run(id);
+      const result = await reach(listing.run(id));
       if (!result.ok) {
         toast.error(result.error);
         return;

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FormError, Input, Select, Textarea } from "@/components/ui/field";
 import type { City } from "@/lib/data/shell";
 import { cn } from "@/lib/cn";
+import { reach } from "@/lib/version";
 
 const slugify = (name: string) =>
   name
@@ -34,7 +35,7 @@ export function SpaceForm({ cities }: { cities: City[] }) {
     const data = new FormData(event.currentTarget);
     setError(null);
     startTransition(async () => {
-      const result = await createSpace(data);
+      const result = await reach(createSpace(data));
       if (result.ok) router.push(`/spaces/${result.data}`);
       else setError(result.error);
     });

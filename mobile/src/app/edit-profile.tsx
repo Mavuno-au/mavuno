@@ -17,7 +17,7 @@ import { ActionSheet } from "@/ui/sheet";
 import { font, Text } from "@/ui/text";
 import { identityColour, usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
-import { emitPostCreated } from "@/util/events";
+import { emitProfileChanged } from "@/util/events";
 
 type Form = {
   displayName: string;
@@ -125,9 +125,12 @@ function Editor({ profile, cities, initial }: { profile: EditableProfile; cities
   const set = <Key extends keyof Form>(key: Key, value: Form[Key]) => setForm((current) => ({ ...current, [key]: value }));
   const toggle = <Value extends string>(values: Value[], value: Value) => (values.includes(value) ? values.filter((other) => other !== value) : [...values, value]);
 
+  // A new photo or banner is saved the moment it's chosen, so discarding doesn't undo it.
+  const photoChanged = images.avatar !== profile.avatarUrl || images.banner !== profile.bannerUrl;
+
   function cancel() {
     if (!changed) return router.back();
-    Alert.alert("Discard your changes?", "What you changed here won't be saved.", [
+    Alert.alert("Discard your changes?", photoChanged ? "Your other changes won't be saved. The photo you changed is already saved." : "What you changed here won't be saved.", [
       { text: "Keep editing", style: "cancel" },
       { text: "Discard", style: "destructive", onPress: () => router.back() },
     ]);
@@ -140,7 +143,7 @@ function Editor({ profile, cities, initial }: { profile: EditableProfile; cities
     setBusy(false);
     if (!result.ok) return setError(result.error);
     reloadViewer();
-    emitPostCreated({ id: profile.id, parentId: profile.id, quoteId: null });
+    emitProfileChanged(profile.id);
     toast("Profile saved");
     router.back();
   }
@@ -160,6 +163,7 @@ function Editor({ profile, cities, initial }: { profile: EditableProfile; cities
     if (!result.ok) return Alert.alert("Couldn't change the photo", result.error);
     setImages((current) => ({ ...current, [kind]: url }));
     reloadViewer();
+    emitProfileChanged(profile.id);
   }
 
   async function removeImage(kind: "avatar" | "banner") {
@@ -169,6 +173,7 @@ function Editor({ profile, cities, initial }: { profile: EditableProfile; cities
     if (!result.ok) return Alert.alert("Couldn't remove the photo", result.error);
     setImages((current) => ({ ...current, [kind]: null }));
     reloadViewer();
+    emitProfileChanged(profile.id);
   }
 
   const person = { displayName: form.displayName || profile.displayName, avatarUrl: images.avatar, colour: form.colour ?? profile.effectiveColour, accountType: profile.accountType };

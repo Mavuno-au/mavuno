@@ -24,7 +24,7 @@ import { initialSchedule, scheduledDate, scheduleProblem, type ScheduleDraft } f
 import { allUrls, displayUrl, FOLD_HINT, foldsInLists } from "@/lib/text";
 import { draftPrefix } from "@/lib/browser-data";
 import { useDraft } from "@/lib/use-draft";
-import { prepareImage, removeMedia, uploadMedia, type PreparedImage } from "@/lib/upload";
+import { prepareImage, removeMedia, uploadMedia, type PreparedImage, type Uploaded } from "@/lib/upload";
 
 export type ComposerMode =
   | { kind: "post"; spaceId?: string; eventId?: string; opportunityId?: string; placeholder?: string }
@@ -215,15 +215,15 @@ export function Composer({
   function send() {
     hold();
     startTransition(async () => {
-      const uploaded: { path: string }[] = [];
+      const uploaded: Uploaded[] = [];
       try {
-        const posted = await Promise.all(
-          images.map(async (image) => {
-            const file = await uploadMedia({ ownerId: me.id, kind: "posts", blob: image.blob });
-            uploaded.push(file);
-            return { ...file, alt: image.alt.trim() };
-          }),
-        );
+        // All of them settle before anything is cleaned up, so a photo that finishes
+        // after another one failed isn't left behind.
+        const settled = await Promise.allSettled(images.map((image) => uploadMedia({ ownerId: me.id, kind: "posts", blob: image.blob })));
+        for (const result of settled) if (result.status === "fulfilled") uploaded.push(result.value);
+        const failed = settled.find((result) => result.status === "rejected");
+        if (failed) throw failed.reason;
+        const posted = uploaded.map((file, index) => ({ ...file, alt: images[index]?.alt.trim() ?? "" }));
         const post = {
           body,
           language,

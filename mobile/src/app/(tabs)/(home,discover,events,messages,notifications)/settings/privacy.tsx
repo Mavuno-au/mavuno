@@ -1,9 +1,11 @@
 import { Check } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, View } from "react-native";
+import { reasonOf, type Reason } from "@/data/errors";
 import { loadPrivateSettings, type PrivateSettings } from "@/data/profiles";
 import { useViewer } from "@/data/session";
 import { updatePrivacy } from "@/data/settings";
+import { LoadFailed } from "@/ui/controls";
 import { Group, ToggleRow } from "@/ui/form";
 import { BackButton, Header } from "@/ui/header";
 import { Text } from "@/ui/text";
@@ -21,14 +23,14 @@ export default function PrivacySettings() {
   const palette = usePalette();
   const viewer = useViewer();
   const [settings, setSettings] = useState<PrivateSettings | null>(null);
+  const [failed, setFailed] = useState<Reason | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const viewerId = viewer?.id ?? null;
 
   useEffect(() => {
     if (!viewerId) return;
-    void loadPrivateSettings(viewerId)
-      .then(setSettings)
-      .catch(() => Alert.alert("Couldn't load your settings", "Check your connection, then try again."));
-  }, [viewerId]);
+    void loadPrivateSettings(viewerId).then(setSettings, (error: unknown) => setFailed(reasonOf(error)));
+  }, [viewerId, attempt]);
 
   async function save(next: PrivateSettings) {
     if (!viewerId || !settings) return;
@@ -44,7 +46,16 @@ export default function PrivacySettings() {
   return (
     <View style={{ flex: 1, backgroundColor: palette.shell }}>
       <Header title="Privacy" left={<BackButton fallback="/settings" />} />
-      {!settings ? (
+      {failed && !settings ? (
+        <LoadFailed
+          title="Your settings didn't load"
+          reason={failed}
+          onRetry={() => {
+            setFailed(null);
+            setAttempt((count) => count + 1);
+          }}
+        />
+      ) : !settings ? (
         <ActivityIndicator style={{ marginTop: 40 }} color={palette.inkMuted} accessibilityLabel="Loading" />
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 24, paddingBottom: 48 }}>

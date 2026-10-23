@@ -27,16 +27,26 @@ const agent = new Agent({
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'", apos: "'", nbsp: " " };
 
+// A number that names no character (0, past U+10FFFF, or "&#abc;" without the
+// x) stays as written: fromCodePoint would throw, and the database refuses U+0000.
+function character(entity: string, code: number) {
+  return Number.isInteger(code) && code >= 1 && code <= 0x10ffff ? String.fromCodePoint(code) : entity;
+}
+
 function decode(value: string) {
   return value
     .replace(/&(#x?[0-9a-f]+|[a-z]+|#39);/gi, (entity, name: string) => {
-      if (name.startsWith("#x")) return String.fromCodePoint(Number.parseInt(name.slice(2), 16));
-      if (name.startsWith("#") && name !== "#39") return String.fromCodePoint(Number.parseInt(name.slice(1), 10));
+      if (name.startsWith("#x")) return character(entity, Number.parseInt(name.slice(2), 16));
+      if (name.startsWith("#") && name !== "#39") return character(entity, /^#\d+$/.test(name) ? Number.parseInt(name.slice(1), 10) : Number.NaN);
       return ENTITIES[name.toLowerCase()] ?? entity;
     })
+    .replace(/\0/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
+
+// Cut by characters, not UTF-16 units: half an emoji is text the database refuses.
+const clip = (value: string | undefined, length: number) => (value ? Array.from(value).slice(0, length).join("") : null);
 
 // A quoted value runs to its own closing quote, so "Here's" stays whole.
 const attribute = (tag: string, names: string) => {
@@ -64,10 +74,10 @@ export function parseMetadata(html: string, pageUrl: string): LinkPreview {
   const title = meta.get("og:title") ?? meta.get("twitter:title") ?? decode(html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1] ?? "");
   return {
     url: pageUrl,
-    title: title ? title.slice(0, 200) : null,
-    description: (meta.get("og:description") ?? meta.get("description") ?? meta.get("twitter:description"))?.slice(0, 300) ?? null,
+    title: clip(title, 200),
+    description: clip(meta.get("og:description") ?? meta.get("description") ?? meta.get("twitter:description"), 300),
     image: imageUrl([meta.get("og:image:secure_url"), meta.get("og:image"), meta.get("twitter:image")], pageUrl),
-    siteName: meta.get("og:site_name")?.slice(0, 80) ?? new URL(pageUrl).hostname.replace(/^www\./, ""),
+    siteName: clip(meta.get("og:site_name"), 80) ?? new URL(pageUrl).hostname.replace(/^www\./, ""),
   };
 }
 

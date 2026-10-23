@@ -6,7 +6,7 @@ import { siteLink } from "@/data/env";
 // or a profile, such as a javascript: or custom-scheme address, opens nothing.
 const SCHEMES = new Set(["http:", "https:", "mailto:"]);
 
-export function safeHref(href: string): URL | null {
+function safeHref(href: string): URL | null {
   if (!URL.canParse(href)) return null;
   const url = new URL(href);
   return SCHEMES.has(url.protocol) ? url : null;
@@ -47,7 +47,7 @@ function claimedHost(label: string) {
 
 // A label that names one site while the address goes to another is how a
 // phishing link hides. The reader sees where it really goes before it opens.
-export function labelMisleads(label: string, href: string) {
+function labelMisleads(label: string, href: string) {
   const url = safeHref(href);
   const claimed = claimedHost(label);
   return url !== null && url.protocol !== "mailto:" && claimed !== null && !sameSite(claimed, host(url));

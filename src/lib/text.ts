@@ -95,8 +95,16 @@ export function foldsInLists(body: string) {
   return foldBody(body).folded;
 }
 
-// A name's first and last initials, for an avatar without a photo.
+// A name's first and last initials, for an avatar without a photo. Whole
+// characters, so a name that starts with an emoji isn't cut in half; a flag is
+// two regional-indicator letters (🇰🇪), so it keeps both.
+const REGIONAL_INDICATOR = /^[\u{1F1E6}-\u{1F1FF}]$/u;
 export function initials(name: string) {
   const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? (parts.at(-1)?.[0] ?? "") : "")).toUpperCase() || "?";
+  const first = (part: string | undefined) => {
+    const characters = Array.from(part ?? "");
+    const [head = "", next = ""] = characters;
+    return REGIONAL_INDICATOR.test(head) && REGIONAL_INDICATOR.test(next) ? head + next : head;
+  };
+  return (first(parts[0]) + (parts.length > 1 ? first(parts.at(-1)) : "")).toUpperCase() || "?";
 }

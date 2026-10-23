@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { BadgeCheck, Bookmark, Ellipsis, EyeOff, Heart, ListTree, MessageCircle, Pin, Quote, Share } from "lucide-react-native";
-import { useState, type ReactNode } from "react";
+import { memo, useState, type ReactNode } from "react";
 import { Pressable, View } from "react-native";
 import type { Post, PostRow as Row, ThreadPlace, Tombstone } from "@/lib/domain";
 import { compact, count, fullDate, relativeTime } from "@/lib/format";
@@ -22,16 +22,20 @@ import { timeZone, useNow } from "@/util/time";
 
 // Where a row is shown. A feed row shows the newest replies under it; a reply
 // row sits in a post's conversation; an ancestor is read above the focused post.
-export type Variant = "feed" | "reply" | "ancestor";
+type Variant = "feed" | "reply" | "ancestor";
 
 const openPost = (post: { id: string }) => router.push(`/post/${post.id}`);
 const openProfile = (username: string) => router.push(`/profile/${username}`);
 export const compose = (params: { reply?: string; quote?: string }) => router.push({ pathname: "/compose", params });
 
-export function PostRow({ row, variant = "feed", previews = [], place, pinnedHere }: { row: Row; variant?: Variant; previews?: Row[]; place?: ThreadPlace; pinnedHere?: boolean }) {
+const NO_PREVIEWS: Row[] = [];
+
+// Memoised: a list re-renders its rows whenever anything about it changes, a
+// page arriving or a count, and a row builds its whole menu each time.
+export const PostRow = memo(function PostRow({ row, variant = "feed", previews = NO_PREVIEWS, place, pinnedHere }: { row: Row; variant?: Variant; previews?: Row[]; place?: ThreadPlace; pinnedHere?: boolean }) {
   if (row.kind === "tombstone") return <TombstoneRow row={row} />;
   return <LivePost post={row} variant={variant} previews={previews} place={place} pinnedHere={pinnedHere} />;
-}
+});
 
 // What a post the viewer just deleted leaves until Undo runs out.
 function DeletedHere({ post }: { post: Post }) {
@@ -46,7 +50,7 @@ function DeletedHere({ post }: { post: Post }) {
 }
 
 // A deleted post keeps its place so the replies under it still read in order.
-export function TombstoneRow({ row }: { row: Tombstone }) {
+function TombstoneRow({ row }: { row: Tombstone }) {
   const palette = usePalette();
   return (
     <View
@@ -126,7 +130,9 @@ function LivePost({ post: read, variant, previews, place, pinnedHere }: { post: 
   const deleted = usePostDeleted(post.id);
   const [menu, setMenu] = useState(false);
   const [uncovered, setUncovered] = useState(false);
-  const actions = usePostMenu(post, { pinnedHere });
+  // One for the bookmark and the menu, so the two can't send at once.
+  const save = useSaveToggle(post);
+  const actions = usePostMenu(post, save, { pinnedHere });
   if (deleted) return <DeletedHere post={post} />;
   if (variant === "ancestor" && post.authorMuted && !uncovered) return <MutedAncestor onShow={() => setUncovered(true)} />;
 
@@ -178,7 +184,7 @@ function LivePost({ post: read, variant, previews, place, pinnedHere }: { post: 
                 </Text>
               </View>
             ) : null}
-            {variant === "ancestor" ? null : <Footer post={post} onMore={() => setMenu(true)} />}
+            {variant === "ancestor" ? null : <Footer post={post} save={save} onMore={() => setMenu(true)} />}
           </View>
         </View>
       </Pressable>
@@ -342,10 +348,9 @@ function Attachments({ post, focus = false }: { post: Post; focus?: boolean }) {
 // Reply, Quote and Like each have a slot of their own, with the icon at its
 // start, and the other three are fixed 44-point buttons on the right, so a
 // count appearing never moves another icon (Bluesky's PostControls).
-function Footer({ post, focus = false, onMore }: { post: Post; focus?: boolean; onMore: () => void }) {
+function Footer({ post, save, focus = false, onMore }: { post: Post; save: () => void; focus?: boolean; onMore: () => void }) {
   const palette = usePalette();
   const own = useActsFor(post.authorId);
-  const save = useSaveToggle(post);
   const size = focus ? 20 : 18;
   const quotable = post.parentId === null && post.status === "published";
   const button = (label: string, icon: ReactNode, onPress: () => void, value?: number, selected?: boolean) => (
@@ -447,6 +452,7 @@ export function FocusedPost({ post: read, place, onLayout, onMore }: { post: Pos
   const large = useLargeText();
   const post = usePostShadow(read);
   const deleted = usePostDeleted(post.id);
+  const save = useSaveToggle(post);
   if (deleted) return <DeletedHere post={post} />;
   return (
     <View onLayout={onLayout} style={{ paddingHorizontal: 16, paddingTop: 12, gap: 12, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline }}>
@@ -474,7 +480,7 @@ export function FocusedPost({ post: read, place, onLayout, onMore }: { post: Pos
       <Text variant="meta" tone="muted">
         {fullDate(post.createdAt, timeZone)}
       </Text>
-      <Footer post={post} focus onMore={onMore} />
+      <Footer post={post} save={save} focus onMore={onMore} />
     </View>
   );
 }

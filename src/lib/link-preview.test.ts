@@ -101,3 +101,11 @@ describe("parseMetadata", () => {
     expect(parseMetadata(html, "https://example.org").image).toBeNull();
   });
 });
+
+describe("card text the database can store", () => {
+  it("cuts by whole characters and leaves impossible entities as written", () => {
+    const card = parseMetadata(`<meta property="og:title" content="${"x".repeat(199)}😀 more"><meta property="og:description" content="a&#0;b &#99999999; &#abc;">`, "https://example.com/a");
+    expect(card.title).toBe(`${"x".repeat(199)}😀`);
+    expect(card.description).toBe("a&#0;b &#99999999; &#abc;");
+  });
+});

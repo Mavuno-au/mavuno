@@ -9,7 +9,7 @@ import type { Post } from "@/lib/domain";
 import { fullDate } from "@/lib/format";
 import { findPersonalInfo, personalInfoWarning } from "@/lib/personal-info";
 import { POLL_OPTIONS } from "@/lib/post-form";
-import { allUrls, displayUrl, FOLD_HINT, foldsInLists } from "@/lib/text";
+import { allUrls, displayUrl, FOLD_HINT, foldsInLists, tokenize } from "@/lib/text";
 import { clearDraft, keepDraft, readDraft } from "@/data/drafts";
 import { createPost, loadPost, MEDIA_URL, schedulePost } from "@/data/posts";
 import { useViewer } from "@/data/session";
@@ -124,6 +124,8 @@ function Composer({ mode, initialText, placeholder }: { mode: Mode; initialText:
   const rules = useRulesGate();
   const scope = scopeOf(mode);
   const input = useRef<ComponentRef<typeof TextInput>>(null);
+  // Set before the rules sheet and the upload, which `busy` waits for, so a second tap can't post twice.
+  const sending = useRef(false);
 
   const [body, setBody] = useState(() => (viewer ? readDraft(viewer.id, scope) : "") || initialText);
   // The caret and the text as typed live in refs, so moving the caret redraws
@@ -220,8 +222,14 @@ function Composer({ mode, initialText, placeholder }: { mode: Mode; initialText:
         { text: "Edit", isPreferred: true, onPress: () => input.current?.focus() },
       ]);
     }
-    void rules.ensure().then((accepted) => {
-      if (accepted) void send();
+    if (sending.current) return;
+    sending.current = true;
+    void rules.ensure().then(async (accepted) => {
+      try {
+        if (accepted) await send();
+      } finally {
+        sending.current = false;
+      }
     });
   }
 
@@ -283,7 +291,13 @@ function Composer({ mode, initialText, placeholder }: { mode: Mode; initialText:
     const created = result.data;
     if (created.kind === "post" && created.linkUrl && !created.linkPreview && !created.quoteId) awaitCard(created.linkUrl, created.id);
     clearDraft(viewer.id, scope);
-    emitPostCreated({ id: created.id, parentId: created.parentId, quoteId: created.kind === "post" ? created.quoteId : null });
+    emitPostCreated({
+      id: created.id,
+      parentId: created.parentId,
+      quoteId: created.kind === "post" ? created.quoteId : null,
+      spaceId: post.spaceId ?? null,
+      topics: tokenize(body).flatMap((segment) => (segment.kind === "topic" ? [segment.topic] : [])),
+    });
     router.back();
     const held = created.kind === "post" && created.status === "pending";
     toast(held ? "Sent for review. A moderator will check it, usually within a day." : mode.kind === "reply" ? "Reply posted" : "Posted", {

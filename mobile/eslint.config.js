@@ -20,6 +20,8 @@ module.exports = defineConfig([
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-non-null-assertion": "error",
       "@typescript-eslint/consistent-type-imports": "error",
+      // No `as` casts; `as const` is still allowed.
+      "@typescript-eslint/consistent-type-assertions": ["error", { assertionStyle: "never" }],
       // Apostrophes in JSX text are safe; React escapes text.
       "react/no-unescaped-entities": "off",
       "no-restricted-syntax": ["error", ...HERMES_GAPS],

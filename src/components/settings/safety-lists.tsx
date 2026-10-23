@@ -9,6 +9,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import type { ProfileCard } from "@/lib/domain";
 import { relativeTime } from "@/lib/format";
+import { reach } from "@/lib/version";
 
 type Entry = { since: string; profile: ProfileCard };
 
@@ -37,7 +38,7 @@ function RelationList({ relation, entries }: { relation: keyof typeof LISTS; ent
 
   function undo(profile: ProfileCard) {
     startTransition(async () => {
-      const result = await setRelation(relation, profile.id, false);
+      const result = await reach(setRelation(relation, profile.id, false));
       if (!result.ok) return void toast.error(result.error);
       setRemoved((current) => new Set(current).add(profile.id));
       toast.success(`${copy.done} @${profile.username}`);

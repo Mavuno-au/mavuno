@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { Feed } from "@/components/post/feed";
 import { EmptyState, PageHeader } from "@/components/ui/page";
 import { loadFeed } from "@/lib/data/posts";
@@ -8,10 +9,13 @@ import { feedSourceSchema } from "@/lib/feeds";
 // A topic with only a post or two is a thin page; it's indexed once it has a few.
 const INDEXED_FROM = 3;
 
+// Cached per request, by the topic's name: the metadata and the page read the same first page.
+const loadTopic = cache((topic: string) => loadFeed({ kind: "topic", topic }));
+
 export async function generateMetadata({ params }: PageProps<"/topics/[topic]">): Promise<Metadata> {
   const topic = (await params).topic.toLowerCase();
   const parsed = feedSourceSchema.safeParse({ kind: "topic", topic });
-  const posts = parsed.success ? (await loadFeed(parsed.data)).posts.length : 0;
+  const posts = parsed.success ? (await loadTopic(topic)).posts.length : 0;
   return {
     title: `#${topic}`,
     description: `Posts about #${topic} from African Australians on Mavuno.`,
@@ -24,7 +28,7 @@ export default async function TopicPage({ params }: PageProps<"/topics/[topic]">
   const parsed = feedSourceSchema.safeParse({ kind: "topic", topic: (await params).topic.toLowerCase() });
   if (!parsed.success || parsed.data.kind !== "topic") notFound();
   const source = parsed.data;
-  const page = await loadFeed(source);
+  const page = await loadTopic(source.topic);
   return (
     <>
       <PageHeader title={`#${source.topic}`} back="/discover" />

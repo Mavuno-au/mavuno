@@ -119,7 +119,9 @@ export function MessageComposer({
         <div className="mb-2 flex items-start gap-2 rounded-lg bg-wash px-3 py-1.5 text-[13px]">
           <div className="min-w-0 flex-1">
             <p className="text-xs font-medium text-ink-muted">Replying to {replyTo.author}</p>
-            <p className="truncate">{replyTo.preview}</p>
+            <p dir="auto" className="truncate">
+              {replyTo.preview}
+            </p>
           </div>
           <button type="button" aria-label="Cancel reply" onClick={onCancelReply} className="-mr-1 rounded-md p-1 text-ink-muted hover:bg-surface hover:text-ink">
             <X className="size-4" />

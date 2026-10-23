@@ -81,11 +81,23 @@ export function ProgressBar() {
     const onClick = (event: MouseEvent) => {
       if (navigatesWithin(event)) begin();
     };
+    // Back to a #section on the same page changes nothing the bar waits for.
+    let shown = location.pathname + location.search;
+    const onPopState = () => {
+      const next = location.pathname + location.search;
+      if (next !== shown) begin();
+      shown = next;
+    };
+    const onNavigate = () => {
+      shown = location.pathname + location.search;
+    };
     document.addEventListener("click", onClick);
-    window.addEventListener("popstate", begin);
+    window.addEventListener("popstate", onPopState);
+    window.addEventListener("hashchange", onNavigate);
     return () => {
       document.removeEventListener("click", onClick);
-      window.removeEventListener("popstate", begin);
+      window.removeEventListener("popstate", onPopState);
+      window.removeEventListener("hashchange", onNavigate);
     };
   }, []);
 

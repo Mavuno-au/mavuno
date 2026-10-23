@@ -1,7 +1,7 @@
-import { timingSafeEqual } from "node:crypto";
 import { after, NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { runBackgroundTasks } from "@/lib/background-tasks";
+import { sentSecret } from "@/lib/cron-secret";
 import { allow } from "@/lib/rate-limit";
 import { serverEnv } from "@/lib/server-env";
 import { createServiceClient, type Supabase } from "@/lib/supabase/server";
@@ -13,12 +13,6 @@ const BATCH = 10;
 // Leaves room for the last batch's link fetches and moderation requests.
 const BUDGET_MS = 30_000;
 
-function authorised(header: string | null, secret: string) {
-  const expected = Buffer.from(`Bearer ${secret}`);
-  const given = Buffer.from(header ?? "");
-  return given.length === expected.length && timingSafeEqual(given, expected);
-}
-
 // Run by Vercel's daily cron (CRON_SECRET) and by the database whenever tasks
 // are due (TASKS_SECRET, see wake_background_tasks): fetches link cards and
 // runs automatic checks the request that created them didn't finish, and
@@ -27,7 +21,7 @@ export async function GET(request: NextRequest) {
   const secrets = [serverEnv.CRON_SECRET, serverEnv.TASKS_SECRET].filter((secret) => secret !== undefined);
   if (secrets.length === 0 || !createServiceClient()) return NextResponse.json({ error: "Background tasks are not configured" }, { status: 503 });
   const header = request.headers.get("authorization");
-  if (!secrets.some((secret) => authorised(header, secret))) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
+  if (!secrets.some((secret) => sentSecret(header, secret))) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
 
   const until = Date.now() + BUDGET_MS;
   let ran = 0;

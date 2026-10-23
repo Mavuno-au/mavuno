@@ -5,11 +5,12 @@ import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, View } from "re
 import { z } from "zod";
 import type { PersonSummary } from "@/lib/domain";
 import type { Conversation, Member } from "@/lib/messages";
+import { reasonOf, type Reason } from "@/data/errors";
 import { addMembers, loadConversation, removeMember, renameGroup, setRole } from "@/data/messages";
 import { useViewer } from "@/data/session";
 import { PeoplePicker } from "@/messages/people-picker";
 import { Avatar } from "@/ui/avatar";
-import { Button, Chip, EmptyState } from "@/ui/controls";
+import { Button, Chip, EmptyState, LoadFailed } from "@/ui/controls";
 import { Group, SheetHeader, TextField, ToggleRow } from "@/ui/form";
 import { BackButton, Header } from "@/ui/header";
 import { ActionSheet } from "@/ui/sheet";
@@ -28,15 +29,17 @@ export default function GroupSettings() {
   const [saving, setSaving] = useState(false);
   const [adding, setAdding] = useState(false);
   const [member, setMember] = useState<Member | null>(null);
+  const [failed, setFailed] = useState<Reason | null>(null);
 
   const read = useCallback(() => {
     if (!conversationId) return;
-    void loadConversation(conversationId)
-      .then((loaded) => {
+    void loadConversation(conversationId).then(
+      (loaded) => {
         setConversation(loaded);
         setTitle(loaded?.title ?? "");
-      })
-      .catch(() => setConversation(null));
+      },
+      (error: unknown) => setFailed(reasonOf(error)),
+    );
   }, [conversationId]);
 
   useEffect(read, [read]);
@@ -46,6 +49,21 @@ export default function GroupSettings() {
       <View style={{ flex: 1, backgroundColor: palette.surface }}>
         <Header title="Group settings" left={<BackButton />} />
         <EmptyState title="We couldn't find that group" />
+      </View>
+    );
+  }
+  if (conversation === "loading" && failed) {
+    return (
+      <View style={{ flex: 1, backgroundColor: palette.surface }}>
+        <Header title="Group settings" left={<BackButton />} />
+        <LoadFailed
+          title="This group didn't load"
+          reason={failed}
+          onRetry={() => {
+            setFailed(null);
+            read();
+          }}
+        />
       </View>
     );
   }

@@ -68,8 +68,9 @@ const TOKEN_KEY = "mavuno-push-token";
 // A token whose removal didn't reach the server (offline at sign-out), so the
 // next person on this phone doesn't get the last member's notifications.
 const PENDING_KEY = "mavuno-push-unregister";
-// When the member last chose "Not now".
-const DECLINED_KEY = "mavuno-push-declined";
+// When the member last chose "Not now". Per member: the next person to sign
+// in on this phone hasn't said no.
+const declinedKey = (viewerId: string) => `mavuno-push-declined.${viewerId}`;
 const ASK_AGAIN_AFTER = 30 * 24 * 60 * 60 * 1000;
 
 export type PushPermission = "granted" | "undetermined" | "denied";
@@ -156,23 +157,23 @@ export async function askForPush(): Promise<PushPermission> {
   return permission;
 }
 
-export function declinePush() {
-  localStorage.setItem(DECLINED_KEY, String(Date.now()));
+export function declinePush(viewerId: string) {
+  localStorage.setItem(declinedKey(viewerId), String(Date.now()));
   changed.emit();
 }
 
-const recentlyDeclined = () => Date.now() - Number(localStorage.getItem(DECLINED_KEY) ?? 0) < ASK_AGAIN_AFTER;
+const recentlyDeclined = (viewerId: string) => Date.now() - Number(localStorage.getItem(declinedKey(viewerId)) ?? 0) < ASK_AGAIN_AFTER;
 
 // Whether to show the card that asks: only where notifications would help
 // (the Notifications and Messages tabs), and not again for a month after
 // "Not now".
-export function usePushOffer() {
+export function usePushOffer(viewerId: string | null) {
   const [offer, setOffer] = useState(false);
   useEffect(() => {
     let current = true;
     const check = () =>
       void pushPermission().then((permission) => {
-        if (current) setOffer(pushAvailable && permission === "undetermined" && !recentlyDeclined());
+        if (current) setOffer(pushAvailable && viewerId !== null && permission === "undetermined" && !recentlyDeclined(viewerId));
       });
     check();
     const stop = changed.on(check);
@@ -180,7 +181,7 @@ export function usePushOffer() {
       current = false;
       stop();
     };
-  }, []);
+  }, [viewerId]);
   return offer;
 }
 
@@ -214,7 +215,7 @@ type Destination =
 const id = z.uuid();
 const username = z.string().regex(/^[a-z0-9_]{1,30}$/);
 
-export function destinationOf(path: unknown): Destination | null {
+function destinationOf(path: unknown): Destination | null {
   if (typeof path !== "string") return null;
   if (path === "/notifications") return { kind: "notifications" };
   if (path === "/settings/organisations") return { kind: "organisations" };

@@ -115,12 +115,14 @@ const quotedSchema = z.union([
       language: z.string(),
       author: profileCardSchema.nullable(),
       image: z.object({ url: z.string(), alt: z.string() }).nullable(),
+      // Someone the viewer muted: shown folded, as their own posts are left out.
+      muted: z.boolean().default(false),
     })
-    .transform((q) =>
-      q.author
-        ? { kind: "post" as const, id: q.id, body: q.body, createdAt: q.created_at, author: q.author, image: q.image }
-        : { kind: "deleted" as const, id: q.id },
-    ),
+    .transform((q) => {
+      if (!q.author) return { kind: "deleted" as const, id: q.id };
+      const shown = { id: q.id, body: q.body, createdAt: q.created_at, author: q.author, image: q.image };
+      return q.muted ? { kind: "muted" as const, post: { kind: "post" as const, ...shown } } : { kind: "post" as const, ...shown };
+    }),
 ]);
 export type QuotedPost = z.infer<typeof quotedSchema>;
 

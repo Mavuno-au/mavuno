@@ -88,6 +88,10 @@ export function feedCall(source: FeedSource, cursor: string | null): { fn: strin
   }
 }
 
+// Just what a page's cursor needs, read from every row, so a row the app can't
+// show (and drops) neither ends the feed early nor moves the cursor.
+const keyRow = z.object({ id: z.uuid(), created_at: z.string(), published_at: z.string().nullable().optional() });
+const keyRows = z.array(keyRow);
 const savedRows = z.array(z.object({ saved_at: z.string(), post: z.unknown() }));
 const score = z.union([z.number(), z.string()]).transform(String);
 const trendingRows = z.array(z.object({ trending_score: score, post: z.unknown() }).transform((row) => ({ score: row.trending_score, post: row.post })));
@@ -102,16 +106,16 @@ export function feedPage(source: FeedSource, data: unknown, parse: (rows: unknow
       const rows = savedRows.parse(data);
       const posts = parse(rows.map((row) => row.post));
       const last = rows.at(-1);
-      const lastPost = posts.at(-1);
-      return { posts, next: rows.length === PAGE_SIZE && last && lastPost ? cursorOf(last.saved_at, lastPost.id) : null };
+      const lastId = keyRow.safeParse(last?.post).data?.id;
+      return { posts, next: rows.length === PAGE_SIZE && last && lastId ? cursorOf(last.saved_at, lastId) : null };
     }
     case "trending":
     case "search": {
       const rows = (source.kind === "trending" ? trendingRows : searchRows).parse(data);
       const posts = parse(rows.map((row) => row.post));
       const last = rows.at(-1);
-      const lastPost = posts.at(-1);
-      return { posts, next: rows.length === PAGE_SIZE && last && lastPost ? cursorOf(last.score, lastPost.id) : null };
+      const lastId = keyRow.safeParse(last?.post).data?.id;
+      return { posts, next: rows.length === PAGE_SIZE && last && lastId ? cursorOf(last.score, lastId) : null };
     }
     case "following":
     case "latest":
@@ -120,9 +124,11 @@ export function feedPage(source: FeedSource, data: unknown, parse: (rows: unknow
     case "profile":
     case "local": {
       const posts = parse(data);
-      const last = posts.at(-1);
-      if (posts.length < PAGE_SIZE || !last) return { posts, next: null };
-      return { posts, next: cursorOf(source.kind === "following" || source.kind === "latest" ? feedTime(last) : last.createdAt, last.id) };
+      const keys = keyRows.parse(data);
+      const last = keys.at(-1);
+      if (keys.length < PAGE_SIZE || !last) return { posts, next: null };
+      const time = source.kind === "following" || source.kind === "latest" ? (last.published_at ?? last.created_at) : last.created_at;
+      return { posts, next: cursorOf(time, last.id) };
     }
     default: {
       const exhaustive: never = source;

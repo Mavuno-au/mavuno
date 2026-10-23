@@ -32,12 +32,14 @@ const anon = () => db.exec("reset role; select set_config('request.jwt.claim.sub
 const q = async (sql, params = []) => (await db.query(sql, params)).rows;
 const one = async (sql, params = []) => (await q(sql, params))[0];
 
+// The pattern is required: any error at all, a typo in the SQL included, would otherwise pass.
 async function fails(name, sql, params, pattern) {
+  if (!(pattern instanceof RegExp)) throw new Error(`fails("${name}") needs the error it expects`);
   try {
     await db.query(sql, params ?? []);
     check(name, false, "expected an error");
   } catch (error) {
-    check(name, pattern ? pattern.test(error.message) : true, error.message);
+    check(name, pattern.test(error.message), error.message);
   }
 }
 
@@ -183,7 +185,7 @@ check("replies count", (await one("select reply_count from public.posts where id
 check("replies record their thread", (await one("select root_id from public.posts where id = $1", [reply1])).root_id === post1);
 const quote1 = await post("The event of the year, @amara", "en", null, null, post1);
 check("quotes count", (await one("select quote_count from public.posts where id = $1", [post1])).quote_count === 1);
-await fails("a reply cannot also quote", "select public.create_post('x', 'en', null, $1, $1)", [post1]);
+await fails("a reply cannot also quote", "select public.create_post('x', 'en', null, $1, $1)", [post1], /posts_check/);
 rows = await q("select id from public.post_replies($1)", [post1]);
 check("replies and quotes are listed under the post", rows.length === 2, rows.length);
 await as(amara);
@@ -196,7 +198,14 @@ const before = (await one("select hot_score from public.posts where id = $1", [p
 await q("insert into public.likes (user_id, post_id) values ($1, $2)", [kofi, post1]);
 check("likes count", (await one("select like_count from public.posts where id = $1", [post1])).like_count === 1);
 const after = (await one("select hot_score from public.posts where id = $1", [post1])).hot_score;
-check("replies and likes raise the trending score", after > before || after > 0, { before, after });
+// Kofi has replied already and counts once, so someone new likes it to move the score.
+const liker = await createUser("trend-liker@example.com", { username: "trend_liker" });
+await as(liker);
+await q("insert into public.likes (user_id, post_id) values ($1, $2)", [liker, post1]);
+const liked = (await one("select hot_score from public.posts where id = $1", [post1])).hot_score;
+check("a like from someone new raises the trending score", liked > after && after >= before, { before, after, liked });
+await q("delete from public.likes where user_id = $1 and post_id = $2", [liker, post1]);
+await as(kofi);
 await fails("people cannot like their own posts", "insert into public.likes (user_id, post_id) values ($1, $2)", [kofi, reply1], /row-level security/);
 await as(amara);
 check("likes notify the author", (await one("select count(*)::int as n from public.notifications where type = 'like' and recipient_id = $1", [amara])).n === 1);
@@ -230,7 +239,7 @@ const poll = await post("Best jollof?", "en", null, null, null, null, null, "[]"
 await fails("polls need 2 to 4 different options", "select public.create_post('Poll', 'en', null, null, null, null, null, '[]'::jsonb, $1::jsonb)",
   [JSON.stringify({ options: ["Same", "Same"] })], /different options/);
 await fails("polls run 1 hour, 1, 3 or 7 days", "select public.create_post('Poll', 'en', null, null, null, null, null, '[]'::jsonb, $1::jsonb)",
-  [JSON.stringify({ options: ["A", "B"], duration_hours: 5 })]);
+  [JSON.stringify({ options: ["A", "B"], duration_hours: 5 })], /polls_duration_hours_check/);
 const options = await q("select id from public.poll_options where post_id = $1 order by position", [poll]);
 await fails("authors cannot vote in their own poll", "select public.vote_poll($1, $2)", [poll, options[0].id], /own poll/);
 await as(hana);
@@ -269,7 +278,7 @@ check("new-post counts power the 'new posts' control", (await one("select public
 await anon();
 rows = await q("select id, liked from public.feed_latest()");
 check("guests read the latest feed", rows.length >= 3 && rows.every((r) => r.liked === false));
-await fails("guests cannot like", "insert into public.likes (user_id, post_id) values ($1, $2)", [kofi, post1]);
+await fails("guests cannot like", "insert into public.likes (user_id, post_id) values ($1, $2)", [kofi, post1], /permission denied/);
 
 console.log("\nSaved posts");
 await as(kofi);
@@ -531,8 +540,11 @@ for (const reporter of [amara, kofi, hana]) {
   await as(reporter);
   await q("select public.report_content('post', $1, 'spam')", [spamPost]);
 }
+// Someone without standing, so the report holds nothing; the post above is held now, so it can't be the one reported twice.
+await as(mod);
+await q("select public.report_content('post', $1, 'spam')", [post1]);
+await fails("people report something once", "select public.report_content('post', $1, 'scam')", [post1], /already reported/);
 await as(hana);
-await fails("people report something once", "select public.report_content('post', $1, 'scam')", [spamPost]);
 check("posts are held after several reports", (await one("select count(*)::int as n from public.posts where id = $1", [spamPost])).n === 0);
 await as(spam);
 check("authors still see their held post", (await one("select status from public.posts where id = $1", [spamPost])).status === "pending");
@@ -2195,7 +2207,6 @@ console.log("\nRate limits");
   await q("insert into public.likes (user_id, post_id) values ($1, $2)", [liker, many[60]]);
   await superuser();
   check("the window resets after a minute", (await one("select hits from public.rate_limits where user_id = $1 and action = 'like'", [liker])).hits === 1);
-  check("reactions are limited to 60 a minute (checked above)", true);
 }
 
 console.log("\nServer errors and switches");
@@ -3013,9 +3024,22 @@ console.log("\nPush notifications");
   await as(writer);
   const original = await post("Who's coming to the Logan market on Saturday?");
   await as(fan);
-  const answer = await post("Me!   I'll bring\nthe suya", "en", null, original);
+  const unchecked = await post("Call me on 0400 000 000 or else", "en", null, original);
   let pushes = await pushesTo(phone);
-  check("a reply is pushed straight away", pushes.length === 1 && pushes[0].title === "Femi Adeyemi replied" && pushes[0].body === "Me! I'll bring the suya", pushes);
+  check("a reply from someone the automatic check covers is pushed without its words", pushes.length === 1 && pushes[0].title === "Femi Adeyemi replied" && pushes[0].body === undefined && pushes[0]?.data?.path === `/post/${unchecked}`, pushes);
+  await superuser();
+  await q("update public.posts set status = 'pending' where id = $1", [unchecked]);
+  check("nothing is pushed about a post that is held", (await one("select public.push_message(o) as m from public.push_outbox o where post_id = $1 limit 1", [unchecked])).m === null);
+  await q("delete from public.notifications where post_id = $1", [unchecked]);
+  // Moderators need no check, which stands in here for a member with a track record.
+  await q("update public.profile_settings set site_role = 'moderator' where id = $1", [fan]);
+  await clear();
+  await as(fan);
+  const answer = await post("Me!   I'll bring\nthe suya", "en", null, original);
+  await superuser();
+  await q("update public.profile_settings set site_role = 'member' where id = $1", [fan]);
+  pushes = await pushesTo(phone);
+  check("a reply is pushed straight away, with its words", pushes.length === 1 && pushes[0].title === "Femi Adeyemi replied" && pushes[0].body === "Me! I'll bring the suya", pushes);
   check("tapping it opens the reply, for that member only", pushes[0]?.data?.path === `/post/${answer}` && pushes[0]?.data?.recipient === writer, pushes[0]);
   check("it carries the unread count for the icon", pushes[0]?.badge === 1, pushes[0]);
   const request = (await sent())[0];
@@ -3181,6 +3205,38 @@ console.log("\nPush notifications");
   await q("insert into net._http_response (id, status_code, content) values ($1, 400, $2)", [mixed.id, JSON.stringify(refusal)]);
   await q("select public.settle_pushes()");
   check("a token from another app is dropped and Mavuno's are kept", (await q("select token from public.push_tokens where profile_id = $1 order by token", [writer])).map((r) => r.token).join() === [phone, spare].sort().join());
+  // Outnumbered by foreign tokens, Mavuno's own still win.
+  await as(writer);
+  for (const n of [1, 2, 3]) await q("select public.register_push_token($1)", [`ExponentPushToken[crowd-${n}]`]);
+  await clear();
+  await as(third);
+  await post("Once more @push_writer");
+  await superuser();
+  const crowded = await one("select id from public.push_requests where kind = 'send' order by created_at desc, id desc limit 1");
+  const outnumbered = { errors: [{ code: "PUSH_TOO_MANY_EXPERIENCE_IDS", message: "Mixed projects", details: { "@mavuno/mavuno": [phone], "@someone/else": [1, 2, 3].map((n) => `ExponentPushToken[crowd-${n}]`) } }] };
+  await q("insert into net._http_response (id, status_code, content) values ($1, 400, $2)", [crowded.id, JSON.stringify(outnumbered)]);
+  await q("select public.settle_pushes()");
+  check("Mavuno's tokens are kept even when outnumbered", (await q("select token from public.push_tokens where profile_id = $1", [writer])).some((r) => r.token === phone));
+  check("and the others are refused", (await one("select count(*)::int as n from public.push_tokens_refused where token like 'ExponentPushToken[crowd-%'")).n === 3);
+  check("a refused batch shows on Health", (await one("select count(*)::int as n from public.server_errors where route = 'pg_net push send' and digest = 'push-PUSH_TOO_MANY_EXPERIENCE_IDS'")).n === 1);
+  await as(writer);
+  await fails("a token Expo refused can't be registered again", "select public.register_push_token('ExponentPushToken[foreign-phone]')", [], /can't get notifications/);
+  await superuser();
+  await q("delete from public.rate_limits where user_id = $1 and action = 'push_token'", [writer]);
+  await as(writer);
+  for (let i = 0; i < 25; i++) await q("select public.register_push_token($1)", [phone]);
+  await superuser();
+  check("registering the same phone again doesn't count towards the limit", (await q("select 1 from public.rate_limits where user_id = $1 and action = 'push_token'", [writer])).length === 0);
+  await as(writer);
+  for (let i = 0; i < 20; i++) await q("select public.register_push_token($1)", [`ExponentPushToken[many-${i}]`]);
+  await fails("new phones are limited to 20 a day", "select public.register_push_token('ExponentPushToken[many-20]')", [], /Too many phones/);
+  await q("select public.unregister_my_push_tokens()");
+  await superuser();
+  check("signing out everywhere removes every phone", (await one("select count(*)::int as n from public.push_tokens where profile_id = $1", [writer])).n === 0);
+  await q("delete from public.rate_limits where user_id = $1 and action = 'push_token'", [writer]);
+  await as(writer);
+  await q("select public.register_push_token($1)", [phone]);
+  await q("select public.register_push_token($1)", [spare]);
 
   // Signing out and deleting.
   await as(fan);
@@ -3201,6 +3257,232 @@ console.log("\nPush notifications");
   await superuser();
   await q("delete from auth.users where id = $1", [fan]);
   check("deleting the account deletes its phones", (await one("select count(*)::int as n from public.push_tokens where token = 'ExponentPushToken[fan-phone]'")).n === 0);
+}
+
+console.log("\nFull review: events, teams, media and deactivated profiles");
+{
+  const host = await createUser("rv-host@example.com", { username: "rv_host", display_name: "Abena Owusu" });
+  const goer = await createUser("rv-goer@example.com", { username: "rv_goer", display_name: "Kwame Asante" });
+  const stranger = await createUser("rv-stranger@example.com", { username: "rv_stranger" });
+  const blocker = await createUser("rv-blocker@example.com", { username: "rv_blocker" });
+  await as(host);
+  const meet = (await one(
+    "insert into public.events (host_id, created_by, title, starts_at, format, online_url) values ($1, $1, 'Online prayer', now() + interval '2 days', 'online', 'https://meet.example/secret') returning id",
+    [host],
+  )).id;
+  await superuser();
+  await q("update public.events set status = 'published' where id = $1", [meet]);
+  await as(goer);
+  await q("insert into public.event_rsvps (event_id, user_id, status) values ($1, $2, 'going')", [meet, goer]);
+
+  await anon();
+  await fails("guests can't read RSVPs", "select * from public.event_rsvps", [], /permission denied/);
+  await fails("guests can't read an event's online link", "select online_url from public.events where id = $1", [meet], /permission denied/);
+  check("guests still read the rest of the event", (await one("select title from public.events where id = $1", [meet]))?.title === "Online prayer");
+  await as(stranger);
+  check("members don't see other people's RSVPs", (await q("select * from public.event_rsvps where user_id = $1", [goer])).length === 0);
+  check("the online link isn't for people who aren't going", (await one("select public.event_online_url($1) as url", [meet])).url === null);
+  check("members see who is going through event_attendees", (await q("select username from public.event_attendees($1)", [meet])).some((r) => r.username === "rv_goer"));
+  await as(goer);
+  check("people going get the online link", (await one("select public.event_online_url($1) as url", [meet])).url === "https://meet.example/secret");
+  check("people see their own RSVP", (await q("select status from public.event_rsvps where event_id = $1 and user_id = $2", [meet, goer])).length === 1);
+  await as(host);
+  check("the host gets the online link", (await one("select public.event_online_url($1) as url", [meet])).url === "https://meet.example/secret");
+  check("the host sees the RSVPs", (await q("select user_id from public.event_rsvps where event_id = $1", [meet])).length === 1);
+
+  await as(blocker);
+  await q("insert into public.blocks (blocker_id, blocked_id) values ($1, $2)", [blocker, goer]);
+  check("the going list leaves out people the viewer blocked", !(await q("select username from public.event_attendees($1)", [meet])).some((r) => r.username === "rv_goer"));
+  await q("insert into public.blocks (blocker_id, blocked_id) values ($1, $2)", [blocker, host]);
+  check("events from someone the viewer blocked leave their lists", (await q("select id from public.events where id = $1", [meet])).length === 0);
+  await as(host);
+  check("and the host doesn't see the blocker's", (await q("select id from public.events where host_id = $1", [blocker])).length === 0);
+
+  await as(host);
+  const org = (await one("select public.create_organisation('rv_org', 'Review Org') as id")).id;
+  await q("insert into public.organisation_members (org_id, user_id, role) values ($1, $2, 'editor')", [org, stranger]);
+  await anon();
+  check("an invitation nobody accepted isn't public", !(await q("select user_id from public.organisation_members where org_id = $1", [org])).some((r) => r.user_id === stranger));
+  await as(stranger);
+  check("the invited person sees their invitation", (await q("select user_id from public.organisation_members where org_id = $1 and user_id = $2", [org, stranger])).length === 1);
+  await as(host);
+  check("the team's managers see it", (await q("select user_id from public.organisation_members where org_id = $1 and user_id = $2", [org, stranger])).length === 1);
+
+  await superuser();
+  await q("insert into storage.objects (bucket_id, name) values ('media', $1)", [`${host}/posts/held.webp`]);
+  await anon();
+  check("guests can't list the media bucket", (await q("select name from storage.objects where bucket_id = 'media'")).length === 0);
+  await as(stranger);
+  check("members can't list other people's files", (await q("select name from storage.objects where bucket_id = 'media' and name like $1", [`${host}/%`])).length === 0);
+  await as(host);
+  check("people list their own files", (await q("select name from storage.objects where bucket_id = 'media' and name like $1", [`${host}/%`])).length === 1);
+
+  await superuser();
+  await q("update public.profile_settings set age_deactivated_at = now() where id = $1", [stranger]);
+  await anon();
+  check("a profile deactivated as under 16 is hidden from guests", (await one("select public.profile_hidden($1) as hidden", [stranger])).hidden === true);
+  await as(stranger);
+  check("but not from its owner", (await one("select public.profile_hidden($1) as hidden", [stranger])).hidden === false);
+  await as(goer);
+  check("other profiles aren't hidden", (await one("select public.profile_hidden($1) as hidden", [host])).hidden === false);
+}
+
+console.log("\nFull review: blocks in groups, declined requests, channels and removed messages");
+{
+  const user = (name) => createUser(`${name}@example.com`, { username: name, display_name: name });
+  const ama = await user("rm_ama");
+  const kojo = await user("rm_kojo");
+  const efua = await user("rm_efua");
+  for (const [who, whom] of [[kojo, ama], [efua, ama], [ama, kojo], [ama, efua], [kojo, efua], [efua, kojo]]) {
+    await as(who);
+    await q("insert into public.follows (follower_id, followee_id) values ($1, $2)", [who, whom]);
+  }
+  await as(ama);
+  const crew = (await one("select public.create_group_conversation('Crew', $1::uuid[]) as id", [`{${kojo},${efua}}`])).id;
+  await as(kojo);
+  await q("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Before the block')", [crew, kojo]);
+  await as(ama);
+  await q("insert into public.blocks (blocker_id, blocked_id) values ($1, $2)", [ama, kojo]);
+  await as(kojo);
+  await q("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'After the block')", [crew, kojo]);
+  await as(ama);
+  check("someone blocked after joining a group is out of the blocker's view of it", (await q("select body from public.messages where conversation_id = $1", [crew])).length === 0);
+  check("and out of the group's last message", (await one("select last_message from public.conversation_list where id = $1", [crew])).last_message === null);
+  await as(efua);
+  check("the rest of the group still reads them", (await q("select body from public.messages where conversation_id = $1", [crew])).length === 2);
+
+  await as(efua);
+  const direct = (await one("select public.start_direct_conversation($1) as id", [kojo])).id;
+  await superuser();
+  await q("update public.conversation_participants set status = 'pending' where conversation_id = $1 and user_id = $2", [direct, kojo]);
+  await as(efua);
+  await q("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'A request')", [direct, efua]);
+  // The embedded clock ticks in milliseconds; reopening in the same tick would show the request too.
+  await superuser();
+  await q("update public.messages set created_at = created_at - interval '1 second' where conversation_id = $1", [direct]);
+  await as(kojo);
+  await q("select public.respond_to_message_request($1, false)", [direct]);
+  check("a declined request leaves the inbox", (await q("select 1 from public.conversation_list where id = $1", [direct])).length === 0);
+  check("opening it again returns the same conversation", (await one("select public.start_direct_conversation($1) as id", [efua])).id === direct);
+  await q("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Changed my mind')", [direct, kojo]);
+  check("whoever declined can write once they open it again", (await q("select body from public.messages where conversation_id = $1", [direct])).map((r) => r.body).join() === "Changed my mind");
+  check("and it is back in their inbox", (await q("select 1 from public.conversation_list where id = $1", [direct])).length === 1);
+
+  await as(ama);
+  const pair = (await one("select public.start_direct_conversation($1) as id", [efua])).id;
+  await as(efua);
+  check("participants join their conversation's channel", (await one("select public.realtime_topic_allowed($1, 'broadcast', true) as ok", [`conversation:${pair}`])).ok === true);
+  await q("insert into public.blocks (blocker_id, blocked_id) values ($1, $2)", [efua, ama]);
+  await as(ama);
+  check("a blocked person can't listen on the channel", (await one("select public.realtime_topic_allowed($1, 'broadcast', false) as ok", [`conversation:${pair}`])).ok === false);
+  check("or send on it", (await one("select public.realtime_topic_allowed($1, 'broadcast', true) as ok", [`conversation:${pair}`])).ok === false);
+
+  await as(efua);
+  const linked = (await one("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Win a prize at https://scam.example/win') returning id", [crew, efua])).id;
+  await superuser();
+  await q("update public.messages set link_preview = '{\"url\":\"https://scam.example/win\",\"title\":\"Prize\"}' where id = $1", [linked]);
+  await q("update public.messages set removed_at = now(), body = '', image_paths = '{}' where id = $1", [linked]);
+  row = await one("select link_url, link_preview from public.messages where id = $1", [linked]);
+  check("a removed message keeps no link or card", row.link_url === null && row.link_preview === null, row);
+}
+
+console.log("\nFull review: links, moderation, erased accounts, muted quotes, teams and reports");
+{
+  const user = (name, meta) => createUser(`${name}@example.com`, { username: name, display_name: name, ...meta });
+  const sena = await user("rc_sena");
+  const yaw = await user("rc_yaw");
+  const nia = await user("rc_nia");
+
+  await as(sena);
+  const capital = await post("Https://example.com/news is worth a read", "en", null, null, null, null, "Https://example.com/news");
+  check("a link typed with a capital letter posts", (await one("select link_url from public.posts where id = $1", [capital])).link_url === "Https://example.com/news");
+  const dm = (await one("select public.start_direct_conversation($1) as id", [yaw])).id;
+  await q("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Https://example.com/chat')", [dm, sena]);
+  check("and sends in a message", (await one("select link_url from public.messages where conversation_id = $1", [dm])).link_url === "Https://example.com/chat");
+
+  const parent = await post("Who is coming to the meeting?");
+  await as(yaw);
+  const reply = await post("Me, and my cousin", "en", null, parent);
+  await as(nia);
+  await q("select public.report_content('post', $1, 'spam')", [reply]);
+  await as(yaw);
+  await q("select public.delete_post($1)", [reply]);
+  await superuser();
+  check("deleting a reply counts it out once", (await one("select reply_count from public.posts where id = $1", [parent])).reply_count === 0);
+  await as(mod);
+  await q("select public.moderate_content('post', $1, false, 'Spam', 'honesty')", [reply]);
+  await superuser();
+  check("a moderator removing it afterwards doesn't count it out again", (await one("select reply_count from public.posts where id = $1", [parent])).reply_count === 0);
+  check("or tell the author it was removed", (await one("select count(*)::int as n from public.notifications where recipient_id = $1 and type = 'moderation'", [yaw])).n === 0);
+  check("and its report is closed", (await one("select status from public.reports where target_id = $1", [reply])).status === "actioned");
+
+  await as(sena);
+  const twice = await post("Buy followers here");
+  await as(mod);
+  await q("select public.moderate_content('post', $1, false, 'Spam', 'honesty')", [twice]);
+  await q("select public.moderate_content('post', $1, false, 'Spam', 'honesty')", [twice]);
+  await superuser();
+  check("removing the same post twice notifies once", (await one("select count(*)::int as n from public.notifications where recipient_id = $1 and type = 'moderation' and post_id = $2", [sena, twice])).n === 1);
+  check("and logs once", (await one("select count(*)::int as n from public.moderation_actions where target_id = $1", [twice])).n === 1);
+
+  // Reported a moment ago, so its author's new posts wait for a moderator; someone else replies here.
+  const kwesi = await user("rc_kwesi");
+  await as(nia);
+  const answered = await post("Where is the best suya in Brisbane?");
+  await as(kwesi);
+  await post("Try the market on Saturday", "en", null, answered);
+  await superuser();
+  check("before the account goes the reply counts", (await one("select reply_count from public.posts where id = $1", [answered])).reply_count === 1);
+  await q("delete from auth.users where id = $1", [kwesi]);
+  check("deleting an account counts its replies out", (await one("select reply_count from public.posts where id = $1", [answered])).reply_count === 0);
+
+  await as(sena);
+  const quotedPost = await post("A post that gets quoted");
+  await as(nia);
+  const quoting = await post("Look at this", "en", null, null, quotedPost);
+  await q("insert into public.mutes (muter_id, muted_id) values ($1, $2)", [nia, sena]);
+  row = await one("select quoted from public.post_details where id = $1", [quoting]);
+  check("a quote of someone the viewer muted says so", row.quoted.muted === true, row.quoted);
+  await as(mod);
+  row = await one("select quoted from public.post_details where id = $1", [quoting]);
+  check("and not for anyone else", row.quoted.muted === false, row.quoted);
+
+  await as(sena);
+  const org = (await one("select public.create_organisation('rc_org', 'RC Org') as id")).id;
+  await q("insert into public.organisation_members (org_id, user_id, role) values ($1, $2, 'editor')", [org, nia]);
+  await fails("an invitation nobody accepted can't be made an owner", "select public.set_organisation_role($1, $2, 'owner')", [org, nia], /accept the invitation/);
+  await superuser();
+  await q("update public.profile_settings set suspended_until = now() + interval '1 day' where id = $1", [sena]);
+  await as(sena);
+  await fails("a suspended owner can't change roles", "select public.set_organisation_role($1, $2, 'admin')", [org, nia], /Only owners/);
+  await fails("or pin posts", "select public.pin_post($1)", [quotedPost], /right now/);
+  await superuser();
+  await q("update public.profile_settings set suspended_until = null where id = $1", [sena]);
+
+  // Deactivated as under 16, then banned, then reinstated, then the ban lifted: the age-hidden post comes back.
+  const banTwice = await user("rc_twice");
+  await as(banTwice);
+  const hiddenTwice = await post("Hidden by the age review");
+  await as(mod);
+  await q("select public.moderate_deactivate_under_16($1, 'report')", [banTwice]);
+  await q("select public.moderate_ban($1, 'Scams', 'honesty')", [banTwice]);
+  await q("select public.moderate_reinstate_age($1, 'document')", [banTwice]);
+  await superuser();
+  check("a ban outlasts an age reinstatement", (await one("select status from public.posts where id = $1", [hiddenTwice])).status === "rejected");
+  const liftsBans = await user("rc_admin");
+  await q("update public.profile_settings set site_role = 'admin' where id = $1", [liftsBans]);
+  await as(liftsBans);
+  await q("select public.moderate_lift_suspension($1, 'Appeal upheld')", [banTwice]);
+  await superuser();
+  check("and lifting the ban brings back what the age review hid", (await one("select status from public.posts where id = $1", [hiddenTwice])).status === "published");
+  await as(nia);
+  await q("select public.report_content('post', $1, 'harassment', 'Him again, from my work')", [quotedPost]);
+  row = await one("select public.export_my_data() -> 'reports_filed' as reports");
+  check("the export lists reports the person filed", row.reports.length === 2 && row.reports.some((r) => r.details === "Him again, from my work"), row.reports);
+  await superuser();
+  await q("delete from auth.users where id = $1", [nia]);
+  row = await one("select details, contact, reason from public.reports where target_id = $1", [quotedPost]);
+  check("deleting the account erases what the reporter wrote", row.details === null && row.contact === null && row.reason === "harassment", row);
 }
 
 console.log("\nDemo seed");

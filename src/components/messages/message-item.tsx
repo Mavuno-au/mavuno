@@ -5,6 +5,7 @@ import { ImageGrid, LinkCard } from "@/components/post/attachments";
 import { RichText } from "@/components/post/rich-text";
 import { QuickReactions, ReactionsBar } from "@/components/messages/reactions-bar";
 import { Avatar } from "@/components/ui/avatar";
+import { useTimeZone } from "@/components/ui/local-time";
 import { Menu } from "@/components/ui/menu";
 import type { Message, ReplyQuote } from "@/lib/data/messages";
 import { cn } from "@/lib/cn";
@@ -12,8 +13,10 @@ import { cn } from "@/lib/cn";
 export type Placement = { first: boolean; last: boolean; avatarColumn: boolean; showSender: boolean; showAvatar: boolean };
 export type MessageActions = { onActivate: () => void; onReact: (emoji: string) => void; onReply: () => void; onReport: (() => void) | null };
 
-function messageTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" });
+// In the reader's zone: rendered on the server, the page has no zone of its own.
+function MessageTime({ iso }: { iso: string }) {
+  const timeZone = useTimeZone();
+  return <time dateTime={iso}>{new Date(iso).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", timeZone })}</time>;
 }
 
 export function snippet(content: ReplyQuote["content"]) {
@@ -69,7 +72,9 @@ export function MessageItem({
         {replyTo ? (
           <button type="button" onClick={() => onJump(replyTo.id)} className="max-w-full rounded-xl border border-hairline px-3 py-1.5 text-left text-[13px] leading-snug text-ink-muted hover:bg-wash">
             <span className="block text-xs font-medium">Replying to {replyAuthor}</span>
-            <span className="line-clamp-2 wrap-anywhere">{snippet(replyTo.content)}</span>
+            <span dir="auto" className="line-clamp-2 wrap-anywhere">
+              {snippet(replyTo.content)}
+            </span>
           </button>
         ) : null}
 
@@ -115,9 +120,7 @@ export function MessageItem({
 
         {placement.last || seen ? (
           <p className="px-1 font-mono text-[11px] text-ink-muted">
-            <time dateTime={message.createdAt} suppressHydrationWarning>
-              {messageTime(message.createdAt)}
-            </time>
+            <MessageTime iso={message.createdAt} />
             {seen ? ` · ${seen}` : null}
           </p>
         ) : null}

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useViewer } from "@/components/shell/viewer-context";
 import { cn } from "@/lib/cn";
 import { joinPath } from "@/lib/safe-redirect";
+import { reach } from "@/lib/version";
 
 // After following, the button keeps saying "Following" until the pointer
 // leaves, so a second click never unfollows by accident.
@@ -27,7 +28,7 @@ export function FollowButton({ profileId, following: initial, followsYou = false
     setFollowing(next);
     setArmed(false);
     startTransition(async () => {
-      const result = await setRelation("follow", profileId, next);
+      const result = await reach(setRelation("follow", profileId, next));
       if (!result.ok) {
         setFollowing(!next);
         toast.error(result.error);

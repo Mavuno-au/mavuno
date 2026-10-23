@@ -33,7 +33,7 @@ export async function loadProfile(username: string, viewerId: string): Promise<P
   const profile = profileRowSchema.parse(data);
   if (profile.id === viewerId) return { kind: "profile", profile, relationship: { self: true, following: false, followsYou: false, muted: false, canMessage: false, invite: null } };
 
-  const [following, followsYou, muted, blockedByViewer, blockedEitherWay, canMessage, invites] = await Promise.all([
+  const [following, followsYou, muted, blockedByViewer, blockedEitherWay, canMessage, invites, hidden] = await Promise.all([
     supabase.from("follows").select("follower_id").match({ follower_id: viewerId, followee_id: profile.id }).maybeSingle(),
     supabase.from("follows").select("follower_id").match({ follower_id: profile.id, followee_id: viewerId }).maybeSingle(),
     supabase.from("mutes").select("muter_id").match({ muter_id: viewerId, muted_id: profile.id }).maybeSingle(),
@@ -41,8 +41,15 @@ export async function loadProfile(username: string, viewerId: string): Promise<P
     supabase.rpc("is_blocked_with_viewer", { p_profile_id: profile.id }),
     supabase.rpc("can_message", { p_user_id: profile.id }),
     supabase.from("invites").select("member_id, invited_by").or(`member_id.eq.${profile.id},invited_by.eq.${profile.id}`),
+    // Deactivated as under 16: gone from view, as on the website.
+    supabase.rpc("profile_hidden", { p_profile_id: profile.id }),
   ]);
-  if (blockedEitherWay.error) throw requestError("Profile", blockedEitherWay.error);
+  // A failed read can't stand for "no": a follow read as missing offers Follow
+  // to someone already followed, and the count would move from the wrong base.
+  for (const read of [following, followsYou, muted, blockedByViewer, blockedEitherWay, canMessage, invites, hidden]) {
+    if (read.error) throw requestError("Profile", read.error);
+  }
+  if (hidden.data === true) return { kind: "missing" };
   if (blockedEitherWay.data === true) return { kind: "unavailable", id: profile.id, username: profile.username, blockedByViewer: Boolean(blockedByViewer.data) };
 
   const between = inviteRows.catch([]).parse(invites.data ?? []);
@@ -72,11 +79,12 @@ export type TeamMember = { id: string; username: string; displayName: string; av
 
 // An organisation's team, owners first as the database lists them.
 export async function loadTeam(orgId: string): Promise<TeamMember[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("organisation_members")
     .select("role, accepted_at, person:profiles!organisation_members_user_id_fkey(id, username, display_name, avatar_url, colour:effective_colour)")
     .eq("org_id", orgId)
     .order("created_at");
+  if (error) throw requestError("Team", error);
   return teamRows
     .catch([])
     .parse(data ?? [])
@@ -98,8 +106,16 @@ export async function loadFollowersYouKnow(profileId: string): Promise<Followers
 export type Direction = "followers" | "following";
 const CONNECTIONS_PAGE = 30;
 
+// "<follow time>:<person id>", checked as the website's connectionCursor
+// (src/lib/data/profiles.ts, a server-only file) checks it.
+const connectionCursor = z
+  .string()
+  .regex(/^.+:[0-9a-f-]{36}$/)
+  .transform((cursor) => ({ before: cursor.slice(0, -37), beforeId: cursor.slice(-36) }))
+  .pipe(z.object({ before: z.iso.datetime({ offset: true }), beforeId: z.uuid() }));
+
 export async function loadConnections(profileId: string, direction: Direction, cursor: string | null): Promise<{ items: PersonSummary[]; next: string | null }> {
-  const after = cursor ? { before: cursor.slice(0, -37), beforeId: cursor.slice(-36) } : null;
+  const after = cursor ? connectionCursor.parse(cursor) : null;
   const { data, error } = await supabase.rpc("profile_connections", { p_profile_id: profileId, p_direction: direction, p_before: after?.before ?? null, p_before_id: after?.beforeId ?? null, p_limit: CONNECTIONS_PAGE });
   if (error) throw requestError("Connections", error);
   const rows = z.array(z.object({ followed_at: z.string() })).parse(data ?? []);
@@ -154,17 +170,14 @@ export async function checkUsername(username: string): Promise<Result<{ availabl
 
 const mediaPath = (url: string | null) => (url?.startsWith(MEDIA_URL) ? url.slice(MEDIA_URL.length) : null);
 
-// The website's setProfileImage: point the profile at the new file, then
-// remove the one it replaced.
+// The website's setProfileImage: point the profile at the new file. The
+// database queues the one it replaced for erasure, only if it changed.
 export async function setProfileImage(profileId: string, kind: "avatar" | "banner", url: string | null): Promise<Result> {
   if (url && !mediaPath(url)) return fail("That image can't be used.");
   const column = kind === "avatar" ? "avatar_url" : "banner_url";
-  const { data: before } = await supabase.from("profiles").select(`url:${column}`).eq("id", profileId).maybeSingle();
   const { data, error } = await supabase.from("profiles").update({ [column]: url }).eq("id", profileId).select("id");
   if (error) return failFrom(error);
   if (!data.length) return fail("You can't edit this profile.");
-  const previous = mediaPath(z.object({ url: z.string().nullable() }).catch({ url: null }).parse(before).url);
-  if (previous && previous !== mediaPath(url)) await supabase.storage.from("media").remove([previous]);
   return done;
 }
 

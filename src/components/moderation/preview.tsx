@@ -17,7 +17,11 @@ function ParentLine({ parent }: { parent: ParentContext }) {
       return (
         <p className="mt-2 line-clamp-2 font-mono text-xs text-ink-muted">
           ↳ replying to @{parent.username}
-          {parent.excerpt ? `: ${parent.excerpt}` : null}
+          {parent.excerpt ? (
+            <>
+              : <bdi>{parent.excerpt}</bdi>
+            </>
+          ) : null}
         </p>
       );
     case "gone":
@@ -144,7 +148,11 @@ export function SubjectPreview({ subject }: { subject: ReviewSubject }) {
     case "opportunity":
       return <OpportunityPreview opportunity={subject.opportunity} />;
     case "text":
-      return <p className={`mt-3 break-words whitespace-pre-wrap ${BODY}`}>{subject.content}</p>;
+      return (
+        <p dir="auto" className={`mt-3 break-words whitespace-pre-wrap ${BODY}`}>
+          {subject.content}
+        </p>
+      );
     default: {
       const exhaustive: never = subject;
       return exhaustive;

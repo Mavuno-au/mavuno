@@ -37,7 +37,7 @@ async function shrink(image: PickedImage) {
 }
 
 const uploaded = z.object({ path: z.string(), width: z.number().int().positive(), height: z.number().int().positive() });
-export type Uploaded = z.infer<typeof uploaded>;
+type Uploaded = z.infer<typeof uploaded>;
 
 export type Destination =
   | { bucket: "media"; folder: "posts" | "events" | "banners" | "avatars"; ownerId: string }

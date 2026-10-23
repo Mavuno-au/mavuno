@@ -68,7 +68,8 @@ const reviewEventRow = z
     timezone: z.string(),
     venue_name: z.string().nullable(),
     address: z.string().nullable(),
-    online_url: z.string().nullable(),
+    // Read through event_online_url, which moderators may call.
+    online_url: z.string().nullable().default(null),
     ticket_url: z.string().nullable(),
     cover_url: z.string().nullable(),
     is_free: z.boolean(),
@@ -122,16 +123,23 @@ const reviewOpportunityRow = z
   }));
 export type ReviewOpportunity = z.infer<typeof reviewOpportunityRow>;
 
-const EVENT_COLUMNS = "id, title, description, category, format, starts_at, ends_at, timezone, venue_name, address, online_url, ticket_url, cover_url, is_free, capacity, city:cities(name)";
+const EVENT_COLUMNS = "id, title, description, category, format, starts_at, ends_at, timezone, venue_name, address, ticket_url, cover_url, is_free, capacity, city:cities(name)";
 const OPPORTUNITY_COLUMNS = "id, type, title, organisation_name, description, is_remote, location_text, apply_url, apply_email, deadline_at, compensation, city:cities(name)";
 
 async function loadListings(supabase: Supabase, eventIds: string[], opportunityIds: string[]) {
-  const [events, opportunities] = await Promise.all([
+  const [events, opportunities, links] = await Promise.all([
     eventIds.length > 0 ? supabase.from("events").select(EVENT_COLUMNS).in("id", eventIds) : null,
     opportunityIds.length > 0 ? supabase.from("opportunities").select(OPPORTUNITY_COLUMNS).in("id", opportunityIds) : null,
+    Promise.all(eventIds.map(async (eventId) => [eventId, z.string().nullable().catch(null).parse((await supabase.rpc("event_online_url", { p_event_id: eventId })).data)] as const)),
   ]);
+  const onlineUrls = new Map(links);
   return {
-    events: new Map(z.array(reviewEventRow).parse(events?.data ?? []).map((event) => [event.id, event])),
+    events: new Map(
+      z
+        .array(reviewEventRow)
+        .parse(events?.data ?? [])
+        .map((event) => [event.id, { ...event, onlineUrl: onlineUrls.get(event.id) ?? null }]),
+    ),
     opportunities: new Map(z.array(reviewOpportunityRow).parse(opportunities?.data ?? []).map((opportunity) => [opportunity.id, opportunity])),
   };
 }

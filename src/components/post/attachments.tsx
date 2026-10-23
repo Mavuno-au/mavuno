@@ -197,7 +197,11 @@ export function LinkCard({ url, preview: stored }: { url: string; preview: LinkP
         </div>
       ) : null}
       <div className="grid gap-0.5 px-3 py-2.5">
-        <span className="font-mono text-xs text-ink-muted">{embed ? `${embed.provider} · play here` : (preview?.siteName ?? displayUrl(url))}</span>
+        <span className="flex items-center gap-1.5 font-mono text-xs text-ink-muted">
+          {/* Video sites often send no picture to servers, and then this is the only sign it plays here. */}
+          {embed && !preview?.image ? <Play className="size-3.5 fill-current" aria-hidden /> : null}
+          {embed ? `${embed.provider} · play here` : (preview?.siteName ?? displayUrl(url))}
+        </span>
         {preview?.title ? <span className="line-clamp-2 text-[15px] font-medium">{preview.title}</span> : null}
         {preview?.description ? <span className="line-clamp-2 text-sm text-ink-muted">{preview.description}</span> : null}
       </div>
@@ -206,6 +210,25 @@ export function LinkCard({ url, preview: stored }: { url: string; preview: LinkP
 }
 
 export function QuotedBlock({ quoted }: { quoted: QuotedPost }) {
+  const [shown, setShown] = useState(false);
+  if (quoted.kind === "muted") {
+    if (shown) return <QuotedBlock quoted={quoted.post} />;
+    return (
+      <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-dashed border-rail px-3 py-2.5 text-sm text-ink-muted">
+        <span>Post by someone you muted.</span>
+        <button
+          type="button"
+          onClick={(event) => {
+            stop(event);
+            setShown(true);
+          }}
+          className="font-medium text-primary hover:underline"
+        >
+          Show
+        </button>
+      </div>
+    );
+  }
   if (quoted.kind !== "post") {
     return (
       <div className="mt-3 rounded-lg border border-dashed border-rail px-3 py-2.5 text-sm text-ink-muted">

@@ -1,6 +1,6 @@
-import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { sentSecret } from "@/lib/cron-secret";
 import { serverEnv } from "@/lib/server-env";
 import { createServiceClient } from "@/lib/supabase/server";
 
@@ -10,12 +10,6 @@ const MAX_BATCHES = 20;
 export const maxDuration = 60;
 
 const cleanupRows = z.array(z.object({ bucket: z.string(), path: z.string() }));
-
-function authorised(header: string | null, secret: string) {
-  const given = Buffer.from(header ?? "");
-  const expected = Buffer.from(`Bearer ${secret}`);
-  return given.length === expected.length && timingSafeEqual(given, expected);
-}
 
 type Service = NonNullable<ReturnType<typeof createServiceClient>>;
 
@@ -80,13 +74,13 @@ async function maintain() {
 // Vercel's cron (vercel.json) sends a GET with CRON_SECRET.
 export async function GET(request: Request) {
   if (!serverEnv.CRON_SECRET) return NextResponse.json({ error: "Maintenance is not configured" }, { status: 503 });
-  if (!authorised(request.headers.get("authorization"), serverEnv.CRON_SECRET)) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
+  if (!sentSecret(request.headers.get("authorization"), serverEnv.CRON_SECRET)) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
   return maintain();
 }
 
 // For any other scheduler, with MAINTENANCE_SECRET.
 export async function POST(request: Request) {
   if (!serverEnv.MAINTENANCE_SECRET) return NextResponse.json({ error: "Maintenance is not configured" }, { status: 503 });
-  if (!authorised(request.headers.get("authorization"), serverEnv.MAINTENANCE_SECRET)) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
+  if (!sentSecret(request.headers.get("authorization"), serverEnv.MAINTENANCE_SECRET)) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
   return maintain();
 }

@@ -54,3 +54,9 @@ describe("personalInfoWarning", () => {
     expect(personalInfoWarning(findPersonalInfo("a@b.com 0412 345 678 BSB 062-000"))).toBe("Anyone can see this. Remove your email address, phone number and bank details?");
   });
 });
+
+describe("international phone numbers", () => {
+  it.each(["Call my mum on +254 712 345 678", "WhatsApp +234 803 123 4567", "Ring 0061 412 345 678", "Try +251 91 123 4567"])("finds %s", (body) => {
+    expect(findPersonalInfo(body).map((found) => found.kind)).toContain("phone");
+  });
+});

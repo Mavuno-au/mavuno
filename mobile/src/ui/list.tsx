@@ -77,7 +77,8 @@ export function PagedList<Item extends { id: string }>({
           )
         ) : undefined
       }
-      onEndReached={list.loadMore}
+      // A failed page waits for Try again: the footer changes height when it fails, which would fire this again at once.
+      onEndReached={ready?.more === "failed" ? undefined : list.loadMore}
       onEndReachedThreshold={1.5}
       refreshControl={ready ? <RefreshControl {...pull} tintColor={palette.inkMuted} /> : undefined}
       contentContainerStyle={{ flexGrow: 1, paddingLeft: insets.left, paddingRight: insets.right }}

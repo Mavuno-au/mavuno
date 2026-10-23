@@ -1,12 +1,14 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from "react-native";
+import { usernameSchema } from "@/lib/schemas";
 import { deleteOrganisation } from "@/data/account";
+import { reasonOf, type Reason } from "@/data/errors";
 import { loadTeam, type TeamMember } from "@/data/profiles";
 import { reloadViewer, useViewer } from "@/data/session";
 import { addTeamMember, handOverOwnership, removeTeamMember, setTeamRole, type TeamRole } from "@/data/settings";
 import { Avatar } from "@/ui/avatar";
-import { Button, Chip, Segmented } from "@/ui/controls";
+import { Button, Chip, LoadFailed, Segmented } from "@/ui/controls";
 import { FieldError, Group, Row, TextField } from "@/ui/form";
 import { BackButton, Header } from "@/ui/header";
 import { ActionSheet, type SheetAction } from "@/ui/sheet";
@@ -21,9 +23,10 @@ const ROLE = { owner: "Owner", admin: "Admin", editor: "Editor" } as const;
 export default function ManageOrganisation() {
   const palette = usePalette();
   const viewer = useViewer();
-  const username = String(useLocalSearchParams().username ?? "");
+  const username = usernameSchema.safeParse(useLocalSearchParams().username).data ?? null;
   const organisation = viewer?.organisations.find((candidate) => candidate.username === username) ?? null;
   const [team, setTeam] = useState<TeamMember[] | null>(null);
+  const [failed, setFailed] = useState<Reason | null>(null);
   const [adding, setAdding] = useState("");
   const [role, setRole] = useState<TeamRole>("editor");
   const [busy, setBusy] = useState(false);
@@ -33,7 +36,7 @@ export default function ManageOrganisation() {
 
   const read = useCallback(() => {
     if (!orgId) return;
-    void loadTeam(orgId).then(setTeam);
+    void loadTeam(orgId).then(setTeam, (problem: unknown) => setFailed(reasonOf(problem)));
   }, [orgId]);
 
   useEffect(read, [read]);
@@ -64,12 +67,17 @@ export default function ManageOrganisation() {
     read();
   }
 
+  // Says whether it worked, so leaving the team only goes back once it has.
   const run = async (action: () => Promise<{ ok: boolean; error?: string }>, done: string) => {
     const result = await action();
-    if (!result.ok) return Alert.alert("Couldn't do that", "error" in result && result.error ? result.error : "Try again.");
+    if (!result.ok) {
+      Alert.alert("Couldn't do that", "error" in result && result.error ? result.error : "Try again.");
+      return false;
+    }
     toast(done);
     reloadViewer();
     read();
+    return true;
   };
 
   const memberActions = (person: TeamMember): SheetAction[] => {
@@ -119,7 +127,16 @@ export default function ManageOrganisation() {
           {manager ? <Row label="Edit profile" onPress={() => router.push({ pathname: "/edit-profile", params: { id: organisation.id } })} last /> : <Row label={`You're an ${ROLE[organisation.role].toLowerCase()}`} last />}
         </Group>
         <Group title="Team">
-          {team === null ? (
+          {team === null && failed ? (
+            <LoadFailed
+              title="The team didn't load"
+              reason={failed}
+              onRetry={() => {
+                setFailed(null);
+                read();
+              }}
+            />
+          ) : team === null ? (
             <ActivityIndicator style={{ padding: 16 }} color={palette.inkMuted} accessibilityLabel="Loading" />
           ) : (
             team.map((person, index) => (
@@ -163,7 +180,7 @@ export default function ManageOrganisation() {
           </View>
         ) : null}
         {!owner ? (
-          <Button label="Leave the team" variant="destructive" onPress={() => orgId && void run(() => removeTeamMember(orgId, viewer.id), "You left the team").then(() => router.back())} />
+          <Button label="Leave the team" variant="destructive" onPress={() => orgId && void run(() => removeTeamMember(orgId, viewer.id), "You left the team").then((left) => left && router.back())} />
         ) : (
           <Group footer="Owners only. Its files are removed first, then the organisation.">
             <Row label="Delete organisation" tone="destructive" onPress={confirmDelete} last />

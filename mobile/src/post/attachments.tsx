@@ -9,8 +9,9 @@ import { embedFor } from "@/lib/embeds";
 import { count, eventDate, pollTimeLeft, relativeTime } from "@/lib/format";
 import { displayUrl } from "@/lib/text";
 import { loadLinkPreview, loadPost, votePoll } from "@/data/posts";
-import { useViewer } from "@/data/session";
 import { useShadowWriter } from "@/data/shadow";
+import { applyBy } from "@/community/opportunity-row";
+import { useActsFor } from "@/post/post-actions";
 import { Avatar } from "@/ui/avatar";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
@@ -185,6 +186,22 @@ export function QuotedBlock({ quoted }: { quoted: QuotedPost }) {
   const palette = usePalette();
   const now = useNow();
   const block = useBlock();
+  const [shown, setShown] = useState(false);
+  if (quoted.kind === "muted") {
+    if (shown) return <QuotedBlock quoted={quoted.post} />;
+    return (
+      <View style={[block, { marginTop: 10, borderStyle: "dashed", borderColor: palette.rail, paddingHorizontal: 12, paddingVertical: 4, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }]}>
+        <Text variant="subhead" tone="muted" style={{ flexShrink: 1 }}>
+          Post by someone you muted.
+        </Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Show the post by someone you muted" onPress={() => setShown(true)} hitSlop={8} style={{ minHeight: 44, justifyContent: "center" }}>
+          <Text variant="subhead" tone="primary" style={{ fontFamily: font.medium }}>
+            Show
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
   if (quoted.kind !== "post") {
     return (
       <View style={[block, { marginTop: 10, borderStyle: "dashed", borderColor: palette.rail, paddingHorizontal: 12, paddingVertical: 10 }]}>
@@ -266,11 +283,7 @@ export function EventAttachment({ event }: { event: EventSummary }) {
 export function OpportunityAttachment({ opportunity }: { opportunity: OpportunitySummary }) {
   const palette = usePalette();
   const kind = [OPPORTUNITY_TYPES[opportunity.type].label, opportunity.organisation, opportunity.remote ? "Remote" : opportunity.city].filter(Boolean).join(" · ");
-  const status = opportunity.closed
-    ? "Closed"
-    : opportunity.deadlineAt
-      ? `Apply by ${new Date(opportunity.deadlineAt).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone })}`
-      : "Open";
+  const status = opportunity.closed ? "Closed" : opportunity.deadlineAt ? applyBy(opportunity.deadlineAt) : "Open";
   return (
     <Summary
       icon={<Briefcase size={20} color={palette.primary} />}
@@ -286,11 +299,10 @@ export function OpportunityAttachment({ opportunity }: { opportunity: Opportunit
 // closes. Authors can't vote in their own polls.
 export function PollView({ post, poll }: { post: Post; poll: Poll }) {
   const palette = usePalette();
-  const viewer = useViewer();
   const { setPoll } = useShadowWriter();
   const [voting, setVoting] = useState<string | null>(null);
   const closed = poll.closesAt !== null && new Date(poll.closesAt) < new Date();
-  const own = viewer !== null && (viewer.id === post.authorId || viewer.organisations.some((organisation) => organisation.id === post.authorId));
+  const own = useActsFor(post.authorId);
   const open = !closed && poll.myVote === null && poll.closesAt !== null && !own;
   const footer = [count(poll.votes, "vote"), pollTimeLeft(poll.closesAt), !poll.showResults && !open ? "results show when it closes" : null].filter(Boolean).join(" · ");
 
@@ -303,7 +315,15 @@ export function PollView({ post, poll }: { post: Post; poll: Poll }) {
     }
     const fresh = await loadPost(post.id).catch(() => null);
     setVoting(null);
-    if (fresh?.kind === "post" && fresh.poll) setPoll(post.id, fresh.poll);
+    if (fresh?.kind === "post" && fresh.poll) return setPoll(post.id, fresh.poll);
+    // The vote counted even if the poll couldn't be read again, so it closes
+    // to further taps, which the database would refuse.
+    setPoll(post.id, {
+      ...poll,
+      myVote: optionId,
+      votes: poll.votes + 1,
+      options: poll.options.map((option) => (option.id === optionId && option.votes !== null ? { ...option, votes: option.votes + 1 } : option)),
+    });
   }
 
   return (

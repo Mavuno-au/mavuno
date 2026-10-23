@@ -6,7 +6,7 @@ import { z } from "zod";
 import { parsePeople, parsePosts, parseReplyPreviews, postRowSchema, type PersonSummary, type Post, type PostRow, type ReplyPreviews, type ThreadPlace } from "@/lib/domain";
 import { cursorOf, feedCall, feedPage, PAGE_SIZE, parseTimeCursor, THREAD_MAX_LENGTH, THREAD_PAGE_SIZE, type FeedSource } from "@/lib/feeds";
 import { parseReplyPreviewCount, REPLY_PREVIEWS_COOKIE } from "@/lib/reply-previews";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createGuestClient } from "@/lib/supabase/server";
 
 export type FeedPage = { posts: PostRow[]; previews: ReplyPreviews; next: string | null };
 
@@ -31,7 +31,8 @@ async function loadReplyPreviews(posts: PostRow[]): Promise<ReplyPreviews> {
   if (count === 0 || ids.length === 0) return {};
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("reply_previews", { p_post_ids: ids, p_limit: count });
-  if (error) throw new Error(`Reply previews failed: ${error.message}`);
+  // The replies under posts are extra; a feed shows without them rather than not at all.
+  if (error) return {};
   return parseReplyPreviews(data);
 }
 
@@ -71,10 +72,11 @@ async function loadContinuationOf(post: Post): Promise<Continuation> {
   return place.size > 1 ? { kind: "thread", place, parts } : { kind: "none" };
 }
 
-// A published post as a guest sees it, for its share image.
+// A published post as a guest sees it, for its share image, which is cached
+// publicly: read without the requester's session, so blocks don't change it.
 export async function loadPublicPost(postId: string): Promise<Post | null> {
   if (!z.uuid().safeParse(postId).success) return null;
-  const supabase = await createClient();
+  const supabase = createGuestClient();
   const { data } = await supabase.from("post_details").select("*").eq("id", postId).maybeSingle();
   const row = data ? postRowSchema.parse(data) : null;
   return row?.kind === "post" && row.status === "published" ? row : null;

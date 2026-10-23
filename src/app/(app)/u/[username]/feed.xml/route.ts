@@ -12,6 +12,9 @@ export async function GET(_request: Request, { params }: RouteContext<"/u/[usern
   const { data } = await supabase.from("profiles").select("id, username, display_name, bio, created_at").eq("username", (await params).username.toLowerCase()).maybeSingle();
   if (!data) return new Response("Not found", { status: 404 });
   const profile = profileRow.parse(data);
+  // Deactivated as under 16 reads as missing here too, as on the profile page.
+  const hidden = await supabase.rpc("profile_hidden", { p_profile_id: profile.id });
+  if (hidden.error || hidden.data === true) return new Response("Not found", { status: 404 });
   const { data: rows, error } = await supabase.rpc("feed_profile", { p_profile_id: profile.id, p_kind: "posts", p_limit: 30 });
   if (error) return new Response("Try again later", { status: 503 });
   return atomResponse(

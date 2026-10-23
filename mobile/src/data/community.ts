@@ -42,7 +42,8 @@ export type { CommunityEvent, Opportunity, Space, SpaceListItem, SpaceRole } fro
 
 const id = z.uuid();
 
-const lenient = <T>(schema: z.ZodType<T>, data: unknown) =>
+// Every row that parses, so one this build can't read yet doesn't empty the list.
+export const lenient = <T>(schema: z.ZodType<T>, data: unknown) =>
   z
     .array(z.unknown())
     .parse(data ?? [])
@@ -51,8 +52,10 @@ const lenient = <T>(schema: z.ZodType<T>, data: unknown) =>
       return parsed.success ? [parsed.data] : [];
     });
 
+// A failed read throws: shown as empty, every space would read as not joined.
 async function memberships(viewerId: string) {
-  const { data } = await supabase.from("space_members").select("space_id, role").eq("user_id", viewerId);
+  const { data, error } = await supabase.from("space_members").select("space_id, role").eq("user_id", viewerId);
+  if (error) throw requestError("Memberships", error);
   const rows = z.array(z.object({ space_id: id, role: spaceRoleSchema })).catch([]).parse(data ?? []);
   return new Map(rows.map((row) => [row.space_id, row.role]));
 }
@@ -132,16 +135,18 @@ export async function loadUpcomingEvents(scope: EventScope, category: EventCateg
 
 export async function loadEvent(eventId: string, viewerId: string) {
   if (!id.safeParse(eventId).success) return null;
-  const [{ data: row, error }, { data: attendees }, { data: mine }] = await Promise.all([
+  const [{ data: row, error }, { data: attendees }, { data: mine }, { data: onlineUrl }] = await Promise.all([
     supabase.from("events").select(EVENT).eq("id", eventId).maybeSingle(),
-    supabase.from("event_rsvps").select(`user:profiles(${CARD})`).eq("event_id", eventId).eq("status", "going").order("created_at").limit(12),
+    supabase.rpc("event_attendees", { p_event_id: eventId }).select(CARD),
     supabase.from("event_rsvps").select("status").eq("event_id", eventId).eq("user_id", viewerId).maybeSingle(),
+    // Only the host's team and people going get the link.
+    supabase.rpc("event_online_url", { p_event_id: eventId }),
   ]);
   if (error) throw requestError("Event", error);
   if (!row) return null;
   return {
-    event: eventRow.parse(row),
-    attendees: lenient(z.object({ user: profileCardSchema }), attendees).map((rsvp) => rsvp.user),
+    event: { ...eventRow.parse(row), onlineUrl: z.string().nullable().catch(null).parse(onlineUrl) },
+    attendees: lenient(profileCardSchema, attendees),
     myRsvp: z.object({ status: rsvpSchema }).nullable().catch(null).parse(mine ?? null)?.status ?? null,
   };
 }

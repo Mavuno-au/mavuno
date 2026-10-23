@@ -72,10 +72,13 @@ export default function OpportunityForm() {
 
   useEffect(() => {
     if (!editing || !viewerId) return;
-    void loadOpportunity(editing, viewerId).then((found) => {
-      if (found) setForm(formOf(found.opportunity));
-      else setError("This opportunity couldn't be loaded.");
-    });
+    void loadOpportunity(editing, viewerId).then(
+      (found) => {
+        if (found) setForm(formOf(found.opportunity));
+        else setError("This opportunity couldn't be loaded.");
+      },
+      () => setError("This opportunity didn't load. Check your connection and try again."),
+    );
   }, [editing, viewerId]);
 
   if (!viewer) return null;

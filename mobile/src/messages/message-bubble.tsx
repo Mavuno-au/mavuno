@@ -121,6 +121,7 @@ export function MessageBubble({
               accessibilityLabel={`${reaction.emoji} ${reaction.count}${reaction.mine ? ", including you" : ""}`}
               accessibilityState={{ selected: reaction.mine }}
               onPress={() => onReact(reaction.emoji, !reaction.mine)}
+              hitSlop={{ top: 8, bottom: 8 }}
               style={{ flexDirection: "row", alignItems: "center", gap: 3, minHeight: 28, paddingHorizontal: 8, borderRadius: 14, borderWidth: 1, borderColor: reaction.mine ? palette.primary : palette.hairline, backgroundColor: reaction.mine ? palette.primarySoft : palette.surface }}
             >
               <Text allowFontScaling={false} style={{ fontSize: 14 }}>
@@ -134,7 +135,7 @@ export function MessageBubble({
         </View>
       ) : null}
       {delivery.kind === "failed" ? (
-        <Pressable accessibilityRole="button" onPress={onRetry} style={{ minHeight: 32, justifyContent: "center" }}>
+        <Pressable accessibilityRole="button" onPress={onRetry} style={{ minHeight: 44, justifyContent: "center" }}>
           <Text variant="small" tone="destructive">
             Couldn't send. Tap to try again.
           </Text>

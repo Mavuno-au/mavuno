@@ -103,7 +103,9 @@ function NavLink({ item, path }: { item: Item; path: string }) {
           <span className="hidden min-w-5 rounded-full bg-primary px-1.5 text-center font-mono text-[11px] leading-5 text-primary-ink tabular lg:inline">
             {item.count > 99 ? "99+" : item.count}
           </span>
-          <span className="absolute top-2 right-2 size-2 rounded-full bg-primary lg:hidden" aria-label={`${item.count} unread`} />
+          <span className="absolute top-2 right-2 size-2 rounded-full bg-primary lg:hidden">
+            <span className="sr-only">, {item.count} unread</span>
+          </span>
         </>
       ) : null}
     </Link>
@@ -191,7 +193,9 @@ export function SideNav() {
   );
 }
 
-const MOBILE_PRIMARY = ["/", "/discover", "/events", "/messages", "/notifications"];
+// In order of priority: members get Notifications and Messages before Events,
+// which goes into More, so news always has a dot in the bar.
+const MOBILE_PRIMARY = ["/", "/discover", "/notifications", "/messages", "/events"];
 
 export function MobileNav() {
   const path = usePathname();
@@ -199,9 +203,14 @@ export function MobileNav() {
   const { explore, mine, staff } = useItems();
   const [more, setMore] = useState(false);
   const all = [...explore, ...mine, ...staff];
-  const primary = all.filter((item) => MOBILE_PRIMARY.includes(item.href)).slice(0, 4);
+  const primary = all
+    .filter((item) => MOBILE_PRIMARY.includes(item.href))
+    .sort((a, b) => MOBILE_PRIMARY.indexOf(a.href) - MOBILE_PRIMARY.indexOf(b.href))
+    .slice(0, 4)
+    .sort((a, b) => all.indexOf(a) - all.indexOf(b));
   const rest = all.filter((item) => !primary.includes(item));
   const restActive = rest.some((item) => isActive(item, path));
+  const restCount = rest.some((item) => item.count);
 
   return (
     <>
@@ -219,15 +228,24 @@ export function MobileNav() {
                 <Icon className="size-5" strokeWidth={active ? 2.4 : 1.9} aria-hidden />
               </span>
               {item.label}
-              {item.count ? <span className="absolute top-1.5 left-[calc(50%+8px)] size-2 rounded-full bg-primary" /> : null}
+              {item.count ? (
+                <span className="absolute top-1.5 left-[calc(50%+8px)] size-2 rounded-full bg-primary">
+                  <span className="sr-only">, new</span>
+                </span>
+              ) : null}
             </Link>
           );
         })}
-        <button type="button" onClick={() => setMore(true)} aria-haspopup="dialog" className={cn("flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium", restActive ? "text-primary" : "text-ink-muted")}>
+        <button type="button" onClick={() => setMore(true)} aria-haspopup="dialog" className={cn("relative flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium", restActive ? "text-primary" : "text-ink-muted")}>
           <span className={cn("flex h-8 w-14 items-center justify-center rounded-full", restActive && "bg-primary-soft")}>
             <Ellipsis className="size-5" aria-hidden />
           </span>
           More
+          {restCount ? (
+            <span className="absolute top-1.5 left-[calc(50%+8px)] size-2 rounded-full bg-primary">
+              <span className="sr-only">, new</span>
+            </span>
+          ) : null}
         </button>
       </nav>
       <Dialog open={more} onClose={() => setMore(false)} title="Mavuno">
@@ -243,6 +261,7 @@ export function MobileNav() {
                 >
                   <Icon className="size-5" aria-hidden />
                   {item.label}
+                  {item.count ? <span className="sr-only">, new</span> : null}
                 </Link>
               </li>
             );

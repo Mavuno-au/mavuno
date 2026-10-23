@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FlatList, Pressable, RefreshControl, TextInput, View } from "react-native";
 import { relativeTime } from "@/lib/format";
 import { BOXES, boxOf, isVisible, preview, type Box, type Conversation } from "@/lib/messages";
-import { useCounts } from "@/data/counts";
 import { reasonOf, type Reason } from "@/data/errors";
 import { loadConversations } from "@/data/messages";
 import { useViewer } from "@/data/session";
@@ -25,7 +24,6 @@ type State = { kind: "loading" } | { kind: "failed"; reason: Reason } | { kind: 
 export default function Messages() {
   const palette = usePalette();
   const viewer = useViewer();
-  const counts = useCounts();
   const focused = useIsFocused();
   const [box, setBox] = useState<Box>("inbox");
   const [state, setState] = useState<State>({ kind: "loading" });
@@ -41,23 +39,25 @@ export default function Messages() {
     );
   }, []);
 
-  // Re-read whenever the tab comes back into view; the badge then clears.
-  // Only on focus: a badge refresh mustn't reread every conversation.
-  const { clear } = counts;
-  useFocusEffect(
-    useCallback(() => {
-      read();
-      clear("messages");
-    }, [read, clear]),
-  );
+  // Re-read whenever the tab comes back into view. The badge counts unread
+  // conversations, so it goes down as they're read, not on opening the tab.
+  useFocusEffect(read);
+
+  // Read by the channel, so focus coming and going doesn't make it again.
+  const onScreen = useRef(focused);
+  useEffect(() => {
+    onScreen.current = focused;
+  }, [focused]);
 
   // A new message anywhere the viewer can read moves its conversation up,
-  // at most every 3 seconds, as the website's live-inbox.tsx does.
+  // at most every 3 seconds, as the website's live-inbox.tsx does. Off
+  // screen, coming back into view reads it instead.
   useEffect(() => {
     if (!viewerId) return;
     let last = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const soon = () => {
+      if (!onScreen.current) return;
       const wait = Math.max(0, last + 3000 - Date.now());
       clearTimeout(timer);
       timer = setTimeout(() => {

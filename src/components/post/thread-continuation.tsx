@@ -6,6 +6,7 @@ import { loadMoreThread } from "@/app/actions/posts";
 import { PostItem } from "@/components/post/post-item";
 import type { PostRow, ThreadPlace } from "@/lib/domain";
 import { THREAD_MAX_LENGTH } from "@/lib/feeds";
+import { reach } from "@/lib/version";
 
 // The posts an author added to their own post by replying to themselves, read
 // in order under it. `place` is the place of the post they continue.
@@ -24,7 +25,7 @@ export function ThreadContinuation({ postId, place, initial }: { postId: string;
 
   function loadMore(lastId: string) {
     startTransition(async () => {
-      const result = await loadMoreThread(lastId);
+      const result = await reach(loadMoreThread(lastId));
       if (!result.ok) {
         toast.error(result.error);
         return;

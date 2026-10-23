@@ -7,7 +7,7 @@ import { ActionSheet } from "@/ui/sheet";
 import { font, Text, type } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
 
-export type PollHours = (typeof POLL_DURATIONS)[number]["hours"];
+type PollHours = (typeof POLL_DURATIONS)[number]["hours"];
 export type PollDraft = { options: string[]; durationHours: PollHours };
 
 export const newPoll = (): PollDraft => ({ options: ["", ""], durationHours: 24 });
