@@ -206,6 +206,25 @@ export function LinkCard({ url, preview: stored }: { url: string; preview: LinkP
 }
 
 export function QuotedBlock({ quoted }: { quoted: QuotedPost }) {
+  const [shown, setShown] = useState(false);
+  if (quoted.kind === "muted") {
+    if (shown) return <QuotedBlock quoted={quoted.post} />;
+    return (
+      <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-dashed border-rail px-3 py-2.5 text-sm text-ink-muted">
+        <span>Post by someone you muted.</span>
+        <button
+          type="button"
+          onClick={(event) => {
+            stop(event);
+            setShown(true);
+          }}
+          className="font-medium text-primary hover:underline"
+        >
+          Show
+        </button>
+      </div>
+    );
+  }
   if (quoted.kind !== "post") {
     return (
       <div className="mt-3 rounded-lg border border-dashed border-rail px-3 py-2.5 text-sm text-ink-muted">

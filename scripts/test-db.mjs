@@ -3362,6 +3362,89 @@ console.log("\nFull review: blocks in groups, declined requests, channels and re
   check("a removed message keeps no link or card", row.link_url === null && row.link_preview === null, row);
 }
 
+console.log("\nFull review: links, moderation, erased accounts, muted quotes, teams and reports");
+{
+  const user = (name, meta) => createUser(`${name}@example.com`, { username: name, display_name: name, ...meta });
+  const sena = await user("rc_sena");
+  const yaw = await user("rc_yaw");
+  const nia = await user("rc_nia");
+
+  await as(sena);
+  const capital = await post("Https://example.com/news is worth a read", "en", null, null, null, null, "Https://example.com/news");
+  check("a link typed with a capital letter posts", (await one("select link_url from public.posts where id = $1", [capital])).link_url === "Https://example.com/news");
+  const dm = (await one("select public.start_direct_conversation($1) as id", [yaw])).id;
+  await q("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Https://example.com/chat')", [dm, sena]);
+  check("and sends in a message", (await one("select link_url from public.messages where conversation_id = $1", [dm])).link_url === "Https://example.com/chat");
+
+  const parent = await post("Who is coming to the meeting?");
+  await as(yaw);
+  const reply = await post("Me, and my cousin", "en", null, parent);
+  await as(nia);
+  await q("select public.report_content('post', $1, 'spam')", [reply]);
+  await as(yaw);
+  await q("select public.delete_post($1)", [reply]);
+  await superuser();
+  check("deleting a reply counts it out once", (await one("select reply_count from public.posts where id = $1", [parent])).reply_count === 0);
+  await as(mod);
+  await q("select public.moderate_content('post', $1, false, 'Spam', 'honesty')", [reply]);
+  await superuser();
+  check("a moderator removing it afterwards doesn't count it out again", (await one("select reply_count from public.posts where id = $1", [parent])).reply_count === 0);
+  check("or tell the author it was removed", (await one("select count(*)::int as n from public.notifications where recipient_id = $1 and type = 'moderation'", [yaw])).n === 0);
+  check("and its report is closed", (await one("select status from public.reports where target_id = $1", [reply])).status === "actioned");
+
+  await as(sena);
+  const twice = await post("Buy followers here");
+  await as(mod);
+  await q("select public.moderate_content('post', $1, false, 'Spam', 'honesty')", [twice]);
+  await q("select public.moderate_content('post', $1, false, 'Spam', 'honesty')", [twice]);
+  await superuser();
+  check("removing the same post twice notifies once", (await one("select count(*)::int as n from public.notifications where recipient_id = $1 and type = 'moderation' and post_id = $2", [sena, twice])).n === 1);
+  check("and logs once", (await one("select count(*)::int as n from public.moderation_actions where target_id = $1", [twice])).n === 1);
+
+  // Reported a moment ago, so its author's new posts wait for a moderator; someone else replies here.
+  const kwesi = await user("rc_kwesi");
+  await as(nia);
+  const answered = await post("Where is the best suya in Brisbane?");
+  await as(kwesi);
+  await post("Try the market on Saturday", "en", null, answered);
+  await superuser();
+  check("before the account goes the reply counts", (await one("select reply_count from public.posts where id = $1", [answered])).reply_count === 1);
+  await q("delete from auth.users where id = $1", [kwesi]);
+  check("deleting an account counts its replies out", (await one("select reply_count from public.posts where id = $1", [answered])).reply_count === 0);
+
+  await as(sena);
+  const quotedPost = await post("A post that gets quoted");
+  await as(nia);
+  const quoting = await post("Look at this", "en", null, null, quotedPost);
+  await q("insert into public.mutes (muter_id, muted_id) values ($1, $2)", [nia, sena]);
+  row = await one("select quoted from public.post_details where id = $1", [quoting]);
+  check("a quote of someone the viewer muted says so", row.quoted.muted === true, row.quoted);
+  await as(mod);
+  row = await one("select quoted from public.post_details where id = $1", [quoting]);
+  check("and not for anyone else", row.quoted.muted === false, row.quoted);
+
+  await as(sena);
+  const org = (await one("select public.create_organisation('rc_org', 'RC Org') as id")).id;
+  await q("insert into public.organisation_members (org_id, user_id, role) values ($1, $2, 'editor')", [org, nia]);
+  await fails("an invitation nobody accepted can't be made an owner", "select public.set_organisation_role($1, $2, 'owner')", [org, nia], /accept the invitation/);
+  await superuser();
+  await q("update public.profile_settings set suspended_until = now() + interval '1 day' where id = $1", [sena]);
+  await as(sena);
+  await fails("a suspended owner can't change roles", "select public.set_organisation_role($1, $2, 'admin')", [org, nia], /Only owners/);
+  await fails("or pin posts", "select public.pin_post($1)", [quotedPost], /right now/);
+  await superuser();
+  await q("update public.profile_settings set suspended_until = null where id = $1", [sena]);
+
+  await as(nia);
+  await q("select public.report_content('post', $1, 'harassment', 'Him again, from my work')", [quotedPost]);
+  row = await one("select public.export_my_data() -> 'reports_filed' as reports");
+  check("the export lists reports the person filed", row.reports.length === 2 && row.reports.some((r) => r.details === "Him again, from my work"), row.reports);
+  await superuser();
+  await q("delete from auth.users where id = $1", [nia]);
+  row = await one("select details, contact, reason from public.reports where target_id = $1", [quotedPost]);
+  check("deleting the account erases what the reporter wrote", row.details === null && row.contact === null && row.reason === "harassment", row);
+}
+
 console.log("\nDemo seed");
 const seeded = new PGlite({ extensions: { pg_trgm, pgcrypto } });
 await seeded.exec(stubs);
