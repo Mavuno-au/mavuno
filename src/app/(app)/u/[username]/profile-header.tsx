@@ -30,10 +30,11 @@ export function ProfileHeader({ profile, team, canManage, known }: { profile: Pr
         </div>
 
         <div className="mt-3">
-          <h1 className="flex min-w-0 items-center gap-1.5 text-2xl font-semibold tracking-tight">
+          {/* The page's heading is the name in the sticky header. */}
+          <h2 className="flex min-w-0 items-center gap-1.5 text-2xl font-semibold tracking-tight">
             <span className="min-w-0 wrap-anywhere">{profile.display_name}</span>
             {profile.org_verified ? <BadgeCheck className="size-5 text-primary" aria-label="Verified organisation" /> : null}
-          </h1>
+          </h2>
           <p className="flex flex-wrap items-center gap-2 font-mono text-[13px] text-ink-muted">
             <ColourDot colour={profile.colour} />@{profile.username}
             {profile.relationship.followsYou ? <Chip>Follows you</Chip> : null}

@@ -19,6 +19,7 @@ import { PageHeader } from "@/components/ui/page";
 import type { Conversation, Member, Message, Reaction } from "@/lib/data/messages";
 import { count, dayLabel } from "@/lib/format";
 import { getBrowserClient } from "@/lib/supabase/browser";
+import { scrollMotion } from "@/lib/motion";
 
 const RUN_GAP_MS = 5 * 60_000;
 const TYPING_MS = 4_000;
@@ -293,7 +294,7 @@ export function ThreadView({ conversation, viewerId, initial, next: initialNext 
   }
 
   function jump(messageId: string) {
-    document.getElementById(`message-${messageId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    document.getElementById(`message-${messageId}`)?.scrollIntoView({ behavior: scrollMotion(), block: "center" });
   }
 
   const composer = (
@@ -305,7 +306,7 @@ export function ThreadView({ conversation, viewerId, initial, next: initialNext 
       onTyping={typed}
       onSent={(message) => {
         add(message);
-        requestAnimationFrame(() => scroller.current?.scrollTo({ top: 0, behavior: "smooth" }));
+        requestAnimationFrame(() => scroller.current?.scrollTo({ top: 0, behavior: scrollMotion() }));
       }}
     />
   );

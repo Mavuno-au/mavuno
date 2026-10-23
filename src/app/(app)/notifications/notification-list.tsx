@@ -12,6 +12,7 @@ import { EndOfList, PageHeader, Tabs, type Tab } from "@/components/ui/page";
 import { dayLabel } from "@/lib/format";
 import { isFilterKey, type NotificationFilterKey, type NotificationGroup } from "@/lib/notifications";
 import { NotificationRow } from "./notification-row";
+import { scrollMotion } from "@/lib/motion";
 
 const POLL_MS = 30_000;
 const STORAGE_KEY = "mavuno:notification-filter";
@@ -213,7 +214,7 @@ function Inbox({
           type="button"
           onClick={() => {
             merge(arrived);
-            window.scrollTo({ top: 0, behavior: "smooth" });
+            window.scrollTo({ top: 0, behavior: scrollMotion() });
           }}
           className="animate-fade-in pointer-events-auto flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-ink shadow-md"
         >

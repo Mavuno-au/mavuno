@@ -14,6 +14,7 @@ import type { PostRow, ReplyPreviews } from "@/lib/domain";
 import { feedTime, type FeedSource } from "@/lib/feeds";
 import { dayLabel } from "@/lib/format";
 import { usePoll } from "@/lib/use-poll";
+import { scrollMotion } from "@/lib/motion";
 
 const POLL_MS = 30_000;
 
@@ -180,7 +181,7 @@ export function Feed({
             count={fresh}
             onClick={() => {
               setFresh(0);
-              window.scrollTo({ top: 0, behavior: "smooth" });
+              window.scrollTo({ top: 0, behavior: scrollMotion() });
               router.refresh();
             }}
           />

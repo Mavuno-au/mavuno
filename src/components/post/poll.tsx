@@ -53,7 +53,7 @@ export function PollView({ postId, poll: initial, own }: { postId: string; poll:
               onClick={() => vote(option.id)}
               className="h-10 rounded-md border border-primary/60 px-3 text-left text-[15px] font-medium text-primary hover:bg-primary-soft disabled:opacity-60"
             >
-              {option.label}
+              <bdi>{option.label}</bdi>
             </button>
           );
         }
@@ -61,7 +61,7 @@ export function PollView({ postId, poll: initial, own }: { postId: string; poll:
           <div key={option.id} className="relative flex h-10 items-center justify-between overflow-hidden rounded-md bg-wash px-3 text-[15px]">
             <span className={cn("absolute inset-y-0 left-0 bg-primary-soft transition-[width]", mine && "bg-primary/25")} style={{ width: `${share}%` }} />
             <span className="relative flex items-center gap-1.5 font-medium">
-              {option.label}
+              <bdi>{option.label}</bdi>
               {mine ? <Check className="size-4 text-primary" aria-label="Your vote" /> : null}
             </span>
             {poll.showResults ? <span className="relative font-mono text-[13px] tabular">{share}%</span> : null}

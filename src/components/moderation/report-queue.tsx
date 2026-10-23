@@ -74,7 +74,7 @@ function ReportRow({ group, onDone }: { group: ReportGroup; onDone: () => void }
       {preview ? (
         <PostPreviewBlock preview={preview} />
       ) : group.snapshot ? (
-        <blockquote className="mt-3 border-l-2 border-rail pl-3 text-[15px] leading-relaxed break-words whitespace-pre-wrap">{group.snapshot}</blockquote>
+        <blockquote dir="auto" className="mt-3 border-l-2 border-rail pl-3 text-[15px] leading-relaxed break-words whitespace-pre-wrap">{group.snapshot}</blockquote>
       ) : null}
       {group.href ? (
         <Link href={group.href} className="mt-2 inline-flex items-center gap-1 text-sm text-primary hover:underline">
@@ -94,7 +94,7 @@ function ReportRow({ group, onDone }: { group: ReportGroup; onDone: () => void }
                   <LocalTime iso={report.createdAt} />
                 </span>
               </p>
-              {report.details ? <p className="mt-1 break-words whitespace-pre-wrap text-ink-muted">{report.details}</p> : null}
+              {report.details ? <p dir="auto" className="mt-1 break-words whitespace-pre-wrap text-ink-muted">{report.details}</p> : null}
               {report.contact ? <p className="mt-1 break-words text-ink-muted">Contact: {report.contact}</p> : null}
             </li>
           ))}

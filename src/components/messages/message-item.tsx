@@ -72,7 +72,9 @@ export function MessageItem({
         {replyTo ? (
           <button type="button" onClick={() => onJump(replyTo.id)} className="max-w-full rounded-xl border border-hairline px-3 py-1.5 text-left text-[13px] leading-snug text-ink-muted hover:bg-wash">
             <span className="block text-xs font-medium">Replying to {replyAuthor}</span>
-            <span className="line-clamp-2 wrap-anywhere">{snippet(replyTo.content)}</span>
+            <span dir="auto" className="line-clamp-2 wrap-anywhere">
+              {snippet(replyTo.content)}
+            </span>
           </button>
         ) : null}
 

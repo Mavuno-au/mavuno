@@ -10,6 +10,7 @@ import { RuleSelect } from "@/components/moderation/rule-select";
 import { useSave } from "@/components/settings/use-save";
 import { Button } from "@/components/ui/button";
 import { FormError } from "@/components/ui/field";
+import { shortcutKey } from "@/lib/shortcuts";
 import { LocalTime } from "@/components/ui/local-time";
 import { Chip, EmptyState } from "@/components/ui/page";
 import { languageName } from "@/lib/catalogue";
@@ -80,7 +81,8 @@ function ReviewRow({ item, onDone, onMove }: { item: ReviewItem; onDone: () => v
   function onKeyDown(event: KeyboardEvent<HTMLElement>) {
     if (event.target !== event.currentTarget || event.metaKey || event.ctrlKey || event.altKey || pending) return;
     const actions: Record<string, () => void> = { a: () => decide(true), x: () => decide(false), j: () => onMove(1), k: () => onMove(-1) };
-    const action = actions[event.key];
+    // By physical key, so the shortcuts work on Arabic, Amharic and other layouts.
+    const action = actions[shortcutKey(event)];
     if (!action) return;
     event.preventDefault();
     action();
