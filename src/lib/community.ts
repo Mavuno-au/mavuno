@@ -352,6 +352,13 @@ export const newSpaceSchema = z
   .refine((space) => space.kind !== "city" || space.cityId !== null, { message: "Choose the city this space is for.", path: ["cityId"] });
 
 
+// Where an opportunity is, in one line: "Sydney or remote" when it's both.
+export function opportunityPlace(opportunity: Pick<Opportunity, "remote" | "city" | "location">) {
+  const place = [opportunity.location, opportunity.city].filter(Boolean).join(", ");
+  if (!opportunity.remote) return place || "Australia";
+  return place ? `${place} or remote` : "Remote";
+}
+
 // Where an event is, in one line, as rows and the event page show it.
 export function eventPlace(event: Pick<CommunityEvent, "format" | "venue" | "city">) {
   const physical = [event.venue, event.city].filter(Boolean).join(", ");

@@ -8,7 +8,7 @@ import { Chip } from "@/components/ui/page";
 import { EVENT_CATEGORIES, OPPORTUNITY_TYPES } from "@/lib/catalogue";
 import { DEADLINE_ZONE, type CommunityEvent, type Opportunity, type Review, type SpaceListItem } from "@/lib/data/community";
 import { compact, count, eventDate, relativeTime } from "@/lib/format";
-import { eventPlace } from "@/lib/community";
+import { eventPlace, opportunityPlace } from "@/lib/community";
 
 export { eventPlace };
 
@@ -73,12 +73,6 @@ export function EventDays({ events }: { events: CommunityEvent[] }) {
 }
 
 export const deadlineLabel = (iso: string) => new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: DEADLINE_ZONE });
-
-export function opportunityPlace(opportunity: Pick<Opportunity, "remote" | "city" | "location">) {
-  const place = [opportunity.location, opportunity.city].filter(Boolean).join(", ");
-  if (!opportunity.remote) return place || "Australia";
-  return place ? `${place} or remote` : "Remote";
-}
 
 export function OpportunityRow({ opportunity }: { opportunity: Opportunity }) {
   return (

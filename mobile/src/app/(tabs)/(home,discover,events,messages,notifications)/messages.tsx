@@ -42,11 +42,13 @@ export default function Messages() {
   }, []);
 
   // Re-read whenever the tab comes back into view; the badge then clears.
+  // Only on focus: a badge refresh mustn't reread every conversation.
+  const { clear } = counts;
   useFocusEffect(
     useCallback(() => {
       read();
-      counts.clear("messages");
-    }, [read, counts]),
+      clear("messages");
+    }, [read, clear]),
   );
 
   // A new message anywhere the viewer can read moves its conversation up,

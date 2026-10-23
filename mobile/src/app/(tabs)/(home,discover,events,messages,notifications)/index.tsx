@@ -1,12 +1,14 @@
 import { router } from "expo-router";
 import { Rss, SquarePen, UserPlus } from "lucide-react-native";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 import { feedTime } from "@/lib/feeds";
 import { loadFeed, newTrendingSeed } from "@/data/posts";
+import { usePreferences } from "@/data/preferences";
 import { useViewer } from "@/data/session";
 import { useFeed, type FeedState } from "@/data/use-feed";
 import { setFollowingFresh, useNewPosts, type FeedKind } from "@/data/use-new-posts";
+import { WhoToFollow } from "@/people/who-to-follow";
 import { FeedList } from "@/post/feed-list";
 import { Avatar } from "@/ui/avatar";
 import { Wordmark } from "@/ui/brand";
@@ -38,15 +40,21 @@ export default function Home() {
   // Latest and Trending load the first time they are shown; after that all
   // stay mounted, so switching back keeps each one's place.
   const [opened, setOpened] = useState<ReadonlySet<HomeFeed>>(new Set(["following"]));
-  // Trending is drawn afresh on each visit, weighted by conversation.
-  const [seed, setSeed] = useState(newTrendingSeed);
+  // Trending is drawn afresh on each refresh, weighted by conversation.
+  // Kept out of the feed's key, so a redraw keeps the posts on screen while
+  // the new draw loads, and keeps them if it fails.
+  const seed = useRef(newTrendingSeed());
   const following = useFeed((cursor) => loadFeed({ kind: "following" }, cursor), "following", { takesPosts: true });
   const latest = useFeed((cursor) => loadFeed({ kind: "latest" }, cursor), "latest", { enabled: opened.has("latest"), takesPosts: true });
-  const trending = useFeed((cursor) => loadFeed({ kind: "trending", seed }, cursor), `trending:${seed}`, { enabled: opened.has("trending") });
+  const trending = useFeed((cursor) => loadFeed({ kind: "trending", seed: seed.current }, cursor), "trending", { enabled: opened.has("trending") });
   const [followingFresh, dismissFollowing] = useNewPosts({ feed: "following", ...checkable(following.state), active: feed === "following", away: true });
   const [latestFresh, dismissLatest] = useNewPosts({ feed: "latest", ...checkable(latest.state), active: feed === "latest" });
   useEffect(() => setFollowingFresh(followingFresh > 0), [followingFresh]);
   useEffect(() => () => setFollowingFresh(false), []);
+
+  // Trending leaves it out, as on the website.
+  const { whoToFollow } = usePreferences();
+  const suggestions = viewer && whoToFollow ? { after: 5, node: <WhoToFollow viewerId={viewer.id} /> } : undefined;
 
   // A refresh, however it starts, answers the new-posts pill.
   const withDismiss = (list: typeof following, dismiss: () => void) => ({
@@ -57,7 +65,13 @@ export default function Home() {
     },
   });
   // Refreshing Trending draws it again.
-  const redraw = { ...trending, refresh: () => setSeed(newTrendingSeed()) };
+  const redraw = {
+    ...trending,
+    refresh: () => {
+      seed.current = newTrendingSeed();
+      trending.refresh();
+    },
+  };
 
   // Tapping the feed already shown scrolls it back to the top and refreshes it.
   const show = (next: HomeFeed) => {
@@ -115,6 +129,7 @@ export default function Home() {
           feed={withDismiss(following, dismissFollowing)}
           active={feed === "following"}
           fresh={followingFresh}
+          insert={suggestions}
           empty={
             <EmptyState
               icon={<Rss size={26} color={palette.inkMuted} />}
@@ -133,7 +148,7 @@ export default function Home() {
       </View>
       {opened.has("latest") ? (
         <View style={{ flex: 1, display: feed === "latest" ? "flex" : "none" }}>
-          <FeedList feed={withDismiss(latest, dismissLatest)} active={feed === "latest"} fresh={latestFresh} empty={<EmptyState title="Nothing here yet">Be the first to post something.</EmptyState>} />
+          <FeedList feed={withDismiss(latest, dismissLatest)} active={feed === "latest"} fresh={latestFresh} insert={suggestions} empty={<EmptyState title="Nothing here yet">Be the first to post something.</EmptyState>} />
         </View>
       ) : null}
       {opened.has("trending") ? (

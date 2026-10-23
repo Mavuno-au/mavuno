@@ -26,7 +26,9 @@ export function CountsProvider({ viewerId, children }: { viewerId: string | null
 
   const refresh = useCallback(() => {
     void readCounts().then((read) => {
-      if (read) setCounts(read);
+      // The same numbers keep the same object, so screens that read the
+      // counts don't run again for nothing.
+      if (read) setCounts((current) => (current.notifications === read.notifications && current.messages === read.messages ? current : read));
     });
   }, []);
 

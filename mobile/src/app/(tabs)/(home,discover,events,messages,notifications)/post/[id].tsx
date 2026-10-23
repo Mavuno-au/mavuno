@@ -1,7 +1,7 @@
-import { useLocalSearchParams } from "expo-router";
+import { useIsFocused, useLocalSearchParams } from "expo-router";
 import { Ellipsis, SearchX } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, AppState, FlatList, Pressable, useWindowDimensions, View } from "react-native";
 import { z } from "zod";
 import type { Post, PostRow as Row, ThreadPlace } from "@/lib/domain";
 import { THREAD_MAX_LENGTH } from "@/lib/feeds";
@@ -61,9 +61,13 @@ export default function PostScreen() {
     setStored((previous) => (previous.id === forId ? { id: forId, state: change(previous.state) } : previous));
   }, []);
 
+  // Only the latest read lands, so one started before a reply can't hide it.
+  const request = useRef(0);
   const fetchThread = useCallback((forId: string) => {
+    const current = ++request.current;
     loadThread(forId).then(
       (thread) =>
+        current === request.current &&
         setStored({
           id: forId,
           state:
@@ -71,7 +75,7 @@ export default function PostScreen() {
               ? { kind: "missing" }
               : { kind: "ready", thread, parts: thread.continuation.kind === "thread" ? thread.continuation.parts : [], partsMore: "idle", replies: thread.replies, next: thread.next, more: "idle" },
         }),
-      (error: unknown) => setStored({ id: forId, state: { kind: "failed", reason: reasonOf(error) } }),
+      (error: unknown) => current === request.current && setStored({ id: forId, state: { kind: "failed", reason: reasonOf(error) } }),
     );
   }, []);
 
@@ -85,21 +89,24 @@ export default function PostScreen() {
     return onRelationChanged(() => fetchThread(postId));
   }, [postId, fetchThread]);
 
-  // A reply the member just wrote here joins the conversation.
+  // A reply or quote the member just wrote here shows at once, with the counts it changed.
   useEffect(() => {
     if (!postId) return;
     return onPostCreated((created) => {
-      if (created.parentId === postId) fetchThread(postId);
+      if (created.parentId === postId || created.quoteId === postId) fetchThread(postId);
     });
   }, [postId, fetchThread]);
 
   // A post deleted or removed by someone else while it's open is covered;
-  // one the viewer deleted keeps its Undo placeholder instead.
+  // one the viewer deleted keeps its Undo placeholder instead. Only the
+  // thread on screen asks: the ones under it in the stack wait.
   const ready = state.kind === "ready";
   const deletedHere = usePostDeleted(postId ?? "");
+  const focused = useIsFocused();
   useEffect(() => {
-    if (!postId || !ready || deletedHere) return;
+    if (!postId || !ready || deletedHere || !focused) return;
     const timer = setInterval(() => {
+      if (AppState.currentState !== "active") return;
       void loadPost(postId)
         .then((row) => {
           if (row === null || (row.kind === "tombstone" && row.id === postId)) update(postId, (current) => (current.kind === "ready" ? { kind: "missing" } : current));
@@ -107,7 +114,7 @@ export default function PostScreen() {
         .catch(() => undefined);
     }, PRESENCE_EVERY);
     return () => clearInterval(timer);
-  }, [postId, ready, deletedHere, update]);
+  }, [postId, ready, deletedHere, focused, update]);
 
   const [menu, setMenu] = useState(false);
 

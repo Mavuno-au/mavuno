@@ -156,7 +156,20 @@ export function NotificationRow({ group, recipientId, owner, followable, timeZon
   }
 
   return (
-    <article className={cn("flex gap-3 border-b border-hairline px-4 py-3 sm:px-6", group.unread && "bg-primary-soft/40")}>
+    // The whole row opens what it's about, as the app's does, so a photo-only
+    // post is reachable too. The row's own links and buttons sit above it.
+    <article
+      className={cn(
+        "relative flex gap-3 border-b border-hairline px-4 py-3 sm:px-6 [&_:is(a,button):not([data-row-link])]:relative [&_:is(a,button):not([data-row-link])]:z-10",
+        target && "hover:bg-wash",
+        group.unread && "bg-primary-soft/40",
+      )}
+    >
+      {target ? (
+        <Link href={target} data-row-link className="absolute inset-0 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary">
+          <span className="sr-only">{latest.type === "event_rsvp" && latest.event ? "Open the event" : latest.post ? "Open the post" : "Open their profile"}</span>
+        </Link>
+      ) : null}
       <span className={cn("mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full border-2 [&>svg]:size-4", group.unread ? "border-primary text-primary" : "border-rail text-ink-muted")}>
         {good ? <ShieldCheck /> : ICONS[latest.type]}
       </span>

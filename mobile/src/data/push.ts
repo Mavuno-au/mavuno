@@ -51,9 +51,10 @@ export const PUSH_GROUPS: readonly { title: string; kinds: readonly { kind: Push
 ];
 
 // The member is in the app already, with its own badges, so a push that
-// arrives while it's open only updates the icon.
+// arrives while it's open shows nothing. The app sets the icon's number from
+// its own counts (data/counts.tsx); the push's number is only near enough.
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({ shouldShowBanner: false, shouldShowList: false, shouldPlaySound: false, shouldSetBadge: true }),
+  handleNotification: async () => ({ shouldShowBanner: false, shouldShowList: false, shouldPlaySound: false, shouldSetBadge: false }),
 });
 
 // Set once the project is registered with Expo (mobile/README.md). A build
@@ -86,9 +87,21 @@ async function androidChannel() {
   if (Platform.OS === "android") await Notifications.setNotificationChannelAsync("default", { name: "Mavuno", importance: AndroidImportance.DEFAULT });
 }
 
+// The registration under way, so a pending removal of the same token waits
+// for it rather than deleting what was just registered.
+let registering: Promise<boolean> | null = null;
+
 // On every launch, so the database knows the phone is still in use and a
 // token Apple replaced is swapped for the new one.
-export async function registerPush(): Promise<boolean> {
+export function registerPush(): Promise<boolean> {
+  const current = register().finally(() => {
+    if (registering === current) registering = null;
+  });
+  registering = current;
+  return current;
+}
+
+async function register(): Promise<boolean> {
   if (!projectId || (await pushPermission()) !== "granted") return false;
   try {
     await androidChannel();
@@ -127,6 +140,7 @@ export async function unregisterPush() {
 
 // On every launch and return to the app, signed in or not.
 export async function retryPendingUnregister() {
+  await registering;
   const token = localStorage.getItem(PENDING_KEY);
   // Signed in again on the same phone: registering moves the token to them.
   if (!token || localStorage.getItem(TOKEN_KEY) === token) return;
@@ -150,8 +164,8 @@ export function declinePush() {
 const recentlyDeclined = () => Date.now() - Number(localStorage.getItem(DECLINED_KEY) ?? 0) < ASK_AGAIN_AFTER;
 
 // Whether to show the card that asks: only where notifications would help
-// (the Notifications and Messages tabs), never on first launch, and not again
-// for a month after "Not now".
+// (the Notifications and Messages tabs), and not again for a month after
+// "Not now".
 export function usePushOffer() {
   const [offer, setOffer] = useState(false);
   useEffect(() => {
@@ -258,7 +272,15 @@ export function PushNotifications({ viewerId }: { viewerId: string | null }) {
   useEffect(() => {
     if (!viewerId) return;
     void retryPendingUnregister().then(() => registerPush());
-    const tokens = Notifications.addPushTokenListener(() => void registerPush());
+    // iOS sends this event every time a token is asked for, registering
+    // included, so only a token that differs from the last is registered;
+    // otherwise each registration sets off the next, without end.
+    let lastToken: unknown = null;
+    const tokens = Notifications.addPushTokenListener((token) => {
+      const previous = lastToken;
+      lastToken = token.data;
+      if (previous !== null && previous !== token.data) void registerPush();
+    });
     const appState = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;
       void pushPermission().then((permission) => {
@@ -276,9 +298,12 @@ export function PushNotifications({ viewerId }: { viewerId: string | null }) {
 
   useEffect(() => {
     if (!viewerId || !response || response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
+    // iOS gives pushes that replace one another (a conversation's messages)
+    // the same identifier, so the time tells two taps apart.
     const { identifier, content } = response.notification.request;
-    if (handled.current === identifier) return;
-    handled.current = identifier;
+    const tap = `${identifier}:${response.notification.date}`;
+    if (handled.current === tap) return;
+    handled.current = tap;
     Notifications.clearLastNotificationResponse();
     // What a tap was about is read now, so the rest on the lock screen are stale.
     void Notifications.dismissAllNotificationsAsync();

@@ -15,7 +15,7 @@ import { useToastFloor } from "@/ui/toast";
 import { onSoftReset } from "@/util/events";
 
 type Props = {
-  feed: { state: FeedState; loadMore: () => void; refresh: () => void; retry: () => void };
+  feed: { state: FeedState; loadMore: () => void; refresh: () => void; retry: () => void; setScrolledDown?: (down: boolean) => void };
   empty: ReactNode;
   end?: string;
   header?: ReactElement;
@@ -28,10 +28,12 @@ type Props = {
   fresh?: number;
   // The profile's pinned post, whose menu offers Unpin.
   pinnedId?: string;
+  // Something shown after that many posts, such as Who to follow.
+  insert?: { after: number; node: ReactElement };
 };
 
-export function FeedList({ feed, empty, end = "You're all caught up.", header, leading = [], active = true, showPreviews = true, fresh = 0, pinnedId }: Props) {
-  const { state, loadMore, refresh, retry } = feed;
+export function FeedList({ feed, empty, end = "You're all caught up.", header, leading = [], active = true, showPreviews = true, fresh = 0, pinnedId, insert }: Props) {
+  const { state, loadMore, refresh, retry, setScrolledDown } = feed;
   const palette = usePalette();
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -56,7 +58,12 @@ export function FeedList({ feed, empty, end = "You're all caught up.", header, l
         ref={list}
         data={rows}
         keyExtractor={(row) => row.id}
-        renderItem={({ item }) => <PostRow row={item} previews={showPreviews ? ready?.previews[item.id] : undefined} pinnedHere={item.id === pinnedId} />}
+        renderItem={({ item, index }) => (
+          <>
+            <PostRow row={item} previews={showPreviews ? ready?.previews[item.id] : undefined} pinnedHere={item.id === pinnedId} />
+            {insert && index === insert.after - 1 ? insert.node : null}
+          </>
+        )}
         ListHeaderComponent={header}
         ListEmptyComponent={
           state.kind === "loading" ? (
@@ -70,6 +77,8 @@ export function FeedList({ feed, empty, end = "You're all caught up.", header, l
         ListFooterComponent={ready && rows.length > 0 ? <Footer more={ready.more} next={ready.next} end={end} onRetry={loadMore} /> : undefined}
         onEndReached={loadMore}
         onEndReachedThreshold={2}
+        onScroll={setScrolledDown ? (event) => setScrolledDown(event.nativeEvent.contentOffset.y > height / 2) : undefined}
+        scrollEventThrottle={200}
         refreshControl={ready ? <RefreshControl {...pull} tintColor={palette.inkMuted} /> : undefined}
         scrollsToTop={active && focused}
         // Search's results are a feed: a tap on a post opens it even with the

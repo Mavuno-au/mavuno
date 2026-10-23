@@ -26,6 +26,8 @@ import { siteLink } from "@/data/env";
 
 const PHOTO_HEIGHT = 224;
 
+const ROLES: Record<SpaceRole, string> = { owner: "You started this space", moderator: "You moderate this space", member: "You're a member" };
+
 type State = { kind: "missing" } | { kind: "failed"; reason: Reason } | { kind: "ready"; space: Space; role: SpaceRole | null; events: CommunityEvent[] };
 
 // A city or interest space: the city's photo with its credit and licence,
@@ -126,17 +128,25 @@ export default function SpaceScreen() {
             <Text variant="meta" tone="muted">
               {counts}
             </Text>
+            {state.role ? (
+              <Text variant="subhead" tone="muted">
+                {ROLES[state.role]}
+              </Text>
+            ) : null}
           </View>
-          <Button
-            label={joined ? "Joined" : "Join"}
-            hint={joined ? "Leaves this space" : undefined}
-            variant={joined ? "outline" : "primary"}
-            size="medium"
-            busy={busy}
-            icon={joined ? <Check size={16} color={palette.ink} strokeWidth={2.4} /> : undefined}
-            onPress={() => void set(!joined)}
-            style={{ minWidth: 104 }}
-          />
+          {/* The owner can't leave the space they started, as on the website. */}
+          {state.role === "owner" ? null : (
+            <Button
+              label={joined ? "Joined" : "Join"}
+              hint={joined ? "Leaves this space" : undefined}
+              variant={joined ? "outline" : "primary"}
+              size="medium"
+              busy={busy}
+              icon={joined ? <Check size={16} color={palette.ink} strokeWidth={2.4} /> : undefined}
+              onPress={() => void set(!joined)}
+              style={{ minWidth: 104 }}
+            />
+          )}
         </View>
         {space.description ? <Text variant="body">{space.description}</Text> : null}
         {joined && viewer ? (
@@ -186,7 +196,8 @@ export default function SpaceScreen() {
         onClose={() => setMenu(false)}
         actions={[
           { label: "Share space", onPress: () => shareLink(siteLink(`/spaces/${space.slug}`)) },
-          { label: "Report space", destructive: true, onPress: () => router.push({ pathname: "/report", params: { type: "space", id: space.id } }) },
+          // Official spaces and your own aren't reported, as on the website.
+          ...(space.official || state.role === "owner" ? [] : [{ label: "Report space", destructive: true, onPress: () => router.push({ pathname: "/report", params: { type: "space", id: space.id } }) }]),
         ]}
       />
     </View>

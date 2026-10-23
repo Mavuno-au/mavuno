@@ -36,7 +36,9 @@ export default function Notifications() {
   const [filter, setFilter] = useState<NotificationFilterKey>("all");
   const [identityId, setIdentityId] = useState<string | null>(null);
   const [choosing, setChoosing] = useState(false);
-  const [arrived, setArrived] = useState(0);
+  // Counted against the newest group it was asked after, so any refresh that
+  // brings newer ones in retires the pill.
+  const [arrivals, setArrivals] = useState<{ after: string | null; count: number }>({ after: null, count: 0 });
   // Groups that were unread when this visit opened them keep their colour.
   const [seenUnread, setSeenUnread] = useState<ReadonlySet<string>>(new Set());
 
@@ -81,14 +83,15 @@ export default function Notifications() {
     if (!focused || !newest || !recipientId) return;
     const timer = setInterval(() => {
       void loadNotifications(recipientId, filter, { kind: "after", at: newest })
-        .then((page) => setArrived(page.groups.length))
+        .then((page) => setArrivals({ after: newest, count: page.groups.length }))
         .catch(() => undefined);
     }, ARRIVALS_EVERY);
     return () => clearInterval(timer);
   }, [focused, newest, recipientId, filter]);
 
+  const arrived = arrivals.after === newest ? arrivals.count : 0;
   const showArrived = useCallback(() => {
-    setArrived(0);
+    setArrivals({ after: null, count: 0 });
     refreshList();
   }, [refreshList]);
 
@@ -117,7 +120,7 @@ export default function Notifications() {
             options={NOTIFICATION_FILTERS}
             value={filter}
             onChange={(key) => {
-              setArrived(0);
+              setArrivals({ after: null, count: 0 });
               setFilter(key);
             }}
           />

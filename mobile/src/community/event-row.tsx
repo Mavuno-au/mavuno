@@ -1,8 +1,10 @@
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import { Pressable, View } from "react-native";
 import { EVENT_CATEGORIES } from "@/lib/catalogue";
 import { eventPlace, type CommunityEvent } from "@/lib/community";
 import { eventDate } from "@/lib/format";
+import { Avatar } from "@/ui/avatar";
 import { Chip } from "@/ui/controls";
 import { font, Text } from "@/ui/text";
 import { HAIRLINE, usePalette } from "@/ui/theme";
@@ -32,7 +34,7 @@ export function EventRow({ event, going = false }: { event: CommunityEvent; goin
   return (
     <Pressable
       accessibilityRole="link"
-      accessibilityLabel={`${event.title}. ${when}. ${where}${going ? ". You're going" : ""}`}
+      accessibilityLabel={`${event.title}. ${when}. ${where}. Hosted by ${event.host.displayName}${going ? ". You're going" : ""}`}
       onPress={() => router.push(`/event/${event.id}`)}
       style={({ pressed }) => ({ flexDirection: "row", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline, backgroundColor: pressed ? palette.wash : "transparent" })}
     >
@@ -47,12 +49,19 @@ export function EventRow({ event, going = false }: { event: CommunityEvent; goin
         <Text variant="subhead" tone="muted" numberOfLines={1}>
           {where || EVENT_CATEGORIES[event.category]}
         </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <Avatar person={event.host} size={18} />
+          <Text variant="subhead" tone="muted" numberOfLines={1} style={{ flexShrink: 1 }}>
+            {event.host.displayName}
+          </Text>
+        </View>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 2 }}>
           {going ? <Chip tone="primary">You're going</Chip> : null}
           {event.going > 0 ? <Chip>{event.going} going</Chip> : null}
           {event.free ? <Chip>Free</Chip> : null}
         </View>
       </View>
+      {event.coverUrl ? <Image source={event.coverUrl} style={{ width: 64, height: 64, borderRadius: 8, backgroundColor: palette.wash }} contentFit="cover" accessible={false} /> : null}
     </Pressable>
   );
 }
