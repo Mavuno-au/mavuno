@@ -7,6 +7,7 @@ import { toViewer, VIEWER_SELECT, type Viewer } from "@/lib/viewer-row";
 import { clearDrafts } from "@/data/drafts";
 import { unregisterPush } from "@/data/push";
 import { supabase } from "@/data/supabase";
+import { toast } from "@/ui/toast";
 import { createEvent } from "@/util/events";
 
 // Why a member is signed out when they didn't ask to be.
@@ -99,7 +100,18 @@ export async function signOut(notice: Notice | null = null) {
   if (data.session) localStorage.removeItem(standingKey(data.session.user.id));
   // A deleted account has no session left on the server to end. Otherwise
   // every device signs out, which is what "Sign out" promises.
-  await supabase.auth.signOut({ scope: notice === "deleted" ? "local" : "global" });
+  const scope = notice === "deleted" ? "local" : "global";
+  const { error } = await supabase.auth.signOut({ scope });
+  if (!error || scope === "local") return;
+  // When the server can't be reached this phone usually signs out anyway but
+  // the others don't, and someone signing out because they lost a phone needs to know.
+  const { data: after } = await supabase.auth.getSession();
+  if (after.session) {
+    leaving = null;
+    toast("Couldn't sign out. Check your connection and try again.", { tone: "error" });
+  } else {
+    toast("Signed out on this phone only. Your other phones stay signed in until you sign out again with a connection.", { duration: 8000 });
+  }
 }
 
 export function SessionProvider({ children }: { children: ReactNode }) {
