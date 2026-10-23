@@ -3043,6 +3043,33 @@ console.log("\nPush notifications");
   await q("select public.send_due_pushes()");
   pushes = await pushesTo(phone);
   check("then go out together", pushes.length === 1 && pushes[0].body === "push_third and 1 other liked your post", pushes);
+  check("pushes expire after a day", pushes[0]?.ttl === 86400, pushes[0]);
+
+  // Unliking and liking again inserts the notification again; count people.
+  await as(writer);
+  const toggled = await post("Jollof or fried rice for the dinner dance?");
+  await as(fan);
+  await q("insert into public.likes (user_id, post_id) values ($1, $2)", [fan, toggled]);
+  for (let n = 0; n < 2; n++) {
+    await q("delete from public.likes where user_id = $1 and post_id = $2", [fan, toggled]);
+    await q("insert into public.likes (user_id, post_id) values ($1, $2)", [fan, toggled]);
+  }
+  await as(other);
+  await q("insert into public.likes (user_id, post_id) values ($1, $2)", [other, toggled]);
+  await clear();
+  await q("update public.push_outbox set send_after = now() where recipient_id = $1 and group_key = $2 and sent_at is null", [writer, `like:${toggled}`]);
+  await q("select public.send_due_pushes()");
+  pushes = await pushesTo(phone);
+  check("liking again doesn't count as another person", pushes.length === 1 && pushes[0].body === "Oto Bello and 1 other liked your post", pushes);
+
+  // Someone invited to a group who hasn't accepted hears about it once a day.
+  await clear();
+  await q("select public.queue_push($1, 'message_request', 'pending:test-group', $2, null, null, null)", [writer, other]);
+  check("a message request is pushed at once", (await pushesTo(phone)).length === 1);
+  await q("select public.queue_push($1, 'message_request', 'pending:test-group', $2, null, null, null)", [writer, other]);
+  row = await one("select send_after > now() + interval '23 hours' as later from public.push_outbox where recipient_id = $1 and group_key = 'pending:test-group' and sent_at is null", [writer]);
+  check("the next for the same conversation waits a day", row?.later === true, row);
+  await q("delete from public.push_outbox where group_key = 'pending:test-group'");
 
   // The member's switches.
   await as(writer);
@@ -3133,11 +3160,27 @@ console.log("\nPush notifications");
   await q("select public.settle_pushes()");
   const asked = (await sent()).find((r) => r.url.endsWith("/getReceipts"));
   check("receipts are asked for after 15 minutes", JSON.stringify(asked?.body) === JSON.stringify({ ids: ["ticket-1"] }), asked);
+  check("with the access token, as sends are", asked?.headers?.Authorization === "Bearer expo-secret", asked?.headers);
   const receipts = await one("select id from public.push_requests where kind = 'receipts'");
   await q("insert into net._http_response (id, status_code, content) values ($1, 200, $2)", [receipts.id, JSON.stringify({ data: { "ticket-1": { status: "error", details: { error: "DeviceNotRegistered" } } } })]);
   await q("select public.settle_pushes()");
   check("a receipt saying the phone is gone forgets it", (await one("select count(*)::int as n from public.push_tokens where profile_id = $1", [writer])).n === 0);
   check("and its ticket and request are cleared", (await one("select (select count(*) from public.push_tickets) + (select count(*) from public.push_requests where kind = 'receipts')::int as n")).n === 0);
+
+  // A token from another Expo project makes Expo refuse the whole batch.
+  await as(writer);
+  await q("select public.register_push_token($1)", [phone]);
+  await q("select public.register_push_token($1)", [spare]);
+  await q("select public.register_push_token('ExponentPushToken[foreign-phone]')");
+  await clear();
+  await as(third);
+  await post("Hello again @push_writer");
+  await superuser();
+  const mixed = await one("select id from public.push_requests where kind = 'send' order by created_at desc, id desc limit 1");
+  const refusal = { errors: [{ code: "PUSH_TOO_MANY_EXPERIENCE_IDS", message: "All push notification messages in the same request must be for the same project", details: { "@mavuno/mavuno": [phone, spare], "@someone/else": ["ExponentPushToken[foreign-phone]"] } }] };
+  await q("insert into net._http_response (id, status_code, content) values ($1, 400, $2)", [mixed.id, JSON.stringify(refusal)]);
+  await q("select public.settle_pushes()");
+  check("a token from another app is dropped and Mavuno's are kept", (await q("select token from public.push_tokens where profile_id = $1 order by token", [writer])).map((r) => r.token).join() === [phone, spare].sort().join());
 
   // Signing out and deleting.
   await as(fan);

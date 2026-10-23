@@ -157,6 +157,8 @@ declare
     when 'follow' then interval '1 hour'
     when 'event_rsvp' then interval '1 hour'
     when 'message' then interval '1 minute'
+    -- Group members who haven't accepted would otherwise hear every message.
+    when 'message_request' then interval '1 day'
     else interval '0'
   end;
   v_last timestamptz;
@@ -315,6 +317,14 @@ begin
       return null;
     end if;
   end if;
+  if p_row.kind in ('like', 'follow', 'event_rsvp') then
+    -- Unliking and liking again inserts the notification again, so count people, not inserts.
+    select greatest(count(distinct n.actor_id) - 1, 0) into v_others from public.notifications n
+    where n.recipient_id = p_row.recipient_id and n.type::text = p_row.kind::text
+      and (p_row.kind <> 'like' or n.post_id = p_row.post_id)
+      and (p_row.kind <> 'event_rsvp' or n.event_id = p_row.event_id)
+      and n.created_at >= p_row.created_at;
+  end if;
   v_name := coalesce(nullif(v_actor.display_name, ''), '@' || v_actor.username, 'Someone');
   v_and := case when v_others = 1 then ' and 1 other' when v_others > 1 then ' and ' || v_others || ' others' else '' end;
 
@@ -379,6 +389,7 @@ begin
     'sound', 'default',
     'badge', public.push_badge(p_row.recipient_id),
     'priority', 'high',
+    'ttl', 86400,
     -- A grouped row replaces the one before it on the lock screen.
     'collapseId', case when p_row.kind in ('like', 'follow', 'event_rsvp', 'message', 'message_request') then p_row.group_key end,
     'threadId', p_row.group_key
@@ -387,8 +398,9 @@ end;
 $$;
 
 -- Hands every due row to Expo, 100 messages a request. Never fails the
--- statement that queued them: if anything goes wrong the rows stay due and
--- the next minute's run tries again.
+-- statement that queued them: a database error leaves the rows due for the
+-- next minute's run. A push Expo refuses or doesn't answer isn't retried;
+-- the notification is still in the inbox.
 create function public.send_due_pushes()
 returns integer
 language plpgsql
@@ -489,6 +501,9 @@ declare
   v_answer jsonb;
   v_tickets text[];
   v_id bigint;
+  v_access text;
+  v_headers jsonb := '{"Content-Type": "application/json", "Accept": "application/json"}';
+  v_groups jsonb;
 begin
   if to_regclass('net._http_response') is null then
     return;
@@ -499,7 +514,19 @@ begin
       from public.push_requests r join net._http_response h on h.id = r.id'
   loop
     begin
-      v_answer := case when v_request.status_code = 200 then v_request.content::jsonb end;
+      v_answer := case when v_request.status_code between 200 and 499 then v_request.content::jsonb end;
+      -- A batch with tokens from more than one Expo project is refused whole.
+      -- Mavuno's own tokens are the larger group; anyone registering a token
+      -- from another project loses it, so it can't keep blocking others.
+      v_groups := v_answer -> 'errors' -> 0 -> 'details';
+      if v_request.kind = 'send' and v_answer -> 'errors' -> 0 ->> 'code' = 'PUSH_TOO_MANY_EXPERIENCE_IDS' and jsonb_typeof(v_groups) = 'object' then
+        delete from public.push_tokens where token in (
+          select jsonb_array_elements_text(g.tokens) from (
+            select value as tokens, row_number() over (order by jsonb_array_length(value) desc, key) as rank
+            from jsonb_each(v_groups) where jsonb_typeof(value) = 'array'
+          ) as g where g.rank > 1
+        );
+      end if;
       if v_request.kind = 'send' and jsonb_typeof(v_answer -> 'data') = 'array' then
         delete from public.push_tokens where token in (
           select v_request.tokens[t.n] from jsonb_array_elements(v_answer -> 'data') with ordinality as t (ticket, n)
@@ -532,10 +559,15 @@ begin
     order by created_at limit 1000
   ) as due;
   if v_tickets is not null and to_regprocedure('net.http_post(text, jsonb, jsonb, jsonb, integer)') is not null then
+    -- Receipts need the same access token as sends once Expo's enhanced security is on.
+    select decrypted_secret into v_access from vault.decrypted_secrets where name = 'expo_push_access_token';
+    if v_access is not null then
+      v_headers := v_headers || jsonb_build_object('Authorization', 'Bearer ' || v_access);
+    end if;
     v_id := net.http_post(
       url := 'https://exp.host/--/api/v2/push/getReceipts',
       body := jsonb_build_object('ids', to_jsonb(v_tickets)),
-      headers := '{"Content-Type": "application/json", "Accept": "application/json"}',
+      headers := v_headers,
       timeout_milliseconds := 10000
     );
     insert into public.push_requests (id, kind, tickets) values (v_id, 'receipts', v_tickets);

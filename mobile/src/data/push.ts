@@ -64,6 +64,9 @@ export const pushAvailable = projectId !== null;
 const tokenSchema = z.string().regex(/^Expo(nent)?PushToken\[[A-Za-z0-9_-]{1,200}\]$/);
 // This phone's token, kept so signing out can remove it.
 const TOKEN_KEY = "mavuno-push-token";
+// A token whose removal didn't reach the server (offline at sign-out), so the
+// next person on this phone doesn't get the last member's notifications.
+const PENDING_KEY = "mavuno-push-unregister";
 // When the member last chose "Not now".
 const DECLINED_KEY = "mavuno-push-declined";
 const ASK_AGAIN_AFTER = 30 * 24 * 60 * 60 * 1000;
@@ -93,6 +96,8 @@ export async function registerPush(): Promise<boolean> {
     const { error } = await supabase.rpc("register_push_token", { p_token: token });
     if (error) return false;
     localStorage.setItem(TOKEN_KEY, token);
+    // Registering moved the token to this member, so an old removal is moot.
+    if (localStorage.getItem(PENDING_KEY) === token) localStorage.removeItem(PENDING_KEY);
     return true;
   } catch {
     // Offline, or Expo didn't answer: the next launch tries again.
@@ -100,12 +105,32 @@ export async function registerPush(): Promise<boolean> {
   }
 }
 
-// Signed out works too: the token is the proof.
+async function removeToken(token: string) {
+  try {
+    const { error } = await supabase.rpc("unregister_push_token", { p_token: token });
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+// Signed out works too: the token is the proof. If the server can't be
+// reached, the token waits as a pending removal and goes at the next launch.
 export async function unregisterPush() {
   const token = localStorage.getItem(TOKEN_KEY);
   localStorage.removeItem(TOKEN_KEY);
   void Notifications.setBadgeCountAsync(0).catch(() => false);
-  if (token) await supabase.rpc("unregister_push_token", { p_token: token });
+  if (!token) return;
+  if (await removeToken(token)) localStorage.removeItem(PENDING_KEY);
+  else localStorage.setItem(PENDING_KEY, token);
+}
+
+// On every launch and return to the app, signed in or not.
+export async function retryPendingUnregister() {
+  const token = localStorage.getItem(PENDING_KEY);
+  // Signed in again on the same phone: registering moves the token to them.
+  if (!token || localStorage.getItem(TOKEN_KEY) === token) return;
+  if (await removeToken(token)) localStorage.removeItem(PENDING_KEY);
 }
 
 export async function askForPush(): Promise<PushPermission> {
@@ -223,8 +248,16 @@ export function PushNotifications({ viewerId }: { viewerId: string | null }) {
   const handled = useRef<string | null>(null);
 
   useEffect(() => {
+    void retryPendingUnregister();
+    const retry = AppState.addEventListener("change", (state) => {
+      if (state === "active") void retryPendingUnregister();
+    });
+    return () => retry.remove();
+  }, []);
+
+  useEffect(() => {
     if (!viewerId) return;
-    void registerPush();
+    void retryPendingUnregister().then(() => registerPush());
     const tokens = Notifications.addPushTokenListener(() => void registerPush());
     const appState = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;
