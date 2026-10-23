@@ -1,11 +1,11 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import { ScrollView } from "react-native";
 import { toUsername } from "@/lib/schemas";
 import { loadCities, type City } from "@/data/profiles";
 import { reloadViewer } from "@/data/session";
 import { createOrganisation } from "@/data/settings";
-import { FieldError, Group, SelectRow, SheetHeader, TextField, useErrorScroll } from "@/ui/form";
+import { FieldError, Group, KeyboardSheet, SelectRow, SheetHeader, TextField, useErrorScroll } from "@/ui/form";
 import { Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
@@ -45,7 +45,7 @@ export default function OrganisationForm() {
   }
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: palette.shell }}>
+    <KeyboardSheet style={{ flex: 1, backgroundColor: palette.shell }}>
       <SheetHeader title="New organisation" onCancel={() => router.back()} action={{ label: "Create", onPress: () => void save(), disabled: name.trim().length < 2 || !handle, busy }} />
       <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 18 }}>
         {error ? <FieldError>{error}</FieldError> : null}
@@ -61,6 +61,6 @@ export default function OrganisationForm() {
           Organisations get a verified badge once a moderator has checked them. Until then they work the same.
         </Text>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardSheet>
   );
 }

@@ -1,6 +1,6 @@
 import { ChevronRight, CircleAlert, Eye, EyeOff } from "lucide-react-native";
-import { useEffect, useRef, useState, type ComponentRef, type ReactNode, type Ref } from "react";
-import { AccessibilityInfo, ActivityIndicator, Pressable, Switch, TextInput, View, type ScrollView, type TextInputProps } from "react-native";
+import { createContext, use, useEffect, useRef, useState, type ComponentRef, type ReactNode, type Ref } from "react";
+import { AccessibilityInfo, ActivityIndicator, Keyboard, LayoutAnimation, Platform, Pressable, Switch, TextInput, useWindowDimensions, View, type KeyboardEvent, type ScrollView, type StyleProp, type TextInputProps, type ViewStyle } from "react-native";
 import { ActionSheet } from "@/ui/sheet";
 import { font, Text, type } from "@/ui/text";
 import { HAIRLINE, usePalette } from "@/ui/theme";
@@ -380,6 +380,42 @@ export function SheetHeader({ title, onCancel, action, cancelLabel = "Cancel" }:
       ) : (
         <View style={{ minWidth: 72 }} />
       )}
+    </View>
+  );
+}
+
+// Keeps a sheet's content above the keyboard. KeyboardAvoidingView misjudges
+// a sheet, which starts below the top of the screen, and left the composer's
+// toolbar under the keyboard; measuring the sheet in the window is off by the
+// same amount. A sheet reaches the bottom of the screen, so the keyboard
+// covers as much of it as the keyboard's own height on screen. Inside,
+// useKeyboardOpen tells a bottom bar to drop its home-indicator padding,
+// which the keyboard already covers.
+const KeyboardOpen = createContext(false);
+export const useKeyboardOpen = () => use(KeyboardOpen);
+
+export function KeyboardSheet({ style, children }: { style?: StyleProp<ViewStyle>; children: ReactNode }) {
+  const { height } = useWindowDimensions();
+  const [covered, setCovered] = useState(() => Math.max(0, height - (Keyboard.metrics()?.screenY ?? height)));
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    const move = (event: KeyboardEvent) => {
+      LayoutAnimation.configureNext({ duration: event.duration || 250, update: { type: "keyboard" } });
+      setCovered(Math.max(0, height - event.endCoordinates.screenY));
+    };
+    const change = Keyboard.addListener("keyboardWillChangeFrame", move);
+    const hide = Keyboard.addListener("keyboardWillHide", (event) => {
+      LayoutAnimation.configureNext({ duration: event.duration || 250, update: { type: "keyboard" } });
+      setCovered(0);
+    });
+    return () => {
+      change.remove();
+      hide.remove();
+    };
+  }, [height]);
+  return (
+    <View style={[{ flex: 1 }, style, { paddingBottom: covered }]}>
+      <KeyboardOpen value={covered > 0}>{children}</KeyboardOpen>
     </View>
   );
 }

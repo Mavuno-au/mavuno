@@ -1,13 +1,14 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { Circle, CircleAlert, CircleCheck, X } from "lucide-react-native";
 import { useState } from "react";
-import { AccessibilityInfo, Keyboard, KeyboardAvoidingView, Pressable, ScrollView, TextInput, View } from "react-native";
+import { AccessibilityInfo, Keyboard, Pressable, ScrollView, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { z } from "zod";
 import { LIMITS, REPORT_REASONS, type ReportReason } from "@/lib/catalogue";
 import { siteLink } from "@/data/env";
 import { reportContent } from "@/data/relations";
 import { Button, IconButton } from "@/ui/controls";
+import { KeyboardSheet } from "@/ui/form";
 import { Header } from "@/ui/header";
 import { font, Text, type } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
@@ -99,7 +100,7 @@ export default function ReportScreen() {
   const field = [type.body, { fontSize: 17, lineHeight: 23, borderRadius: 12, borderWidth: 1, borderColor: palette.rail, paddingHorizontal: 14, paddingVertical: 12, color: palette.ink }];
 
   return (
-    <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: palette.surface }}>
+    <KeyboardSheet style={{ flex: 1, backgroundColor: palette.surface }}>
       <Header title={`Report this ${what}`} left={close} inset={false} />
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: insets.bottom + 16, gap: 16 }}>
         <Text variant="subhead" tone="muted" style={{ paddingHorizontal: 8 }}>
@@ -167,7 +168,7 @@ export default function ReportScreen() {
         ) : null}
         <Button label={busy ? "Sending…" : "Report"} busy={busy} disabled={!canSend} onPress={() => void submit()} />
       </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardSheet>
   );
 }
 

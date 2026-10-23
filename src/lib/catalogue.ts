@@ -125,5 +125,7 @@ export const LIMITS = {
   images: 4,
   messageImages: 3,
   reportDetails: 500,
-  bio: 300,
+  // As X caps bios. The database still allows 300, so bios written before
+  // this stay as they are until their owner edits them.
+  bio: 160,
 } as const;
