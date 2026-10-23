@@ -51,6 +51,18 @@ export function FeedList({ feed, empty, end = "You're all caught up.", header, l
   const focused = useIsFocused();
   useEffect(() => (active && focused ? onSoftReset(toTop) : undefined), [active, focused, toTop]);
   const pull = usePullToRefresh(ready?.refreshing ?? false, refresh);
+  // The same function from render to render, so FlatList's cells don't all
+  // render again each time the list does.
+  const previews = ready?.previews;
+  const renderItem = useCallback(
+    ({ item, index }: { item: Row; index: number }) => (
+      <>
+        <PostRow row={item} previews={showPreviews ? previews?.[item.id] : undefined} pinnedHere={item.id === pinnedId} />
+        {insert && index === insert.after - 1 ? insert.node : null}
+      </>
+    ),
+    [showPreviews, previews, pinnedId, insert],
+  );
 
   return (
     <View style={{ flex: 1 }}>
@@ -58,12 +70,7 @@ export function FeedList({ feed, empty, end = "You're all caught up.", header, l
         ref={list}
         data={rows}
         keyExtractor={(row) => row.id}
-        renderItem={({ item, index }) => (
-          <>
-            <PostRow row={item} previews={showPreviews ? ready?.previews[item.id] : undefined} pinnedHere={item.id === pinnedId} />
-            {insert && index === insert.after - 1 ? insert.node : null}
-          </>
-        )}
+        renderItem={renderItem}
         ListHeaderComponent={header}
         ListEmptyComponent={
           state.kind === "loading" ? (

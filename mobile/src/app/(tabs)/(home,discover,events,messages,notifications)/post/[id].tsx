@@ -8,9 +8,9 @@ import { THREAD_MAX_LENGTH } from "@/lib/feeds";
 import { reasonOf, type Reason } from "@/data/errors";
 import { loadContinuation, loadPost, loadReplies, loadThread, type Thread } from "@/data/posts";
 import { useViewer } from "@/data/session";
-import { usePostDeleted } from "@/data/shadow";
+import { usePostDeleted, usePostShadow } from "@/data/shadow";
 import { onPostCreated, onRelationChanged } from "@/util/events";
-import { usePostMenu } from "@/post/post-actions";
+import { usePostMenu, useSaveToggle } from "@/post/post-actions";
 import { compose, FocusedPost, PostRow, UnavailableAncestor } from "@/post/post-row";
 import { Avatar } from "@/ui/avatar";
 import { EmptyState, EndOfList, FeedSkeleton, IconButton, LoadFailed } from "@/ui/controls";
@@ -282,8 +282,11 @@ export default function PostScreen() {
   );
 }
 
-function PostOptions({ post, open, onClose }: { post: Post; open: boolean; onClose: () => void }) {
-  const actions = usePostMenu(post);
+// Built from the shadowed post, so Save reads "Remove from Saved" once the
+// bookmark below has saved it.
+function PostOptions({ post: read, open, onClose }: { post: Post; open: boolean; onClose: () => void }) {
+  const post = usePostShadow(read);
+  const actions = usePostMenu(post, useSaveToggle(post));
   return <ActionSheet title={`Post by @${post.author.username}`} actions={actions} open={open} onClose={onClose} />;
 }
 

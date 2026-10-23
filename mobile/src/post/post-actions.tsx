@@ -73,10 +73,10 @@ export function useDeletePost() {
 // The post menu, in the website's order: Save, Copy link, Pin, Delete for your
 // own; then Mute, Block and Report for someone else's, below a divider. Copy
 // text sits beside Copy link, as on Bluesky, since a row's text can't be selected.
-export function usePostMenu(post: Post, { pinnedHere = false }: { pinnedHere?: boolean } = {}): SheetAction[] {
+// `save` is the row's own useSaveToggle, shared with its bookmark.
+export function usePostMenu(post: Post, save: () => void, { pinnedHere = false }: { pinnedHere?: boolean } = {}): SheetAction[] {
   const palette = usePalette();
   const own = useActsFor(post.authorId);
-  const save = useSaveToggle(post);
   const remove = useDeletePost();
   const safety = useSafetyActions({ id: post.authorId, username: post.author.username, muted: post.authorMuted });
   const topLevel = post.parentId === null && post.status === "published";

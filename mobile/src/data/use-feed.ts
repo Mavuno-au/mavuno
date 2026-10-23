@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { PostRow, ReplyPreviews } from "@/lib/domain";
 import { reasonOf, type Reason } from "@/data/errors";
 import type { Page } from "@/data/posts";
@@ -119,5 +119,5 @@ export function useFeed(load: (cursor: string | null) => Promise<Page>, key: str
     });
   }, [enabled, takesPosts, refresh]);
 
-  return { state, loadMore, refresh, retry, setScrolledDown };
+  return useMemo(() => ({ state, loadMore, refresh, retry, setScrolledDown }), [state, loadMore, refresh, retry, setScrolledDown]);
 }

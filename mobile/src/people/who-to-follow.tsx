@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { LayoutAnimation, View } from "react-native";
 import { SUGGESTIONS_PER_PAGE } from "@/lib/who-to-follow";
 import type { PersonSummary } from "@/lib/domain";
@@ -11,16 +11,17 @@ import { HAIRLINE, usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
 import { useReduceMotion } from "@/util/motion";
 
-// The website's Who to follow block, after the fifth post of Following and
-// Latest. Twice as many are read as shown, so Not for me fills the gap from
-// the spares, as the website's does.
-export function WhoToFollow({ viewerId }: { viewerId: string }) {
-  const palette = usePalette();
-  const reduceMotion = useReduceMotion();
+type Suggestions = { people: PersonSummary[] | null; hidden: ReadonlySet<string>; setHidden: Dispatch<SetStateAction<ReadonlySet<string>>> };
+
+// Read once by Home for both Following and Latest. The block's cell remounts
+// as it scrolls out of the list's window and back, and mustn't fetch and
+// reshuffle each time, or bring back who Not for me hid.
+export function useSuggestions(viewerId: string | null): Suggestions {
   const [people, setPeople] = useState<PersonSummary[] | null>(null);
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
 
   useEffect(() => {
+    if (!viewerId) return;
     let current = true;
     loadSuggestions(SUGGESTIONS_PER_PAGE * 2).then(
       (loaded) => current && setPeople(loaded),
@@ -30,6 +31,16 @@ export function WhoToFollow({ viewerId }: { viewerId: string }) {
       current = false;
     };
   }, [viewerId]);
+
+  return useMemo(() => ({ people, hidden, setHidden }), [people, hidden]);
+}
+
+// The website's Who to follow block, after the fifth post of Following and
+// Latest. Twice as many are read as shown, so Not for me fills the gap from
+// the spares, as the website's does.
+export function WhoToFollow({ viewerId, suggestions: { people, hidden, setHidden } }: { viewerId: string; suggestions: Suggestions }) {
+  const palette = usePalette();
+  const reduceMotion = useReduceMotion();
 
   const shown = (people ?? []).filter((person) => !hidden.has(person.id)).slice(0, SUGGESTIONS_PER_PAGE);
   if (shown.length === 0) return null;
