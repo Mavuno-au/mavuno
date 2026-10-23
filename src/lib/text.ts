@@ -95,8 +95,10 @@ export function foldsInLists(body: string) {
   return foldBody(body).folded;
 }
 
-// A name's first and last initials, for an avatar without a photo.
+// A name's first and last initials, for an avatar without a photo. Whole
+// characters, so a name that starts with an emoji or a flag isn't cut in half.
 export function initials(name: string) {
   const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? (parts.at(-1)?.[0] ?? "") : "")).toUpperCase() || "?";
+  const first = (part: string | undefined) => (part ? (Array.from(part)[0] ?? "") : "");
+  return (first(parts[0]) + (parts.length > 1 ? first(parts.at(-1)) : "")).toUpperCase() || "?";
 }

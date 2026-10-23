@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allUrls, displayUrl, firstUrl, foldBody, foldsInLists, tokenize } from "./text";
+import { allUrls, displayUrl, firstUrl, foldBody, foldsInLists, initials, tokenize } from "./text";
 
 describe("tokenize", () => {
   it("finds mentions, topics and links in order", () => {
@@ -107,5 +107,12 @@ describe("displayUrl", () => {
   it("shows an unparseable stored link as written instead of throwing", () => {
     expect(displayUrl("https://a:99999")).toBe("https://a:99999");
     expect(displayUrl("https://%")).toBe("https://%");
+  });
+});
+
+describe("initials", () => {
+  it("never splits an emoji", () => {
+    expect(initials("😀 Ama")).toBe("😀A");
+    expect(initials("Kofi Mensah")).toBe("KM");
   });
 });

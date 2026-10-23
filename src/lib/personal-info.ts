@@ -42,11 +42,15 @@ function isMedicare(digits: string) {
   return /^[2-6]\d{9,10}$/.test(digits) && weighted(digits, [1, 3, 7, 9, 1, 3, 7, 9]) % 10 === Number(digits[8]);
 }
 
-// Mobiles and landlines, written locally or with +61. 13, 1300 and 1800
-// numbers belong to businesses and are left alone.
+// Mobiles and landlines, written locally or with +61 or 0061, and any number
+// written with a country code (+254, 00234), which is how family abroad is
+// reached. 13, 1300 and 1800 numbers belong to businesses and are left alone.
 function isPhone(text: string, digits: string) {
-  const local = text.trimStart().startsWith("+") ? (digits.startsWith("61") ? `0${digits.slice(2).replace(/^0/, "")}` : "") : digits;
-  return /^0[23478]\d{8}$/.test(local);
+  const start = text.trimStart();
+  if (!start.startsWith("+") && !start.startsWith("00")) return /^0[23478]\d{8}$/.test(digits);
+  const number = start.startsWith("+") ? digits : digits.slice(2);
+  if (number.startsWith("61")) return /^0[23478]\d{8}$/.test(`0${number.slice(2).replace(/^0/, "")}`);
+  return number.length >= 8 && number.length <= 15;
 }
 
 function classify(text: string): PersonalInfoKind | null {
