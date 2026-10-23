@@ -28,9 +28,11 @@ type Props = {
   fresh?: number;
   // The profile's pinned post, whose menu offers Unpin.
   pinnedId?: string;
+  // Something shown after that many posts, such as Who to follow.
+  insert?: { after: number; node: ReactElement };
 };
 
-export function FeedList({ feed, empty, end = "You're all caught up.", header, leading = [], active = true, showPreviews = true, fresh = 0, pinnedId }: Props) {
+export function FeedList({ feed, empty, end = "You're all caught up.", header, leading = [], active = true, showPreviews = true, fresh = 0, pinnedId, insert }: Props) {
   const { state, loadMore, refresh, retry } = feed;
   const palette = usePalette();
   const { height } = useWindowDimensions();
@@ -56,7 +58,12 @@ export function FeedList({ feed, empty, end = "You're all caught up.", header, l
         ref={list}
         data={rows}
         keyExtractor={(row) => row.id}
-        renderItem={({ item }) => <PostRow row={item} previews={showPreviews ? ready?.previews[item.id] : undefined} pinnedHere={item.id === pinnedId} />}
+        renderItem={({ item, index }) => (
+          <>
+            <PostRow row={item} previews={showPreviews ? ready?.previews[item.id] : undefined} pinnedHere={item.id === pinnedId} />
+            {insert && index === insert.after - 1 ? insert.node : null}
+          </>
+        )}
         ListHeaderComponent={header}
         ListEmptyComponent={
           state.kind === "loading" ? (

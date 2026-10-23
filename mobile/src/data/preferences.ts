@@ -13,6 +13,7 @@ const preferencesSchema = z.object({
     .number()
     .refine((count) => REPLY_PREVIEW_CHOICES.some((choice) => choice === count))
     .catch(DEFAULT_REPLY_PREVIEWS),
+  whoToFollow: z.boolean().catch(true),
 });
 export type Preferences = z.infer<typeof preferencesSchema>;
 

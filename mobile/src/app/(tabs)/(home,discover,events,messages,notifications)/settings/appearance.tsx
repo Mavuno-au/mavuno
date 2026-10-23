@@ -2,7 +2,7 @@ import { Check } from "lucide-react-native";
 import { Pressable, ScrollView, View } from "react-native";
 import { REPLY_PREVIEW_CHOICES } from "@/lib/reply-previews";
 import { setPreference, usePreferences, type Theme } from "@/data/preferences";
-import { Group } from "@/ui/form";
+import { Group, ToggleRow } from "@/ui/form";
 import { BackButton, Header } from "@/ui/header";
 import { Text } from "@/ui/text";
 import { HAIRLINE, usePalette } from "@/ui/theme";
@@ -41,6 +41,9 @@ export default function AppearanceSettings() {
         <Group title="Theme">{THEMES.map((theme, index) => choice(theme.label, preferences.theme === theme.value, () => setPreference("theme", theme.value), index === THEMES.length - 1))}</Group>
         <Group title="Replies under each post" footer="How many of the newest replies show under a post in your feeds.">
           {REPLY_PREVIEW_CHOICES.map((count, index) => choice(PREVIEWS[count], preferences.replyPreviews === count, () => setPreference("replyPreviews", count), index === REPLY_PREVIEW_CHOICES.length - 1))}
+        </Group>
+        <Group title="Who to follow" footer="Suggestions after the fifth post of Following and Latest. Kept on this phone, like the theme.">
+          <ToggleRow label="Show Who to follow" value={preferences.whoToFollow} onChange={(on) => setPreference("whoToFollow", on)} last />
         </Group>
         <Text variant="small" tone="muted">
           To make text bigger or smaller, change the text size in your iPhone's Settings, under Display and Brightness. Mavuno follows it.

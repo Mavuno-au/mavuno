@@ -1,10 +1,11 @@
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { Briefcase, CalendarDays, Check, Maximize2 } from "lucide-react-native";
+import { Briefcase, CalendarDays, Check, Maximize2, Play } from "lucide-react-native";
 import { useEffect, useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { OPPORTUNITY_TYPES } from "@/lib/catalogue";
 import type { EventSummary, LinkPreview, OpportunitySummary, Poll, Post, PostImage, QuotedPost } from "@/lib/domain";
+import { embedFor } from "@/lib/embeds";
 import { count, eventDate, pollTimeLeft, relativeTime } from "@/lib/format";
 import { displayUrl } from "@/lib/text";
 import { loadLinkPreview, loadPost, votePoll } from "@/data/posts";
@@ -15,7 +16,7 @@ import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
 import { haptics } from "@/util/haptics";
-import { openLabelledLink } from "@/util/links";
+import { openLabelledLink, openPlayer } from "@/util/links";
 import { openPhotos, sharePhoto } from "@/util/photos";
 import { timeZone, useNow } from "@/util/time";
 
@@ -132,30 +133,45 @@ function useLateCard(url: string, preview: LinkPreview | null) {
   return preview ?? late;
 }
 
+// A video or song link (lib/embeds) gets a card even before its preview
+// arrives, and opens in the provider's app rather than playing in the feed.
 export function LinkCard({ url, preview: read }: { url: string; preview: LinkPreview | null }) {
   const palette = usePalette();
   const block = useBlock();
   const preview = useLateCard(url, read);
-  if (!preview) return null;
+  const embed = embedFor(url);
+  if (!preview && !embed) return null;
+  const source = embed ? `${embed.provider} · play` : (preview?.siteName ?? displayUrl(url));
   return (
     <Pressable
       accessibilityRole="link"
-      accessibilityLabel={[preview.title, preview.siteName ?? displayUrl(url)].filter(Boolean).join(", ")}
+      accessibilityLabel={[preview?.title, source].filter(Boolean).join(", ")}
       // A page can name any site for itself; the reader is told if that isn't where the link goes.
-      onPress={() => openLabelledLink(url, preview.siteName ?? "")}
+      onPress={() => (embed ? openPlayer(url) : openLabelledLink(url, preview?.siteName ?? ""))}
       style={({ pressed }) => [block, { marginTop: 10, backgroundColor: pressed ? palette.wash : "transparent" }]}
     >
-      {preview.image ? <Image source={preview.image} style={{ aspectRatio: 1.91, backgroundColor: palette.wash }} contentFit="cover" accessible={false} /> : null}
+      {preview?.image ? (
+        <View style={{ aspectRatio: 1.91, backgroundColor: palette.wash }}>
+          <Image source={preview.image} style={StyleSheet.absoluteFill} contentFit="cover" accessible={false} />
+          {embed ? (
+            <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]}>
+              <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "rgba(0, 0, 0, 0.7)", alignItems: "center", justifyContent: "center" }}>
+                <Play size={24} color="#ffffff" fill="#ffffff" style={{ marginLeft: 2 }} />
+              </View>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
       <View style={{ gap: 2, paddingHorizontal: 12, paddingVertical: 10 }}>
         <Text variant="caption" tone="muted" numberOfLines={1}>
-          {preview.siteName ?? displayUrl(url)}
+          {source}
         </Text>
-        {preview.title ? (
+        {preview?.title ? (
           <Text variant="callout" numberOfLines={2} style={{ fontFamily: font.medium }}>
             {preview.title}
           </Text>
         ) : null}
-        {preview.description ? (
+        {preview?.description ? (
           <Text variant="subhead" tone="muted" numberOfLines={2}>
             {preview.description}
           </Text>

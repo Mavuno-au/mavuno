@@ -22,6 +22,13 @@ export function openLink(href: string) {
   void WebBrowser.openBrowserAsync(url.href, { presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET }).catch(fallback);
 }
 
+// A video or song opens through the system, so iOS hands it to the YouTube
+// or Spotify app when it's installed, and to Safari when it isn't.
+export function openPlayer(href: string) {
+  const url = safeHref(href);
+  if (url) void Linking.openURL(url.href).catch(() => openLink(href));
+}
+
 const host = (url: URL) => url.hostname.toLowerCase().replace(/^www\./, "");
 
 // "m.youtube.com" is the same site as "youtube.com"; a page may name either.

@@ -2,7 +2,7 @@ import { router } from "expo-router";
 import { Briefcase } from "lucide-react-native";
 import { Pressable, View } from "react-native";
 import { OPPORTUNITY_TYPES } from "@/lib/catalogue";
-import { DEADLINE_ZONE, type Opportunity } from "@/lib/community";
+import { DEADLINE_ZONE, opportunityPlace, type Opportunity } from "@/lib/community";
 import { Avatar } from "@/ui/avatar";
 import { Chip } from "@/ui/controls";
 import { Text } from "@/ui/text";
@@ -13,7 +13,7 @@ export const applyBy = (deadline: string) => `Apply by ${new Date(deadline).toLo
 // The website's rows: who, where, type, apply-by date and pay.
 export function OpportunityRow({ opportunity }: { opportunity: Opportunity }) {
   const palette = usePalette();
-  const where = opportunity.remote ? "Remote" : [opportunity.location, opportunity.city].filter(Boolean).join(", ");
+  const where = opportunityPlace(opportunity);
   const who = opportunity.organisation ?? opportunity.poster.displayName;
   return (
     <Pressable

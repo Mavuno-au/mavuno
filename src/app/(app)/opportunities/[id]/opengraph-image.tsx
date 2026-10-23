@@ -1,4 +1,5 @@
-import { deadlineLabel, opportunityPlace } from "@/components/community/rows";
+import { deadlineLabel } from "@/components/community/rows";
+import { opportunityPlace } from "@/lib/community";
 import { OPPORTUNITY_TYPES } from "@/lib/catalogue";
 import { loadOpportunity } from "@/lib/data/community";
 import { CardAvatar, cardImage, clip, Frame, INK, OG_CONTENT_TYPE, OG_SIZE, render, SiteCard } from "@/lib/og";

@@ -1,7 +1,7 @@
 import { createEventInCalendarAsync } from "expo-calendar/legacy";
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
-import { CalendarPlus, Check, Ellipsis, Globe, MapPin, Star, Ticket } from "lucide-react-native";
+import { BadgeCheck, CalendarPlus, Check, Ellipsis, Globe, MapPin, Star, Ticket } from "lucide-react-native";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Alert, Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -161,15 +161,27 @@ export default function EventScreen() {
                 {event.title}
               </Text>
               <Text variant="subhead" tone="muted">
-                {EVENT_CATEGORIES[event.category]} · {EVENT_FORMATS[event.format]}
+                {EVENT_CATEGORIES[event.category]} · {EVENT_FORMATS[event.format]} · {event.free ? "Free" : "Paid"}
               </Text>
             </View>
           </View>
           <Pressable accessibilityRole="link" onPress={() => router.push(`/profile/${event.host.username}`)} style={{ flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44 }}>
             <Avatar person={event.host} size={32} />
-            <Text variant="callout">
-              Hosted by <Text style={{ fontFamily: font.semibold }}>{event.host.displayName}</Text>
-            </Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <Text variant="callout" numberOfLines={1} style={{ flexShrink: 1 }}>
+                  Hosted by <Text style={{ fontFamily: font.semibold }}>{event.host.displayName}</Text>
+                </Text>
+                {event.host.verified ? (
+                  <View accessible accessibilityLabel="Verified organisation">
+                    <BadgeCheck size={16} color={palette.primary} />
+                  </View>
+                ) : null}
+              </View>
+              <Text variant="meta" tone="muted" numberOfLines={1}>
+                @{event.host.username}
+              </Text>
+            </View>
           </Pressable>
           <View style={{ gap: 10 }}>
             <Fact icon={<CalendarPlus size={18} color={palette.inkMuted} />}>
@@ -247,9 +259,11 @@ export default function EventScreen() {
 
           {event.description ? <RichText body={event.description} variant="callout" /> : null}
 
-          {attendees.length > 0 ? (
+          {event.going + event.interested > 0 ? (
             <View style={{ gap: 8 }}>
-              <Text variant="label">{event.going === 1 ? "1 going" : `${event.going} going`}</Text>
+              <Text variant="label">
+                {event.going} going · {event.interested} interested
+              </Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                 {attendees.map((person) => (
                   <Pressable key={person.id} accessibilityRole="link" accessibilityLabel={person.displayName} onPress={() => router.push(`/profile/${person.username}`)}>

@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import { feedTime } from "@/lib/feeds";
 import { loadFeed, newTrendingSeed } from "@/data/posts";
+import { usePreferences } from "@/data/preferences";
 import { useViewer } from "@/data/session";
 import { useFeed, type FeedState } from "@/data/use-feed";
 import { setFollowingFresh, useNewPosts, type FeedKind } from "@/data/use-new-posts";
+import { WhoToFollow } from "@/people/who-to-follow";
 import { FeedList } from "@/post/feed-list";
 import { Avatar } from "@/ui/avatar";
 import { Wordmark } from "@/ui/brand";
@@ -47,6 +49,10 @@ export default function Home() {
   const [latestFresh, dismissLatest] = useNewPosts({ feed: "latest", ...checkable(latest.state), active: feed === "latest" });
   useEffect(() => setFollowingFresh(followingFresh > 0), [followingFresh]);
   useEffect(() => () => setFollowingFresh(false), []);
+
+  // Trending leaves it out, as on the website.
+  const { whoToFollow } = usePreferences();
+  const suggestions = viewer && whoToFollow ? { after: 5, node: <WhoToFollow viewerId={viewer.id} /> } : undefined;
 
   // A refresh, however it starts, answers the new-posts pill.
   const withDismiss = (list: typeof following, dismiss: () => void) => ({
@@ -115,6 +121,7 @@ export default function Home() {
           feed={withDismiss(following, dismissFollowing)}
           active={feed === "following"}
           fresh={followingFresh}
+          insert={suggestions}
           empty={
             <EmptyState
               icon={<Rss size={26} color={palette.inkMuted} />}
@@ -133,7 +140,7 @@ export default function Home() {
       </View>
       {opened.has("latest") ? (
         <View style={{ flex: 1, display: feed === "latest" ? "flex" : "none" }}>
-          <FeedList feed={withDismiss(latest, dismissLatest)} active={feed === "latest"} fresh={latestFresh} empty={<EmptyState title="Nothing here yet">Be the first to post something.</EmptyState>} />
+          <FeedList feed={withDismiss(latest, dismissLatest)} active={feed === "latest"} fresh={latestFresh} insert={suggestions} empty={<EmptyState title="Nothing here yet">Be the first to post something.</EmptyState>} />
         </View>
       ) : null}
       {opened.has("trending") ? (

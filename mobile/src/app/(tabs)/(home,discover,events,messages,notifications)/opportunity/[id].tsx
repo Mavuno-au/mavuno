@@ -1,10 +1,11 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { Bookmark, BookmarkCheck, Ellipsis } from "lucide-react-native";
+import { BadgeCheck, Bookmark, BookmarkCheck, Ellipsis, ShieldCheck } from "lucide-react-native";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { OPPORTUNITY_TYPES } from "@/lib/catalogue";
-import { DEADLINE_ZONE, type Opportunity } from "@/lib/community";
+import { DEADLINE_ZONE, opportunityPlace, type Opportunity } from "@/lib/community";
+import { relativeTime } from "@/lib/format";
 import { siteLink } from "@/data/env";
 import { reasonOf, type Reason } from "@/data/errors";
 import { closeOpportunity, loadOpportunity, setOpportunitySaved } from "@/data/community";
@@ -18,6 +19,7 @@ import { font, Text } from "@/ui/text";
 import { HAIRLINE, usePalette } from "@/ui/theme";
 import { toast, useToastFloor } from "@/ui/toast";
 import { openLink, shareLink } from "@/util/links";
+import { timeZone, useNow } from "@/util/time";
 
 type State = { kind: "missing" } | { kind: "failed"; reason: Reason } | { kind: "ready"; opportunity: Opportunity; saved: boolean };
 
@@ -33,6 +35,7 @@ export default function OpportunityScreen() {
   // Saved and Removed toasts show above Apply and Save.
   const barFloor = useToastFloor();
   const viewerId = viewer?.id ?? null;
+  const now = useNow();
 
   const read = useCallback(() => {
     if (!viewerId) return;
@@ -57,10 +60,10 @@ export default function OpportunityScreen() {
 
   const { opportunity, saved } = state;
   const owner = viewer.id === opportunity.posterId || viewer.organisations.some((organisation) => organisation.id === opportunity.posterId && organisation.role !== "editor");
-  const apply = opportunity.applyUrl ?? (opportunity.applyEmail ? `mailto:${opportunity.applyEmail}?subject=${encodeURIComponent(opportunity.title)}` : null);
+  const email = opportunity.applyEmail ? `mailto:${opportunity.applyEmail}?subject=${encodeURIComponent(opportunity.title)}` : null;
   const rows: [string, string][] = [
     ["Type", OPPORTUNITY_TYPES[opportunity.type].label],
-    ["Where", opportunity.remote ? "Remote" : [opportunity.location, opportunity.city].filter(Boolean).join(", ") || "Not given"],
+    ["Where", opportunityPlace(opportunity)],
     ...(opportunity.compensation ? [["Pay or value", opportunity.compensation] satisfies [string, string]] : []),
     ["Deadline", opportunity.deadlineAt ? new Date(opportunity.deadlineAt).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric", timeZone: DEADLINE_ZONE }) : "None"],
     ["Posted by", opportunity.organisation ?? opportunity.poster.displayName],
@@ -126,7 +129,21 @@ export default function OpportunityScreen() {
         </Text>
         <Pressable accessibilityRole="link" onPress={() => router.push(`/profile/${opportunity.poster.username}`)} style={{ flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44 }}>
           <Avatar person={opportunity.poster} size={32} />
-          <Text variant="callout">{opportunity.poster.displayName}</Text>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <Text variant="callout" numberOfLines={1} style={{ flexShrink: 1, fontFamily: font.semibold }}>
+                {opportunity.poster.displayName}
+              </Text>
+              {opportunity.poster.verified ? (
+                <View accessible accessibilityLabel="Verified organisation">
+                  <BadgeCheck size={16} color={palette.primary} />
+                </View>
+              ) : null}
+            </View>
+            <Text variant="meta" tone="muted" numberOfLines={1}>
+              @{opportunity.poster.username} · Posted {relativeTime(opportunity.createdAt, now, timeZone)}
+            </Text>
+          </View>
         </Pressable>
         {opportunity.closed ? (
           <View accessibilityRole="alert" style={{ padding: 12, borderRadius: 10, backgroundColor: palette.wash }}>
@@ -146,11 +163,18 @@ export default function OpportunityScreen() {
           ))}
         </View>
         <RichText body={opportunity.description} variant="callout" />
+        <View style={{ flexDirection: "row", gap: 10, paddingTop: 4 }}>
+          <ShieldCheck size={16} color={palette.inkMuted} style={{ marginTop: 2 }} />
+          <Text variant="subhead" tone="muted" style={{ flex: 1 }}>
+            Stay safe: never pay to apply, and don't share bank or ID details until you've checked who you're dealing with. If something seems off, report it.
+          </Text>
+        </View>
         {opportunity.closed ? <Button label="See open opportunities" variant="outline" onPress={() => router.push("/opportunities")} /> : null}
       </ScrollView>
       {opportunity.closed ? null : (
         <View {...barFloor} style={{ position: "absolute", left: 0, right: 0, bottom: 0, flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 10), borderTopWidth: HAIRLINE, borderTopColor: palette.hairline, backgroundColor: palette.surface }}>
-          {apply ? <Button label="Apply" onPress={() => openLink(apply)} style={{ flex: 1 }} /> : null}
+          {opportunity.applyUrl ? <Button label="Apply" onPress={() => opportunity.applyUrl && openLink(opportunity.applyUrl)} style={{ flex: 1 }} /> : null}
+          {email ? <Button label={opportunity.applyUrl ? "Email" : "Apply by email"} variant={opportunity.applyUrl ? "outline" : "primary"} hint="Writes to them by email" onPress={() => openLink(email)} style={opportunity.applyUrl ? undefined : { flex: 1 }} /> : null}
           <Button
             label={saved ? "Saved" : "Save"}
             variant="outline"
