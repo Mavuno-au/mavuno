@@ -78,13 +78,16 @@ export default function ProfileScreen() {
     return onRelationChanged(() => fetchProfile(username));
   }, [username, fetchProfile]);
 
+  const loadedId = state.kind === "loaded" && state.page.kind === "profile" ? state.page.profile.id : null;
+  // The member's own profile, or one they post as. Only these can show a post they just wrote.
+  const mine = loadedId !== null && (loadedId === viewerId || (viewer?.organisations.some((organisation) => organisation.id === loadedId) ?? false));
+
   // Editing and posting change what the profile shows.
   useEffect(() => {
-    if (!username) return;
+    if (!username || !mine) return;
     return onPostCreated(() => fetchProfile(username));
-  }, [username, fetchProfile]);
+  }, [username, mine, fetchProfile]);
 
-  const loadedId = state.kind === "loaded" && state.page.kind === "profile" ? state.page.profile.id : null;
   // Pinning or unpinning a post changes the pinned post above the feed.
   useEffect(() => {
     if (!username || !loadedId) return;
@@ -101,7 +104,7 @@ export default function ProfileScreen() {
 
   const profile = state.kind === "loaded" && state.page.kind === "profile" ? state.page : null;
   const profileId = profile?.profile.id ?? "";
-  const posts = useFeed((cursor) => loadFeed({ kind: "profile", profileId, tab }, cursor), `${profileId}:${tab}`, { enabled: profileId !== "", takesPosts: true });
+  const posts = useFeed((cursor) => loadFeed({ kind: "profile", profileId, tab }, cursor), `${profileId}:${tab}`, { enabled: profileId !== "", takesPosts: mine });
   // Pulling to refresh, or tapping the tab, reads the header and pinned post again too.
   const { refresh: refreshPosts } = posts;
   const refresh = useCallback(() => {
