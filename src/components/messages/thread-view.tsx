@@ -11,8 +11,10 @@ import { ConversationMenu } from "@/components/messages/conversation-menu";
 import { MessageComposer, type ReplyTarget } from "@/components/messages/message-composer";
 import { MessageItem, snippet, summary, type Placement } from "@/components/messages/message-item";
 import { RequestBanner } from "@/components/messages/request-banner";
+import { useCounts } from "@/components/shell/live-counts";
 import { ReportDialog } from "@/components/moderation/report-dialog";
 import { Avatar } from "@/components/ui/avatar";
+import { useNow, useTimeZone } from "@/components/ui/local-time";
 import { PageHeader } from "@/components/ui/page";
 import type { Conversation, Member, Message, Reaction } from "@/lib/data/messages";
 import { count, dayLabel } from "@/lib/format";
@@ -31,9 +33,9 @@ const reactionPayload = z.object({ messageId: z.uuid() });
 const typingPayload = z.object({ userId: z.uuid() });
 type Row = Record<string, unknown>;
 
-function sameRun(a: Message | undefined, b: Message | undefined) {
+function sameRun(a: Message | undefined, b: Message | undefined, day: (iso: string) => string) {
   if (!a || !b) return false;
-  return a.senderId === b.senderId && dayLabel(a.createdAt) === dayLabel(b.createdAt) && Date.parse(b.createdAt) - Date.parse(a.createdAt) < RUN_GAP_MS;
+  return a.senderId === b.senderId && day(a.createdAt) === day(b.createdAt) && Date.parse(b.createdAt) - Date.parse(a.createdAt) < RUN_GAP_MS;
 }
 
 const isReaction = (a: Reaction) => (b: Reaction) => a.emoji === b.emoji && a.userId === b.userId;
@@ -78,6 +80,20 @@ export function ThreadView({ conversation, viewerId, initial, next: initialNext 
   const { id, access, members } = conversation;
   const canRead = access.kind !== "request";
   const waitingOn = access.kind === "waiting" ? access.on.id : null;
+  const { refresh: refreshCounts } = useCounts();
+  // Days in the reader's own zone; the server renders in Sydney's.
+  const timeZone = useTimeZone();
+  const today = new Date(useNow());
+  const day = (iso: string) => dayLabel(iso, today, timeZone);
+  // The channel's handlers read these, so accepting a request doesn't make the channel again: one made
+  // while the old one is still leaving is that same channel, and it goes when the old one does.
+  const gate = useRef({ canRead, waitingOn, router, refreshCounts });
+  const resume = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    const opened = canRead && !gate.current.canRead;
+    gate.current = { canRead, waitingOn, router, refreshCounts };
+    if (opened) resume.current?.();
+  }, [canRead, waitingOn, router, refreshCounts]);
 
   useEffect(() => {
     shown.current = messages;
@@ -97,9 +113,11 @@ export function ThreadView({ conversation, viewerId, initial, next: initialNext 
     // Other people's read positions are private, so a read is announced with
     // a ping and everyone re-reads receipts through shared_read_at.
     const read = async () => {
-      if (!canRead || document.visibilityState !== "visible") return;
+      if (!gate.current.canRead || document.visibilityState !== "visible") return;
       try {
         const result = await markRead(id);
+        // The badge was read before this conversation was marked read.
+        if (result.ok) gate.current.refreshCounts();
         if (!result.ok || !(result.data.announce || justAccepted.current) || live.state !== "joined") return;
         justAccepted.current = false;
         void live.send({ type: "broadcast", event: "read", payload: {} });
@@ -166,7 +184,7 @@ export function ThreadView({ conversation, viewerId, initial, next: initialNext 
         try {
           const fresh = await fetchMembers(id);
           setReads(Object.fromEntries(fresh.flatMap((member) => (member.readAt ? [[member.id, member.readAt]] : []))));
-          if (fresh.some((member) => member.id === waitingOn && member.status === "accepted")) router.refresh();
+          if (fresh.some((member) => member.id === gate.current.waitingOn && member.status === "accepted")) gate.current.router.refresh();
         } catch {}
       })
       .on("broadcast", { event: "typing" }, ({ payload }: { payload?: unknown }) => {
@@ -181,6 +199,10 @@ export function ThreadView({ conversation, viewerId, initial, next: initialNext 
         void catchUp();
       });
     channel.current = live;
+    resume.current = () => {
+      void read();
+      void catchUp();
+    };
 
     const onVisible = () => {
       if (document.visibilityState !== "visible") return;
@@ -195,9 +217,10 @@ export function ThreadView({ conversation, viewerId, initial, next: initialNext 
       clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
       channel.current = null;
+      resume.current = null;
       void supabase.removeChannel(live);
     };
-  }, [id, viewerId, canRead, waitingOn, router]);
+  }, [id, viewerId]);
 
   useEffect(() => {
     const element = top.current;
@@ -349,17 +372,17 @@ export function ThreadView({ conversation, viewerId, initial, next: initialNext 
             const previous = messages[index - 1];
             const following = messages[index + 1];
             const mine = message.senderId === viewerId;
-            const first = !sameRun(previous, message);
-            const last = !sameRun(message, following);
+            const first = !sameRun(previous, message, day);
+            const last = !sameRun(message, following, day);
             const group = conversation.kind === "group";
             const placement: Placement = { first, last, avatarColumn: group, showSender: group && first && !mine, showAvatar: group && last && !mine };
-            const newDay = !previous || dayLabel(previous.createdAt) !== dayLabel(message.createdAt);
+            const newDay = !previous || day(previous.createdAt) !== day(message.createdAt);
             return (
               <Fragment key={message.id}>
                 {newDay ? (
                   <p role="separator" className="mt-4 text-center font-mono text-xs text-ink-muted">
                     <time dateTime={message.createdAt} suppressHydrationWarning>
-                      {dayLabel(message.createdAt)}
+                      {day(message.createdAt)}
                     </time>
                   </p>
                 ) : null}
