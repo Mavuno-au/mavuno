@@ -3,13 +3,14 @@ import { router } from "expo-router";
 import { Bookmark, BookmarkCheck, Copy, Link2, Pin, PinOff, Trash2 } from "lucide-react-native";
 import { Alert } from "react-native";
 import type { Post } from "@/lib/domain";
-import { fail } from "@/lib/result";
+import { fail, type Result } from "@/lib/result";
 import { deletePost, pinPost, restorePost, setSaved, unpinPost } from "@/data/posts";
 import { useSession, useViewer } from "@/data/session";
 import { useShadowWriter } from "@/data/shadow";
 import type { SheetAction } from "@/ui/sheet";
 import { usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
+import { emitProfileChanged } from "@/util/events";
 import { haptics } from "@/util/haptics";
 import { postLink } from "@/util/links";
 import { useSafetyActions } from "@/util/safety";
@@ -91,18 +92,16 @@ export function usePostMenu(post: Post, { pinnedHere = false }: { pinnedHere?: b
   ];
   if (post.body.trim()) actions.push({ label: "Copy text", icon: <Copy {...icon} />, onPress: () => void Clipboard.setStringAsync(post.body).then(() => toast("Text copied")) });
   if (own && topLevel) {
+    // The profile shows its pinned post above the feed, so it reads itself again.
+    const pinned = (result: Result, done: string, failed: string) => {
+      if (!result.ok) return toast(`${failed} ${result.error}`, { tone: "error" });
+      toast(done);
+      emitProfileChanged(post.authorId);
+    };
     actions.push(
       pinnedHere
-        ? {
-            label: "Unpin from profile",
-            icon: <PinOff {...icon} />,
-            onPress: () => void unpinPost(post.authorId).then((result) => toast(result.ok ? "Unpinned" : `Couldn't unpin. ${result.error}`, result.ok ? {} : { tone: "error" })),
-          }
-        : {
-            label: "Pin to profile",
-            icon: <Pin {...icon} />,
-            onPress: () => void pinPost(post.id).then((result) => toast(result.ok ? "Pinned to your profile" : `Couldn't pin. ${result.error}`, result.ok ? {} : { tone: "error" })),
-          },
+        ? { label: "Unpin from profile", icon: <PinOff {...icon} />, onPress: () => void unpinPost(post.authorId).then((result) => pinned(result, "Unpinned", "Couldn't unpin.")) }
+        : { label: "Pin to profile", icon: <Pin {...icon} />, onPress: () => void pinPost(post.id).then((result) => pinned(result, "Pinned to your profile", "Couldn't pin.")) },
     );
   }
   if (own) actions.push({ label: "Delete post", icon: <Trash2 size={20} color={palette.destructive} />, destructive: true, onPress: () => void remove(post) });

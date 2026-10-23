@@ -23,5 +23,9 @@ export const { emit: emitSoftReset, on: onSoftReset } = createEvent();
 // list rereads itself when it hears this.
 export const { emit: emitRelationChanged, on: onRelationChanged } = createEvent();
 
+// Something a profile's header or pinned post shows has changed, such as a
+// pin. Carries the profile's id.
+export const { emit: emitProfileChanged, on: onProfileChanged } = createEvent<string>();
+
 // A post the member just wrote, so the lists it belongs in can show it at once.
 export const { emit: emitPostCreated, on: onPostCreated } = createEvent<{ id: string; parentId: string | null; quoteId: string | null }>();
