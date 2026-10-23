@@ -32,12 +32,14 @@ const anon = () => db.exec("reset role; select set_config('request.jwt.claim.sub
 const q = async (sql, params = []) => (await db.query(sql, params)).rows;
 const one = async (sql, params = []) => (await q(sql, params))[0];
 
+// The pattern is required: any error at all, a typo in the SQL included, would otherwise pass.
 async function fails(name, sql, params, pattern) {
+  if (!(pattern instanceof RegExp)) throw new Error(`fails("${name}") needs the error it expects`);
   try {
     await db.query(sql, params ?? []);
     check(name, false, "expected an error");
   } catch (error) {
-    check(name, pattern ? pattern.test(error.message) : true, error.message);
+    check(name, pattern.test(error.message), error.message);
   }
 }
 
@@ -183,7 +185,7 @@ check("replies count", (await one("select reply_count from public.posts where id
 check("replies record their thread", (await one("select root_id from public.posts where id = $1", [reply1])).root_id === post1);
 const quote1 = await post("The event of the year, @amara", "en", null, null, post1);
 check("quotes count", (await one("select quote_count from public.posts where id = $1", [post1])).quote_count === 1);
-await fails("a reply cannot also quote", "select public.create_post('x', 'en', null, $1, $1)", [post1]);
+await fails("a reply cannot also quote", "select public.create_post('x', 'en', null, $1, $1)", [post1], /posts_check/);
 rows = await q("select id from public.post_replies($1)", [post1]);
 check("replies and quotes are listed under the post", rows.length === 2, rows.length);
 await as(amara);
@@ -196,7 +198,14 @@ const before = (await one("select hot_score from public.posts where id = $1", [p
 await q("insert into public.likes (user_id, post_id) values ($1, $2)", [kofi, post1]);
 check("likes count", (await one("select like_count from public.posts where id = $1", [post1])).like_count === 1);
 const after = (await one("select hot_score from public.posts where id = $1", [post1])).hot_score;
-check("replies and likes raise the trending score", after > before || after > 0, { before, after });
+// Kofi has replied already and counts once, so someone new likes it to move the score.
+const liker = await createUser("trend-liker@example.com", { username: "trend_liker" });
+await as(liker);
+await q("insert into public.likes (user_id, post_id) values ($1, $2)", [liker, post1]);
+const liked = (await one("select hot_score from public.posts where id = $1", [post1])).hot_score;
+check("a like from someone new raises the trending score", liked > after && after >= before, { before, after, liked });
+await q("delete from public.likes where user_id = $1 and post_id = $2", [liker, post1]);
+await as(kofi);
 await fails("people cannot like their own posts", "insert into public.likes (user_id, post_id) values ($1, $2)", [kofi, reply1], /row-level security/);
 await as(amara);
 check("likes notify the author", (await one("select count(*)::int as n from public.notifications where type = 'like' and recipient_id = $1", [amara])).n === 1);
@@ -230,7 +239,7 @@ const poll = await post("Best jollof?", "en", null, null, null, null, null, "[]"
 await fails("polls need 2 to 4 different options", "select public.create_post('Poll', 'en', null, null, null, null, null, '[]'::jsonb, $1::jsonb)",
   [JSON.stringify({ options: ["Same", "Same"] })], /different options/);
 await fails("polls run 1 hour, 1, 3 or 7 days", "select public.create_post('Poll', 'en', null, null, null, null, null, '[]'::jsonb, $1::jsonb)",
-  [JSON.stringify({ options: ["A", "B"], duration_hours: 5 })]);
+  [JSON.stringify({ options: ["A", "B"], duration_hours: 5 })], /polls_duration_hours_check/);
 const options = await q("select id from public.poll_options where post_id = $1 order by position", [poll]);
 await fails("authors cannot vote in their own poll", "select public.vote_poll($1, $2)", [poll, options[0].id], /own poll/);
 await as(hana);
@@ -269,7 +278,7 @@ check("new-post counts power the 'new posts' control", (await one("select public
 await anon();
 rows = await q("select id, liked from public.feed_latest()");
 check("guests read the latest feed", rows.length >= 3 && rows.every((r) => r.liked === false));
-await fails("guests cannot like", "insert into public.likes (user_id, post_id) values ($1, $2)", [kofi, post1]);
+await fails("guests cannot like", "insert into public.likes (user_id, post_id) values ($1, $2)", [kofi, post1], /permission denied/);
 
 console.log("\nSaved posts");
 await as(kofi);
@@ -531,8 +540,11 @@ for (const reporter of [amara, kofi, hana]) {
   await as(reporter);
   await q("select public.report_content('post', $1, 'spam')", [spamPost]);
 }
+// Someone without standing, so the report holds nothing; the post above is held now, so it can't be the one reported twice.
+await as(mod);
+await q("select public.report_content('post', $1, 'spam')", [post1]);
+await fails("people report something once", "select public.report_content('post', $1, 'scam')", [post1], /already reported/);
 await as(hana);
-await fails("people report something once", "select public.report_content('post', $1, 'scam')", [spamPost]);
 check("posts are held after several reports", (await one("select count(*)::int as n from public.posts where id = $1", [spamPost])).n === 0);
 await as(spam);
 check("authors still see their held post", (await one("select status from public.posts where id = $1", [spamPost])).status === "pending");
@@ -2195,7 +2207,6 @@ console.log("\nRate limits");
   await q("insert into public.likes (user_id, post_id) values ($1, $2)", [liker, many[60]]);
   await superuser();
   check("the window resets after a minute", (await one("select hits from public.rate_limits where user_id = $1 and action = 'like'", [liker])).hits === 1);
-  check("reactions are limited to 60 a minute (checked above)", true);
 }
 
 console.log("\nServer errors and switches");
