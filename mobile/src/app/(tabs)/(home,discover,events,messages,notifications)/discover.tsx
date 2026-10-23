@@ -4,10 +4,11 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { LayoutAnimation, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import type { PersonSummary } from "@/lib/domain";
 import { dismissSuggestion, loadActiveSpaces, loadSuggestions, loadTrendingTopics, type SpaceListItem } from "@/data/community";
+import { reasonOf, type Reason } from "@/data/errors";
 import { useViewer } from "@/data/session";
 import { PersonRow } from "@/people/person-row";
 import { SpaceRow } from "@/community/space-card";
-import { EmptyState, Pills, RowSkeleton } from "@/ui/controls";
+import { EmptyState, LoadFailed, Pills, RowSkeleton } from "@/ui/controls";
 import { Header } from "@/ui/header";
 import { font, Text } from "@/ui/text";
 import { HAIRLINE, usePalette } from "@/ui/theme";
@@ -35,21 +36,25 @@ export default function Discover() {
   const reduceMotion = useReduceMotion();
   const [tab, setTab] = useState<Tab>("overview");
   const [loaded, setLoaded] = useState<Loaded | null>(null);
+  const [failed, setFailed] = useState<Reason | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const viewerId = viewer?.id ?? null;
 
+  // A failure isn't shown as "No suggestions right now". A refresh that
+  // fails keeps what was already here.
   const read = useCallback(() => {
     if (!viewerId) return;
-    void Promise.all([
-      loadTrendingTopics(20).catch(() => []),
-      loadActiveSpaces(viewerId, 8).catch(() => []),
-      loadSuggestions(20, "person").catch(() => []),
-      loadSuggestions(20, "organisation").catch(() => []),
-    ]).then(([topics, spaces, people, organisations]) => {
-      setLoaded({ topics, spaces, people, organisations });
-      setRefreshing(false);
-    });
+    Promise.all([loadTrendingTopics(20), loadActiveSpaces(viewerId, 8), loadSuggestions(20, "person"), loadSuggestions(20, "organisation")]).then(
+      ([topics, spaces, people, organisations]) => {
+        setLoaded({ topics, spaces, people, organisations });
+        setRefreshing(false);
+      },
+      (error: unknown) => {
+        setFailed(reasonOf(error));
+        setRefreshing(false);
+      },
+    );
   }, [viewerId]);
 
   useEffect(read, [read]);
@@ -138,7 +143,17 @@ export default function Discover() {
         }
         contentContainerStyle={{ paddingBottom: 32 }}
       >
-        {!loaded ? <RowSkeleton label="Loading suggestions" /> : null}
+        {!loaded && failed ? (
+          <LoadFailed
+            title="Discover didn't load"
+            reason={failed}
+            onRetry={() => {
+              setFailed(null);
+              read();
+            }}
+          />
+        ) : null}
+        {!loaded && !failed ? <RowSkeleton label="Loading suggestions" /> : null}
         {loaded && tab === "overview" ? (
           <View style={{ gap: 22, paddingTop: 16 }}>
             <View style={{ flexDirection: "row", gap: 10, paddingHorizontal: 16 }}>

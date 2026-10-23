@@ -51,8 +51,10 @@ const lenient = <T>(schema: z.ZodType<T>, data: unknown) =>
       return parsed.success ? [parsed.data] : [];
     });
 
+// A failed read throws: shown as empty, every space would read as not joined.
 async function memberships(viewerId: string) {
-  const { data } = await supabase.from("space_members").select("space_id, role").eq("user_id", viewerId);
+  const { data, error } = await supabase.from("space_members").select("space_id, role").eq("user_id", viewerId);
+  if (error) throw requestError("Memberships", error);
   const rows = z.array(z.object({ space_id: id, role: spaceRoleSchema })).catch([]).parse(data ?? []);
   return new Map(rows.map((row) => [row.space_id, row.role]));
 }

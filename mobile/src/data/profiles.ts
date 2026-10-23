@@ -42,7 +42,11 @@ export async function loadProfile(username: string, viewerId: string): Promise<P
     supabase.rpc("can_message", { p_user_id: profile.id }),
     supabase.from("invites").select("member_id, invited_by").or(`member_id.eq.${profile.id},invited_by.eq.${profile.id}`),
   ]);
-  if (blockedEitherWay.error) throw requestError("Profile", blockedEitherWay.error);
+  // A failed read can't stand for "no": a follow read as missing offers Follow
+  // to someone already followed, and the count would move from the wrong base.
+  for (const read of [following, followsYou, muted, blockedByViewer, blockedEitherWay, canMessage, invites]) {
+    if (read.error) throw requestError("Profile", read.error);
+  }
   if (blockedEitherWay.data === true) return { kind: "unavailable", id: profile.id, username: profile.username, blockedByViewer: Boolean(blockedByViewer.data) };
 
   const between = inviteRows.catch([]).parse(invites.data ?? []);
