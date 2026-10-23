@@ -17,10 +17,10 @@ Entries below, by severity (a low entry sometimes groups several small findings 
 | | Fixed | Open |
 |---|---|---|
 | High | 10 | 0 |
-| Medium | 36 | 8 |
-| Low | 40 | 26 |
+| Medium | 38 | 6 |
+| Low | 43 | 21 |
 
-Open items are listed at the end with why they're open: a product decision, a file another session is editing (two of the open medium ones), or a setting outside the code.
+Open items are listed at the end with why they're open: a product decision, or a setting outside the code.
 
 ---
 
@@ -124,7 +124,7 @@ About 25 call sites, such as `src/components/post/post-item.tsx:131` (like), `fo
 
 **bug medium: Several app screens showed a failed load as "not found" or an endless spinner.** Group, appeal, settings, organisation team. Fixed in bb29368.
 
-**bug medium: Edited events and opportunities showed old details after Save, and editing hung offline.** Detail screens fixed in 077f902 and ce9d36d; the form screens are do-not-edit files (see below).
+**bug medium: Edited events and opportunities showed old details after Save, and editing hung offline.** Detail screens fixed in 077f902 and ce9d36d, the forms in 7142fd0.
 
 **bug medium: Search terms went to Google Analytics.** `src/components/shell/analytics.tsx:39`. Noted before (privacy batch A). Fixed in 93e69ed: page views carry the path only. The GA property also needs history page views and site search turned off (see open items).
 
@@ -166,7 +166,7 @@ Fixed, one line each:
 - **bug low:** searching a followers list paged through every follower. 50fdaaf.
 - **bug low:** the thread's menu offered Save on a saved post; two save queues per row could race. af89e83.
 - **bug low:** Who to follow refetched on every remount, twice on Home. af89e83.
-- **bug low:** posting refreshed every mounted profile, not just the member's own. be30219 (space and topic feeds still refresh; see open items).
+- **bug low:** posting refreshed every mounted profile, space and topic feed, not just the ones the post belongs in. be30219, 7142fd0.
 - **bug low:** Discover, profile relationships and memberships turned errors into empty states. 077f902.
 - **bug low:** a vote that landed but whose re-read failed left the poll open. dd46ddf.
 - **cleanup low:** the scheduler-secret check was copied into three routes. 62b7c4e.
@@ -176,6 +176,17 @@ Fixed, one line each:
 - **cleanup low:** moderator-only policies called `is_moderator()` per row. 7c22cfd.
 - **cleanup low:** the app's connections cursor wasn't parsed; copied helpers and unused exports. c06dcda.
 - **cleanup low:** an animated image keeps its first frame, against what `reencode`'s comment said. 93e69ed.
+
+### Fixed after PR 18 freed the sheet files
+
+These files had uncommitted work in another session until PR 18 merged; after syncing with main they were fixed in 7142fd0:
+
+- **bug medium:** `edit-profile.tsx`: a new photo or banner, saved the moment it's chosen, didn't reach the profile screen, and Cancel warned the photo wouldn't be saved though it was. Saving also told profiles to reload with a made-up post event; it uses `emitProfileChanged` now.
+- **bug medium:** `event-form.tsx`, `opportunity-form.tsx`: loading an item to edit had no error path, so offline the sheet spun for ever.
+- **bug low:** `event-form.tsx`: a new cover on an organisation's event went into the editor's own folder.
+- **bug low:** `form.tsx`: `FieldError` wasn't read out by VoiceOver (`accessibilityRole="alert"` does nothing on iOS), and a sheet's busy button had no spoken name.
+- **bug low:** `compose.tsx`: two taps on Post within one frame could both pass the `busy` check. A new post also refreshed every space and topic feed; it now names its space and topics.
+- `report.tsx` and `profile-header.tsx` were reviewed and are fine.
 
 ---
 
@@ -211,7 +222,6 @@ Fixed, one line each:
 - **bug low:** cancelling or confirming Delete drops keyboard focus to the top of the page. Reference: a Laravel social network's "restore focus after canceling commit deletion". `post-item.tsx:298`.
 - **bug low:** Like and Follow buttons' spoken names; the search palette and mention menu aren't comboboxes; form errors aren't tied to fields. Reference: a Laravel social network's `search-dialog.tsx` and `mention-textarea.tsx`.
 - **bug low:** Translate's Google fallback is blocked as a pop-up in Safari. `src/components/post/translation.tsx:33`.
-- **bug low:** space and topic feeds in the app refresh on every post; the post-created event would need the space and topics, and it's emitted from `compose.tsx` (do-not-edit).
 - **cleanup low:** many exported server actions `parse` their input and throw instead of returning `Result` (AGENTS.md). They no longer replace the page (`reach()`), but a stale client's call is counted as a server error.
 - **cleanup low:** the app re-implements about 45 loaders from `src/lib/data`; they have drifted (blocks on attendees and the online link had to be fixed twice).
 - **cleanup low:** insert grants let members set `created_at` on follows, likes, RSVPs and more (triggers overwrite the counters and status that matter).
@@ -223,19 +233,6 @@ Fixed, one line each:
 ### Embeds compared with a Laravel social network
 
 Both build players only from a fixed list of providers and load them only after a tap, so reading a feed never contacts the player's site. After 7e15dd4 the remaining differences are choices, not bugs: that network also embeds Twitch, Suno, Apple Music, CodePen and Asciinema and YouTube playlists, has a switch and a provider list in config, shows YouTube's own thumbnail when a page gives servers no picture (Mavuno shows a play mark instead, to avoid one more request to Google per reader), lets authors choose which link becomes the card, and shows link cards inside quoted posts. Mavuno embeds TikTok, which it doesn't. Apple Music and Suno may be worth adding for this community.
-
-### In files another session is editing
-
-Reviewed but not changed, because `mobile/src/ui/form.tsx`, `mobile/src/people/profile-header.tsx`, `mobile/src/app/compose.tsx`, `report.tsx`, `edit-profile.tsx`, `event-form.tsx`, `opportunity-form.tsx`, `space-form.tsx` and `organisation-form.tsx` have uncommitted work elsewhere:
-
-- **bug medium:** `edit-profile.tsx:128`: a new photo or banner saved by itself doesn't reach the profile screen when the sheet is cancelled, and Cancel warns the photo won't be saved though it is. `emitProfileChanged` now exists in `mobile/src/util/events.ts` for this.
-- **bug medium:** `event-form.tsx:108`, `opportunity-form.tsx:73`: loading an item to edit has no `.catch`, so offline the sheet spins for ever.
-- **bug low:** `event-form.tsx:92`: editing an organisation's event uploads its new cover into the editor's own folder; seed the host from the loaded event, as the website does.
-- **bug low:** `form.tsx:157`: `FieldError` isn't announced by VoiceOver (`accessibilityRole="alert"` does nothing on iOS).
-- **bug low:** `form.tsx:354`: a sheet's busy primary button has no spoken name.
-- **cleanup low:** `edit-profile.tsx:143` tells profiles to reload by emitting a fake post-created event; use `emitProfileChanged`.
-- **unconfirmed:** `compose.tsx:213`: two taps on Post within one frame might both pass the `busy` check; a ref would close it.
-- `report.tsx` was reviewed and is fine.
 
 ### Unconfirmed, worth a look on a device or with the logs
 
