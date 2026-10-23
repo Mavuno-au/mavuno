@@ -3271,6 +3271,62 @@ console.log("\nFull review: events, teams, media and deactivated profiles");
   check("other profiles aren't hidden", (await one("select public.profile_hidden($1) as hidden", [host])).hidden === false);
 }
 
+console.log("\nFull review: blocks in groups, declined requests, channels and removed messages");
+{
+  const user = (name) => createUser(`${name}@example.com`, { username: name, display_name: name });
+  const ama = await user("rm_ama");
+  const kojo = await user("rm_kojo");
+  const efua = await user("rm_efua");
+  for (const [who, whom] of [[kojo, ama], [efua, ama], [ama, kojo], [ama, efua], [kojo, efua], [efua, kojo]]) {
+    await as(who);
+    await q("insert into public.follows (follower_id, followee_id) values ($1, $2)", [who, whom]);
+  }
+  await as(ama);
+  const crew = (await one("select public.create_group_conversation('Crew', $1::uuid[]) as id", [`{${kojo},${efua}}`])).id;
+  await as(kojo);
+  await q("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Before the block')", [crew, kojo]);
+  await as(ama);
+  await q("insert into public.blocks (blocker_id, blocked_id) values ($1, $2)", [ama, kojo]);
+  await as(kojo);
+  await q("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'After the block')", [crew, kojo]);
+  await as(ama);
+  check("someone blocked after joining a group is out of the blocker's view of it", (await q("select body from public.messages where conversation_id = $1", [crew])).length === 0);
+  check("and out of the group's last message", (await one("select last_message from public.conversation_list where id = $1", [crew])).last_message === null);
+  await as(efua);
+  check("the rest of the group still reads them", (await q("select body from public.messages where conversation_id = $1", [crew])).length === 2);
+
+  await as(efua);
+  const direct = (await one("select public.start_direct_conversation($1) as id", [kojo])).id;
+  await superuser();
+  await q("update public.conversation_participants set status = 'pending' where conversation_id = $1 and user_id = $2", [direct, kojo]);
+  await as(efua);
+  await q("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'A request')", [direct, efua]);
+  await as(kojo);
+  await q("select public.respond_to_message_request($1, false)", [direct]);
+  check("a declined request leaves the inbox", (await q("select 1 from public.conversation_list where id = $1", [direct])).length === 0);
+  check("opening it again returns the same conversation", (await one("select public.start_direct_conversation($1) as id", [efua])).id === direct);
+  await q("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Changed my mind')", [direct, kojo]);
+  check("whoever declined can write once they open it again", (await q("select body from public.messages where conversation_id = $1", [direct])).map((r) => r.body).join() === "Changed my mind");
+  check("and it is back in their inbox", (await q("select 1 from public.conversation_list where id = $1", [direct])).length === 1);
+
+  await as(ama);
+  const pair = (await one("select public.start_direct_conversation($1) as id", [efua])).id;
+  await as(efua);
+  check("participants join their conversation's channel", (await one("select public.realtime_topic_allowed($1, 'broadcast', true) as ok", [`conversation:${pair}`])).ok === true);
+  await q("insert into public.blocks (blocker_id, blocked_id) values ($1, $2)", [efua, ama]);
+  await as(ama);
+  check("a blocked person can't listen on the channel", (await one("select public.realtime_topic_allowed($1, 'broadcast', false) as ok", [`conversation:${pair}`])).ok === false);
+  check("or send on it", (await one("select public.realtime_topic_allowed($1, 'broadcast', true) as ok", [`conversation:${pair}`])).ok === false);
+
+  await as(efua);
+  const linked = (await one("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'Win a prize at https://scam.example/win') returning id", [crew, efua])).id;
+  await superuser();
+  await q("update public.messages set link_preview = '{\"url\":\"https://scam.example/win\",\"title\":\"Prize\"}' where id = $1", [linked]);
+  await q("update public.messages set removed_at = now(), body = '', image_paths = '{}' where id = $1", [linked]);
+  row = await one("select link_url, link_preview from public.messages where id = $1", [linked]);
+  check("a removed message keeps no link or card", row.link_url === null && row.link_preview === null, row);
+}
+
 console.log("\nDemo seed");
 const seeded = new PGlite({ extensions: { pg_trgm, pgcrypto } });
 await seeded.exec(stubs);
