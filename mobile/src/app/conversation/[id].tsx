@@ -9,6 +9,7 @@ import { z } from "zod";
 import { LIMITS } from "@/lib/catalogue";
 import { count, dayLabel } from "@/lib/format";
 import type { Conversation, Member, Message } from "@/lib/messages";
+import { clearDraft, keepDraft, readDraft } from "@/data/drafts";
 import { reasonOf, type Reason } from "@/data/errors";
 import {
   loadConversation,
@@ -120,7 +121,12 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
   const [members, setMembers] = useState<Member[]>(conversation.members);
   const [typing, setTyping] = useState<Record<string, number>>({});
   const [pending, setPending] = useState<Pending[]>([]);
-  const [body, setBody] = useState("");
+  // What was typed and not sent waits here for the next visit, as Bluesky
+  // keeps a draft per conversation; it's written once, on leaving.
+  const scope = `message:${id}`;
+  const [body, setBody] = useState(() => readDraft(viewerId, scope));
+  const unsent = useRef(body);
+  useEffect(() => () => void keepDraft(viewerId, scope, unsent.current), [viewerId, scope]);
   const [images, setImages] = useState<PickedImage[]>([]);
   const [activeImage, setActiveImage] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
@@ -280,6 +286,7 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
 
   function sayTyping(text: string) {
     setBody(text);
+    unsent.current = text;
     const now = Date.now();
     if (!text || now - lastTyped.current < TYPING_EVERY_MS || channel.current?.state !== "joined") return;
     lastTyped.current = now;
@@ -311,6 +318,8 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
     const item: Pending = { key: `pending-${Date.now()}`, body: body.trim(), images, replyTo, delivery: { kind: "sending" }, createdAt: new Date().toISOString() };
     setPending((current) => [...current, item]);
     setBody("");
+    unsent.current = "";
+    clearDraft(viewerId, scope);
     setImages([]);
     setActiveImage(null);
     setReplyTo(null);

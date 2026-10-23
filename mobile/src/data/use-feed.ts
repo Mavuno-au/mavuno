@@ -30,6 +30,11 @@ export function useFeed(load: (cursor: string | null) => Promise<Page>, key: str
   const latest = useRef({ load, key, state });
   const generation = useRef(0);
   const loadingMore = useRef(false);
+  // Set by the list: a reader down the feed keeps their place when they post.
+  const scrolledDown = useRef(false);
+  const setScrolledDown = useCallback((down: boolean) => {
+    scrolledDown.current = down;
+  }, []);
 
   useLayoutEffect(() => {
     latest.current = { load, key, state };
@@ -110,9 +115,9 @@ export function useFeed(load: (cursor: string | null) => Promise<Page>, key: str
   useEffect(() => {
     if (!enabled || !takesPosts) return;
     return onPostCreated((post) => {
-      if (post.parentId === null && latest.current.state.kind === "ready") refresh();
+      if (post.parentId === null && latest.current.state.kind === "ready" && !scrolledDown.current) refresh();
     });
   }, [enabled, takesPosts, refresh]);
 
-  return { state, loadMore, refresh, retry };
+  return { state, loadMore, refresh, retry, setScrolledDown };
 }

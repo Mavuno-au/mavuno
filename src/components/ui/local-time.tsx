@@ -21,6 +21,9 @@ let timer: ReturnType<typeof setInterval> | undefined;
 
 function subscribeToClock(listener: () => void) {
   listeners.add(listener);
+  // The clock stops while nothing shows a time, so it is set again when one
+  // does; React reads it once more after subscribing.
+  if (timer === undefined) now = Date.now();
   timer ??= setInterval(() => {
     now = Date.now();
     for (const notify of listeners) notify();
@@ -34,8 +37,11 @@ function subscribeToClock(listener: () => void) {
   };
 }
 
+// On the server the module can be hours old, so each render reads the time.
+const serverNow = () => (typeof window === "undefined" ? Date.now() : now);
+
 export function useNow() {
-  return useSyncExternalStore(subscribeToClock, () => now, () => now);
+  return useSyncExternalStore(subscribeToClock, () => now, serverNow);
 }
 
 export function LocalTime({ iso, format = "relative" }: { iso: string; format?: "relative" | "full" }) {

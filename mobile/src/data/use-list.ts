@@ -15,6 +15,8 @@ export function useList<Item extends { id: string }>(load: (cursor: string | nul
   const state: ListState<Item> = stored.key === key ? stored.state : { kind: "loading" };
   const latest = useRef({ load, key, state });
   const generation = useRef(0);
+  // State lands a render later, so two end-of-list calls in a row would both pass the check.
+  const loadingMore = useRef(false);
 
   useEffect(() => {
     latest.current = { load, key, state };
@@ -41,11 +43,13 @@ export function useList<Item extends { id: string }>(load: (cursor: string | nul
 
   const loadMore = useCallback(() => {
     const { state: shown, load: read, key: forKey } = latest.current;
-    if (shown.kind !== "ready" || !shown.next || shown.more === "loading" || shown.refreshing) return;
+    if (shown.kind !== "ready" || !shown.next || shown.more === "loading" || shown.refreshing || loadingMore.current) return;
+    loadingMore.current = true;
     const current = generation.current;
     setStored((previous) => (previous.key === forKey && previous.state.kind === "ready" ? { key: forKey, state: { ...previous.state, more: "loading" } } : previous));
     read(shown.next).then(
       (page) => {
+        loadingMore.current = false;
         if (current !== generation.current) return;
         setStored((previous) => {
           if (previous.key !== forKey || previous.state.kind !== "ready") return previous;
@@ -54,6 +58,7 @@ export function useList<Item extends { id: string }>(load: (cursor: string | nul
         });
       },
       () => {
+        loadingMore.current = false;
         if (current !== generation.current) return;
         setStored((previous) => (previous.key === forKey && previous.state.kind === "ready" ? { key: forKey, state: { ...previous.state, more: "failed" } } : previous));
       },
