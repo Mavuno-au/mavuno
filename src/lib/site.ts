@@ -2,7 +2,7 @@
 // Terms and Community rules pages.
 export const OPERATOR = "Mentors Outreach";
 export const CONTACT_EMAIL = "bakari@mentorsoutreach.org";
-export const LEGAL_UPDATED = "20 October 2026";
+export const LEGAL_UPDATED = "24 October 2026";
 export const PRIVACY_UPDATED = "23 October 2026";
 
 // How Mavuno describes itself, everywhere it does: the home banner, the app's

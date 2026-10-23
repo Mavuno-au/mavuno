@@ -63,6 +63,35 @@ describe("fetchLinkPreview", () => {
     fetchMock.mockRejectedValueOnce(new TypeError("fetch failed", { cause: new Error("Blocked address") }));
     expect(await fetchLinkPreview("https://internal.example/")).toEqual({ kind: "none", reason: "Blocked address" });
   });
+
+  // YouTube's tags sit about 770 KB into the page, past what is read of it.
+  it("reads a video's card from the site's oEmbed answer, not its page", async () => {
+    fetchMock.mockClear();
+    const answer = { title: "Me at the zoo &amp; more", author_name: "jawed", thumbnail_url: "https://i.ytimg.com/vi/jNQXAC9IVRw/hqdefault.jpg" };
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(answer), { headers: { "content-type": "application/json" } }));
+    const href = "https://www.youtube.com/watch?v=jNQXAC9IVRw";
+    expect(await fetchLinkPreview(href)).toEqual({
+      kind: "found",
+      preview: { url: href, title: "Me at the zoo & more", description: "jawed", image: answer.thumbnail_url, siteName: "YouTube" },
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledWith(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(href)}`, expect.anything());
+  });
+
+  it("falls back to the page when oEmbed gives no title", async () => {
+    fetchMock.mockClear();
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ title: "" }), { headers: { "content-type": "application/json" } }));
+    const fetched = await fetchLinkPreview("https://www.tiktok.com/@someone/video/6718335390845095173");
+    expect(fetched.kind === "found" && fetched.preview.title).toBe("Inside");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("falls back to the page when oEmbed is unreachable", async () => {
+    fetchMock.mockClear();
+    fetchMock.mockRejectedValueOnce(new TypeError("fetch failed"));
+    const fetched = await fetchLinkPreview("https://vimeo.com/22439234");
+    expect(fetched.kind === "found" && fetched.preview.title).toBe("Inside");
+  });
 });
 
 describe("parseMetadata", () => {

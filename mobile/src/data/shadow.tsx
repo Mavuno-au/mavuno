@@ -1,4 +1,4 @@
-import { createContext, use, useCallback, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createContext, use, useCallback, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { Poll, Post } from "@/lib/domain";
 
 // What the viewer has changed since a post or profile was read: a like, a
@@ -72,6 +72,27 @@ export function useProfileShadow(id: string, read: { following: boolean; followe
   const shadow = useStored(use(ShadowContext).profiles, id);
   if (!shadow || shadow.following === read.following) return read;
   return { following: shadow.following, followers: adjusted(read.followers, read.following, shadow.following) };
+}
+
+// Which of these people the viewer has followed since they were read, from
+// anywhere in the app: suggestions leave out someone once followed.
+export function useFollowedAmong(ids: readonly string[]): ReadonlySet<string> {
+  const { profiles } = use(ShadowContext);
+  const key = ids.join(",");
+  const subscribe = useCallback(
+    (listener: () => void) => {
+      const stops = key.split(",").filter(Boolean).map((id) => profiles.subscribe(id, listener));
+      return () => stops.forEach((stop) => stop());
+    },
+    [profiles, key],
+  );
+  const followed = useSyncExternalStore(subscribe, () =>
+    key
+      .split(",")
+      .filter((id) => id && profiles.get(id)?.following === true)
+      .join(","),
+  );
+  return useMemo(() => new Set(followed.split(",").filter(Boolean)), [followed]);
 }
 
 export function useShadowWriter() {

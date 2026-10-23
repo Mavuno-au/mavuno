@@ -4,6 +4,7 @@ import { LayoutAnimation, View } from "react-native";
 import { SUGGESTIONS_PER_PAGE } from "@/lib/who-to-follow";
 import type { PersonSummary } from "@/lib/domain";
 import { dismissSuggestion, loadSuggestions } from "@/data/community";
+import { useFollowedAmong } from "@/data/shadow";
 import { setPreference } from "@/data/preferences";
 import { PersonRow } from "@/people/person-row";
 import { Text } from "@/ui/text";
@@ -74,8 +75,10 @@ export function useNotForMe(viewerId: string | null, setHidden: Dispatch<SetStat
 export function WhoToFollow({ viewerId, suggestions: { people, hidden, setHidden } }: { viewerId: string; suggestions: Suggestions }) {
   const palette = usePalette();
   const notForMe = useNotForMe(viewerId, setHidden);
+  // Someone followed, here or on their profile, makes way for a spare, as Not for me does.
+  const followed = useFollowedAmong((people ?? []).map((person) => person.id));
 
-  const shown = (people ?? []).filter((person) => !hidden.has(person.id)).slice(0, SUGGESTIONS_PER_PAGE);
+  const shown = (people ?? []).filter((person) => !hidden.has(person.id) && !followed.has(person.id)).slice(0, SUGGESTIONS_PER_PAGE);
   if (shown.length === 0) return null;
 
   const hideBlock = () => {

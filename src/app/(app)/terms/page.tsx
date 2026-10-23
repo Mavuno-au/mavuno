@@ -67,6 +67,7 @@ export default function TermsPage() {
 
         <h2 id="moderation">6. How we moderate</h2>
         <ul>
+          <li>We have zero tolerance for objectionable content and abusive members, and act on every report within 24 hours.</li>
           <li>We may hide or remove content, or limit, suspend or close accounts, that break these terms or the community rules, or that we must remove by law.</li>
           <li>We act in proportion to what happened. We'll tell you what we did and why, unless the law, or someone's safety, prevents us.</li>
           <li>You can ask for a decision to be looked at again by emailing {mail} within 30 days. A different moderator will review it.</li>

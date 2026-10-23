@@ -1,7 +1,7 @@
 import { Image } from "expo-image";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Briefcase, CalendarDays, Check, Maximize2, Play } from "lucide-react-native";
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { OPPORTUNITY_TYPES } from "@/lib/catalogue";
 import type { EventSummary, LinkPreview, OpportunitySummary, Poll, Post, PostImage, QuotedPost } from "@/lib/domain";
@@ -12,6 +12,7 @@ import { loadLinkPreview, loadPost, votePoll } from "@/data/posts";
 import { useShadowWriter } from "@/data/shadow";
 import { applyBy } from "@/community/opportunity-row";
 import { useActsFor } from "@/post/post-actions";
+import { InlinePlayer } from "@/post/player";
 import { Avatar } from "@/ui/avatar";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
@@ -141,14 +142,40 @@ export function LinkCard({ url, preview: read }: { url: string; preview: LinkPre
   const block = useBlock();
   const preview = useLateCard(url, read);
   const embed = embedFor(url);
+  const [playing, setPlaying] = useState(false);
+  const stop = useCallback(() => setPlaying(false), []);
+  // Another screen on top, or another tab, stops the player.
+  useFocusEffect(useCallback(() => stop, [stop]));
   if (!preview && !embed) return null;
-  const source = embed ? `${embed.provider} · play` : (preview?.siteName ?? displayUrl(url));
+  const source = embed ? `${embed.provider} · play here` : (preview?.siteName ?? displayUrl(url));
+
+  // Played in the card, as on the website, with a way out to the provider's app.
+  if (embed && playing) {
+    return (
+      <View style={[block, { marginTop: 10 }]}>
+        <InlinePlayer embed={embed} title={preview?.title ?? `${embed.provider} player`} onLeave={stop} />
+        <Pressable
+          accessibilityRole="link"
+          onPress={() => openPlayer(url)}
+          style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 6, minHeight: 44, paddingHorizontal: 12, backgroundColor: pressed ? palette.wash : "transparent" })}
+        >
+          <Text variant="caption" tone="muted" numberOfLines={1} style={{ flex: 1 }}>
+            {preview?.title ?? displayUrl(url)}
+          </Text>
+          <Text variant="caption" tone="primary">
+            Open in {embed.provider}
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
     <Pressable
       accessibilityRole="link"
       accessibilityLabel={[preview?.title, source].filter(Boolean).join(", ")}
       // A page can name any site for itself; the reader is told if that isn't where the link goes.
-      onPress={() => (embed ? openPlayer(url) : openLabelledLink(url, preview?.siteName ?? ""))}
+      onPress={() => (embed ? setPlaying(true) : openLabelledLink(url, preview?.siteName ?? ""))}
       style={({ pressed }) => [block, { marginTop: 10, backgroundColor: pressed ? palette.wash : "transparent" }]}
     >
       {preview?.image ? (
