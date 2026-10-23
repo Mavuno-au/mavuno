@@ -3,7 +3,7 @@ import { AppState } from "react-native";
 
 // Coming back to the app after this long counts as a return worth acting on;
 // a shorter trip (a notification, the share sheet) does not.
-export const SIGNIFICANT_RETURN = 2 * 60 * 1000;
+const SIGNIFICANT_RETURN = 2 * 60 * 1000;
 
 // Calls `onReturn` when the app comes to the front after at least
 // SIGNIFICANT_RETURN in the background. Only a real trip to the background

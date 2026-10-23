@@ -66,7 +66,7 @@ async function threadPosition(postId: string) {
 }
 
 // The posts an author added under their own post, and where it sits among them.
-export type Continuation = { kind: "none" } | { kind: "thread"; place: ThreadPlace; parts: PostRow[] };
+type Continuation = { kind: "none" } | { kind: "thread"; place: ThreadPlace; parts: PostRow[] };
 
 async function loadContinuationOf(post: Post): Promise<Continuation> {
   if (post.authorMuted || (post.continuation === 0 && !post.parentId)) return { kind: "none" };

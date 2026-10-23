@@ -18,7 +18,7 @@ import { useToggleQueue } from "@/util/toggle-queue";
 
 // The database keeps a deleted post's content for 30 seconds; Undo stays a
 // little shorter so it never arrives after the content is gone.
-export const UNDO_MS = 28_000;
+const UNDO_MS = 28_000;
 
 // Whether the viewer may act for the post's author: it's theirs, or an
 // organisation's they help run. The database decides in the end.
@@ -47,7 +47,7 @@ export function useSaveToggle(post: Post) {
 
 // Deleting isn't confirmed: it can be undone for 30 seconds, and Apple
 // advises against confirming what can be undone (the iPhone design's notes).
-export function useDeletePost() {
+function useDeletePost() {
   const { setDeleted } = useShadowWriter();
   return async (post: Post) => {
     setDeleted(post.id, true);

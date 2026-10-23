@@ -103,8 +103,16 @@ export async function loadFollowersYouKnow(profileId: string): Promise<Followers
 export type Direction = "followers" | "following";
 const CONNECTIONS_PAGE = 30;
 
+// "<follow time>:<person id>", checked as the website's connectionCursor
+// (src/lib/data/profiles.ts, a server-only file) checks it.
+const connectionCursor = z
+  .string()
+  .regex(/^.+:[0-9a-f-]{36}$/)
+  .transform((cursor) => ({ before: cursor.slice(0, -37), beforeId: cursor.slice(-36) }))
+  .pipe(z.object({ before: z.iso.datetime({ offset: true }), beforeId: z.uuid() }));
+
 export async function loadConnections(profileId: string, direction: Direction, cursor: string | null): Promise<{ items: PersonSummary[]; next: string | null }> {
-  const after = cursor ? { before: cursor.slice(0, -37), beforeId: cursor.slice(-36) } : null;
+  const after = cursor ? connectionCursor.parse(cursor) : null;
   const { data, error } = await supabase.rpc("profile_connections", { p_profile_id: profileId, p_direction: direction, p_before: after?.before ?? null, p_before_id: after?.beforeId ?? null, p_limit: CONNECTIONS_PAGE });
   if (error) throw requestError("Connections", error);
   const rows = z.array(z.object({ followed_at: z.string() })).parse(data ?? []);

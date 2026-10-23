@@ -8,7 +8,7 @@ export type ListState<Item> =
   | { kind: "failed"; reason: Reason }
   | { kind: "ready"; items: Item[]; next: string | null; more: "idle" | "loading" | "failed"; refreshing: boolean };
 
-export type ListPage<Item> = { items: Item[]; next: string | null };
+type ListPage<Item> = { items: Item[]; next: string | null };
 
 export function useList<Item extends { id: string }>(load: (cursor: string | null) => Promise<ListPage<Item>>, key: string, { enabled = true } = {}) {
   const [stored, setStored] = useState<{ key: string; state: ListState<Item> }>({ key: "", state: { kind: "loading" } });

@@ -42,7 +42,8 @@ export type { CommunityEvent, Opportunity, Space, SpaceListItem, SpaceRole } fro
 
 const id = z.uuid();
 
-const lenient = <T>(schema: z.ZodType<T>, data: unknown) =>
+// Every row that parses, so one this build can't read yet doesn't empty the list.
+export const lenient = <T>(schema: z.ZodType<T>, data: unknown) =>
   z
     .array(z.unknown())
     .parse(data ?? [])

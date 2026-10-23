@@ -21,9 +21,9 @@ const standingSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("banned") }),
   z.object({ kind: z.literal("deactivated"), deletesAt: z.string() }),
 ]);
-export type Standing = z.infer<typeof standingSchema>;
+type Standing = z.infer<typeof standingSchema>;
 
-export type SessionState =
+type SessionState =
   | { kind: "loading" }
   | { kind: "signed-out"; notice: Notice | null }
   // `viewer` is null until the member's own profile has loaded.

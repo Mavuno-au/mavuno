@@ -3,7 +3,7 @@ import { MailCheck } from "lucide-react-native";
 import { Linking, View } from "react-native";
 import { JoinFrame } from "@/join/join-frame";
 import { Button } from "@/ui/controls";
-import { Text } from "@/ui/text";
+import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
 
 // The website asks people to confirm their email before signing in. Open
@@ -26,7 +26,7 @@ export default function CheckEmail() {
         <MailCheck size={30} color={palette.primary} />
       </View>
       <Text variant="callout">
-        We sent a link to {email ? <Text style={{ fontWeight: "600" }}>{email}</Text> : "your email"}. Open it to confirm your address, then sign in here.
+        We sent a link to {email ? <Text style={{ fontFamily: font.semibold }}>{email}</Text> : "your email"}. Open it to confirm your address, then sign in here.
       </Text>
       <Text variant="small" tone="muted">
         Can't find it? Check your spam folder. The link works for 24 hours. If someone invited you, you'll already be following each other.

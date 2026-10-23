@@ -9,8 +9,9 @@ import { embedFor } from "@/lib/embeds";
 import { count, eventDate, pollTimeLeft, relativeTime } from "@/lib/format";
 import { displayUrl } from "@/lib/text";
 import { loadLinkPreview, loadPost, votePoll } from "@/data/posts";
-import { useViewer } from "@/data/session";
 import { useShadowWriter } from "@/data/shadow";
+import { applyBy } from "@/community/opportunity-row";
+import { useActsFor } from "@/post/post-actions";
 import { Avatar } from "@/ui/avatar";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
@@ -266,11 +267,7 @@ export function EventAttachment({ event }: { event: EventSummary }) {
 export function OpportunityAttachment({ opportunity }: { opportunity: OpportunitySummary }) {
   const palette = usePalette();
   const kind = [OPPORTUNITY_TYPES[opportunity.type].label, opportunity.organisation, opportunity.remote ? "Remote" : opportunity.city].filter(Boolean).join(" · ");
-  const status = opportunity.closed
-    ? "Closed"
-    : opportunity.deadlineAt
-      ? `Apply by ${new Date(opportunity.deadlineAt).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone })}`
-      : "Open";
+  const status = opportunity.closed ? "Closed" : opportunity.deadlineAt ? applyBy(opportunity.deadlineAt) : "Open";
   return (
     <Summary
       icon={<Briefcase size={20} color={palette.primary} />}
@@ -286,11 +283,10 @@ export function OpportunityAttachment({ opportunity }: { opportunity: Opportunit
 // closes. Authors can't vote in their own polls.
 export function PollView({ post, poll }: { post: Post; poll: Poll }) {
   const palette = usePalette();
-  const viewer = useViewer();
   const { setPoll } = useShadowWriter();
   const [voting, setVoting] = useState<string | null>(null);
   const closed = poll.closesAt !== null && new Date(poll.closesAt) < new Date();
-  const own = viewer !== null && (viewer.id === post.authorId || viewer.organisations.some((organisation) => organisation.id === post.authorId));
+  const own = useActsFor(post.authorId);
   const open = !closed && poll.myVote === null && poll.closesAt !== null && !own;
   const footer = [count(poll.votes, "vote"), pollTimeLeft(poll.closesAt), !poll.showResults && !open ? "results show when it closes" : null].filter(Boolean).join(" · ");
 

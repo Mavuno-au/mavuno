@@ -16,7 +16,7 @@ async function listFolder(folder: string, offset = 0): Promise<string[]> {
   return paths.length === PAGE ? [...paths, ...(await listFolder(folder, offset + PAGE))] : paths;
 }
 
-export async function removeProfileMedia(profileIds: string[]) {
+async function removeProfileMedia(profileIds: string[]) {
   const folders = profileIds.flatMap((profileId) => MEDIA_KINDS.map((kind) => `${profileId}/${kind}`));
   const paths = (await Promise.all(folders.map((folder) => listFolder(folder)))).flat();
   for (let start = 0; start < paths.length; start += PAGE) {

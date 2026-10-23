@@ -15,7 +15,7 @@ const preferencesSchema = z.object({
     .catch(DEFAULT_REPLY_PREVIEWS),
   whoToFollow: z.boolean().catch(true),
 });
-export type Preferences = z.infer<typeof preferencesSchema>;
+type Preferences = z.infer<typeof preferencesSchema>;
 
 const KEY = "mavuno-preferences";
 const listeners = new Set<() => void>();

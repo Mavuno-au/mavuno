@@ -215,7 +215,7 @@ type Destination =
 const id = z.uuid();
 const username = z.string().regex(/^[a-z0-9_]{1,30}$/);
 
-export function destinationOf(path: unknown): Destination | null {
+function destinationOf(path: unknown): Destination | null {
   if (typeof path !== "string") return null;
   if (path === "/notifications") return { kind: "notifications" };
   if (path === "/settings/organisations") return { kind: "organisations" };

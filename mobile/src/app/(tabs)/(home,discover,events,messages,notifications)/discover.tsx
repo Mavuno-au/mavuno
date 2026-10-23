@@ -1,20 +1,19 @@
 import { router, useIsFocused } from "expo-router";
 import { Briefcase, Hash, MapPin, Search, Users } from "lucide-react-native";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { LayoutAnimation, Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import type { PersonSummary } from "@/lib/domain";
-import { dismissSuggestion, loadActiveSpaces, loadSuggestions, loadTrendingTopics, type SpaceListItem } from "@/data/community";
+import { loadActiveSpaces, loadSuggestions, loadTrendingTopics, type SpaceListItem } from "@/data/community";
 import { reasonOf, type Reason } from "@/data/errors";
 import { useViewer } from "@/data/session";
 import { PersonRow } from "@/people/person-row";
+import { useNotForMe } from "@/people/who-to-follow";
 import { SpaceRow } from "@/community/space-card";
 import { EmptyState, LoadFailed, Pills, RowSkeleton } from "@/ui/controls";
 import { Header } from "@/ui/header";
 import { font, Text } from "@/ui/text";
 import { HAIRLINE, usePalette } from "@/ui/theme";
-import { toast } from "@/ui/toast";
 import { onSoftReset } from "@/util/events";
-import { useReduceMotion } from "@/util/motion";
 
 type Tab = "overview" | "people" | "organisations" | "topics";
 
@@ -33,7 +32,6 @@ export default function Discover() {
   const palette = usePalette();
   const viewer = useViewer();
   const focused = useIsFocused();
-  const reduceMotion = useReduceMotion();
   const [tab, setTab] = useState<Tab>("overview");
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [failed, setFailed] = useState<Reason | null>(null);
@@ -60,36 +58,7 @@ export default function Discover() {
   useEffect(read, [read]);
   useEffect(() => (focused ? onSoftReset(read) : undefined), [focused, read]);
 
-  // The website's Not for me: hidden from suggestions, with a way back. The
-  // rows below close the gap rather than jump into it (Bluesky's dismiss),
-  // except under Reduce Motion.
-  const hide = (id: string, on: boolean) => {
-    if (!reduceMotion) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setHidden((current) => (on ? new Set([...current, id]) : new Set([...current].filter((other) => other !== id))));
-  };
-  const notForMe = (person: PersonSummary) => {
-    if (!viewerId) return;
-    hide(person.id, true);
-    const hiding = dismissSuggestion(viewerId, person.id, true).then((result) => {
-      if (result.ok) return true;
-      hide(person.id, false);
-      toast(`Couldn't hide them. ${result.error}`, { tone: "error" });
-      return false;
-    });
-    // Undo waits for the hide to land, so the two can't arrive out of order.
-    const undo = () => {
-      hide(person.id, false);
-      void hiding.then(async (hid) => {
-        if (!hid) return;
-        const result = await dismissSuggestion(viewerId, person.id, false);
-        if (result.ok) return;
-        hide(person.id, true);
-        toast(`Couldn't bring them back. ${result.error}`, { tone: "error" });
-      });
-    };
-    toast("Hidden from suggestions", { action: { label: "Undo", onPress: undo } });
-  };
-
+  const notForMe = useNotForMe(viewerId, setHidden);
   const suggestion = (person: PersonSummary) => <PersonRow key={person.id} person={person} detail={person.reason ?? undefined} onDismiss={() => notForMe(person)} />;
 
   const people = (loaded?.people ?? []).filter((person) => !hidden.has(person.id));

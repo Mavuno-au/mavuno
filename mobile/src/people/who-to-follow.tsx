@@ -35,21 +35,17 @@ export function useSuggestions(viewerId: string | null): Suggestions {
   return useMemo(() => ({ people, hidden, setHidden }), [people, hidden]);
 }
 
-// The website's Who to follow block, after the fifth post of Following and
-// Latest. Twice as many are read as shown, so Not for me fills the gap from
-// the spares, as the website's does.
-export function WhoToFollow({ viewerId, suggestions: { people, hidden, setHidden } }: { viewerId: string; suggestions: Suggestions }) {
-  const palette = usePalette();
+// The website's Not for me, here and on Discover: hidden from suggestions,
+// with a way back. The rows below close the gap rather than jump into it
+// (Bluesky's dismiss), except under Reduce Motion.
+export function useNotForMe(viewerId: string | null, setHidden: Dispatch<SetStateAction<ReadonlySet<string>>>) {
   const reduceMotion = useReduceMotion();
-
-  const shown = (people ?? []).filter((person) => !hidden.has(person.id)).slice(0, SUGGESTIONS_PER_PAGE);
-  if (shown.length === 0) return null;
-
   const hide = (id: string, on: boolean) => {
     if (!reduceMotion) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setHidden((current) => (on ? new Set([...current, id]) : new Set([...current].filter((other) => other !== id))));
   };
-  const notForMe = (person: PersonSummary) => {
+  return (person: PersonSummary) => {
+    if (!viewerId) return;
     hide(person.id, true);
     const hiding = dismissSuggestion(viewerId, person.id, true).then((result) => {
       if (result.ok) return true;
@@ -57,16 +53,31 @@ export function WhoToFollow({ viewerId, suggestions: { people, hidden, setHidden
       toast(`Couldn't hide them. ${result.error}`, { tone: "error" });
       return false;
     });
+    // Undo waits for the hide to land, so the two can't arrive out of order.
     const undo = () => {
       hide(person.id, false);
       void hiding.then(async (hid) => {
         if (!hid) return;
         const result = await dismissSuggestion(viewerId, person.id, false);
-        if (!result.ok) hide(person.id, true);
+        if (result.ok) return;
+        hide(person.id, true);
+        toast(`Couldn't bring them back. ${result.error}`, { tone: "error" });
       });
     };
     toast("We won't suggest them again", { action: { label: "Undo", onPress: undo } });
   };
+}
+
+// The website's Who to follow block, after the fifth post of Following and
+// Latest. Twice as many are read as shown, so Not for me fills the gap from
+// the spares, as the website's does.
+export function WhoToFollow({ viewerId, suggestions: { people, hidden, setHidden } }: { viewerId: string; suggestions: Suggestions }) {
+  const palette = usePalette();
+  const notForMe = useNotForMe(viewerId, setHidden);
+
+  const shown = (people ?? []).filter((person) => !hidden.has(person.id)).slice(0, SUGGESTIONS_PER_PAGE);
+  if (shown.length === 0) return null;
+
   const hideBlock = () => {
     setPreference("whoToFollow", false);
     toast("Who to follow is hidden. Bring it back in Settings, Appearance.", { action: { label: "Undo", onPress: () => setPreference("whoToFollow", true) } });

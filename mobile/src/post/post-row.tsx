@@ -22,7 +22,7 @@ import { timeZone, useNow } from "@/util/time";
 
 // Where a row is shown. A feed row shows the newest replies under it; a reply
 // row sits in a post's conversation; an ancestor is read above the focused post.
-export type Variant = "feed" | "reply" | "ancestor";
+type Variant = "feed" | "reply" | "ancestor";
 
 const openPost = (post: { id: string }) => router.push(`/post/${post.id}`);
 const openProfile = (username: string) => router.push(`/profile/${username}`);
@@ -50,7 +50,7 @@ function DeletedHere({ post }: { post: Post }) {
 }
 
 // A deleted post keeps its place so the replies under it still read in order.
-export function TombstoneRow({ row }: { row: Tombstone }) {
+function TombstoneRow({ row }: { row: Tombstone }) {
   const palette = usePalette();
   return (
     <View
