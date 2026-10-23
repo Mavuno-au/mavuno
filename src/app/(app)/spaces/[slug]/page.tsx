@@ -24,10 +24,10 @@ export async function generateMetadata({ params }: PageProps<"/spaces/[slug]">):
   // City spaces are titled the way people search for them.
   const city = space.kind === "city";
   return {
-    title: city ? `African community in ${space.name}` : space.name,
+    title: city ? `African communities in ${space.name}` : space.name,
     description:
       space.description ||
-      (city ? `Events, jobs, scholarships and people from the African community in ${space.name}, on Mavuno.` : `${space.name} on Mavuno, the social network for African Australians.`),
+      (city ? `Events, jobs and recommendations from African communities in ${space.name}, posted by people who live there.` : `${space.name} on Mavuno, the social network for African Australians.`),
     alternates: { canonical: `/spaces/${space.slug}`, types: { "application/atom+xml": [{ url: `/spaces/${space.slug}/feed.xml`, title: `Posts in ${space.name}` }] } },
   };
 }

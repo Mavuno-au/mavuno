@@ -2,12 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/page";
 import { Note, Prose } from "@/components/ui/prose";
-import { CONTACT_EMAIL, OPERATOR } from "@/lib/site";
+import { CONTACT_EMAIL, OPERATOR, SITE_DESCRIPTION } from "@/lib/site";
 
-export const metadata: Metadata = {
-  title: "About",
-  description: "Mavuno is the social network for African Australians: follow people and organisations, join your city's space, and find events, jobs and scholarships from the community.",
-};
+export const metadata: Metadata = { title: "About", description: SITE_DESCRIPTION };
 
 export default function AboutPage() {
   return (
@@ -15,73 +12,66 @@ export default function AboutPage() {
       <PageHeader title="About Mavuno" />
       <Prose>
         <p>
-          <strong>Mavuno</strong> means harvest in Swahili: what a community grows together. It's the social network for African Australians, and for the organisations, businesses and friends around
-          us.
+          <strong>Mavuno is the social network for African Australians.</strong> If your family's story runs through Harare, Juba, Lagos, Addis Ababa, Nairobi, Accra or Kinshasa and your life is
+          here, it was made for you, whether you landed last month or were born in Toowoomba. Put your heritage on your profile in your own words: Oromo, Nuer, Ghanaian-Australian, or all of the
+          above.
         </p>
+        <p>Mavuno is Swahili for harvest.</p>
 
-        <h2>Why Mavuno exists</h2>
+        <h2>What's here</h2>
+        <ul>
+          <li>
+            <strong>A space for your city.</strong> Brisbane, Western Sydney, Melbourne, Perth, Adelaide and more each have one. Ask for a mechanic, a room, a church or a Saturday game, and hear
+            from people who live there.
+          </li>
+          <li>
+            <strong>Events.</strong> Dinner dances, independence days, tournaments, church and mosque events, graduations. RSVP, see who's going and add it to your calendar.
+          </li>
+          <li>
+            <strong>Jobs, scholarships and mentoring</strong>, each posted by a named person or organisation you can message before you apply.
+          </li>
+          <li>
+            <strong>Organisations.</strong> Associations, churches, clubs and businesses run their own accounts, with their team.
+          </li>
+          <li>
+            <strong>Messages</strong>, one to one or in groups. People you don't follow wait in Requests until you say yes.
+          </li>
+          <li>
+            <strong>Your languages.</strong> Write in English, Swahili, Amharic, Somali, Arabic, French, Dinka or any other, and translate a post with one tap.
+          </li>
+        </ul>
+
+        <h2>Why we built it</h2>
         <p>
-          Our communities are spread across every Australian city, and much of what matters to us travels by word of mouth: a WhatsApp forward about a job, a flyer for a community day, a friend who knows a
-          good migration agent. Some of it reaches everyone who needs it. Much of it doesn't, and some of it is a scam.
+          So much of what matters to us travels by forward: a job, a flyer, a number for someone who can help. By the fifth forward nobody knows who wrote it, and some of it is a scam. On Mavuno every
+          post has a name and a profile behind it, and you can ask the person who wrote it.
         </p>
-        <p>Mavuno puts that in one place, built around how we actually live here:</p>
-        <ul>
-          <li>
-            <strong>Find your people, city by city.</strong> Every city has its own space, and Nearby shows members and events close to you without ever using your location.
-          </li>
-          <li>
-            <strong>Opportunities that reach us.</strong> Jobs, scholarships, grants and mentoring, posted by members and organisations who want to hire and support people from our communities.
-          </li>
-          <li>
-            <strong>Events in one calendar.</strong> Cultural nights, networking, church and mosque events, sport and family days, from Darwin to Hobart.
-          </li>
-          <li>
-            <strong>Organisations with a home.</strong> Associations, community groups and businesses get their own accounts, run by their team.
-          </li>
-          <li>
-            <strong>In our languages.</strong> Post in English, Swahili, Amharic, Somali, Arabic, French, Dinka and more, and translate what others write.
-          </li>
-        </ul>
-
-        <h2>What you can do</h2>
-        <ul>
-          <li>Post text, photos, links, videos and polls; reply, quote and save posts; schedule a post for later.</li>
-          <li>Follow people and organisations. Your Following feed shows them newest first, with nothing paid or promoted mixed in.</li>
-          <li>Join spaces for your city and for careers, business, faith, food, families, study and more.</li>
-          <li>Message people one to one or in groups. People you don't follow land in Requests until you accept them.</li>
-          <li>RSVP to events and save opportunities to come back to.</li>
-        </ul>
+        <p>
+          And our communities deserve a place to talk without the comment-section racism. Here, every report goes to a person on our team, and a block or a mute applies everywhere at once.
+        </p>
 
         <h2>What we promise</h2>
         <ul>
+          <li>No ads, and nothing paid mixed into your feed. Following shows the people you follow, newest first.</li>
+          <li>We never sell your information. We know the city you choose, never where you are, and photos lose their location before they're stored.</li>
           <li>
-            <strong>No ads, and we never sell your data.</strong> Mavuno is free to use.
+            Until a new member has a track record, an automatic check by OpenAI looks at what they publish, so scams and abuse are caught early. Private messages are never checked.
           </li>
-          <li>
-            <strong>As little about you as we can.</strong> We store the city you choose, never where you are. Photos are cleaned of location data before they're stored.
-          </li>
-          <li>
-            <strong>A safe place to speak.</strong> Posts go up straight away, every report goes to a real moderator, and mutes and blocks apply everywhere.
-          </li>
-          <li>
-            <strong>Your data is yours.</strong> Download everything we hold about you, or delete your account, at any time from Settings.
-          </li>
+          <li>Download everything we hold about you, or delete your account, from Settings, whenever you like.</li>
         </ul>
-
-        <h2>Why the rules matter</h2>
         <p>
-          A community network is only useful if people trust it. Scams aimed at migrants and international students, fake job and visa offers, and racist abuse are real problems on the big platforms. Our{" "}
-          <Link href="/rules">community rules</Link> are written for those risks specifically, and our <Link href="/privacy">privacy policy</Link> and <Link href="/terms">terms</Link> say plainly what we do
-          with your information and what we expect of everyone here.
+          The <Link href="/rules">community rules</Link> are written for what our communities actually face online: fake jobs, fake visa offers, scams and racist abuse. The{" "}
+          <Link href="/privacy">privacy policy</Link> and <Link href="/terms">terms</Link> say plainly what we do with your information.
         </p>
 
-        <h2>Who runs Mavuno</h2>
+        <h2>Who runs it</h2>
         <p>
-          Mavuno is run by {OPERATOR}, based in Queensland. You need to be 16 or older to join. Questions, ideas or a partnership in mind? Email <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
+          Mavuno is run by {OPERATOR} in Queensland, and it's free. You need to be 16 or older to join. Questions, ideas, or want your organisation on here? Email{" "}
+          <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
         </p>
 
         <Note>
-          Writing about Mavuno or making a poster for your event? The <Link href="/brand">brand page</Link> has the logo, colours and type.
+          Writing about Mavuno or making a flyer for your event? The <Link href="/brand">brand page</Link> has the logo, colours and type.
         </Note>
       </Prose>
     </>
