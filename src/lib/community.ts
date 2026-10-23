@@ -132,7 +132,7 @@ export type SpaceTab = SpaceKind | "joined";
 export const RESERVED_SPACE_SLUGS = ["new", "interests", "joined"] as const;
 
 export const EVENT = `id, host_id, created_by, status, title, description, category, format, starts_at, ends_at, timezone, city_id,
-  venue_name, address, online_url, ticket_url, cover_url, is_free, capacity, space_id, going_count, interested_count,
+  venue_name, address, ticket_url, cover_url, is_free, capacity, space_id, going_count, interested_count,
   rejection_reason, cancelled_at, city:cities(name), space:spaces(slug, name, emoji), host:profiles!events_host_id_fkey(${CARD})`;
 
 export const eventRow = z
@@ -151,7 +151,8 @@ export const eventRow = z
     city_id: z.number().nullable(),
     venue_name: z.string().nullable(),
     address: z.string().nullable(),
-    online_url: z.string().nullable(),
+    // Not selected: only event_online_url hands it out, to the host's team and people going.
+    online_url: z.string().nullable().default(null),
     ticket_url: z.string().nullable(),
     cover_url: z.string().nullable(),
     is_free: z.boolean(),

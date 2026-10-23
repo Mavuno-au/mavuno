@@ -3203,6 +3203,74 @@ console.log("\nPush notifications");
   check("deleting the account deletes its phones", (await one("select count(*)::int as n from public.push_tokens where token = 'ExponentPushToken[fan-phone]'")).n === 0);
 }
 
+console.log("\nFull review: events, teams, media and deactivated profiles");
+{
+  const host = await createUser("rv-host@example.com", { username: "rv_host", display_name: "Abena Owusu" });
+  const goer = await createUser("rv-goer@example.com", { username: "rv_goer", display_name: "Kwame Asante" });
+  const stranger = await createUser("rv-stranger@example.com", { username: "rv_stranger" });
+  const blocker = await createUser("rv-blocker@example.com", { username: "rv_blocker" });
+  await as(host);
+  const meet = (await one(
+    "insert into public.events (host_id, created_by, title, starts_at, format, online_url) values ($1, $1, 'Online prayer', now() + interval '2 days', 'online', 'https://meet.example/secret') returning id",
+    [host],
+  )).id;
+  await superuser();
+  await q("update public.events set status = 'published' where id = $1", [meet]);
+  await as(goer);
+  await q("insert into public.event_rsvps (event_id, user_id, status) values ($1, $2, 'going')", [meet, goer]);
+
+  await anon();
+  await fails("guests can't read RSVPs", "select * from public.event_rsvps", [], /permission denied/);
+  await fails("guests can't read an event's online link", "select online_url from public.events where id = $1", [meet], /permission denied/);
+  check("guests still read the rest of the event", (await one("select title from public.events where id = $1", [meet]))?.title === "Online prayer");
+  await as(stranger);
+  check("members don't see other people's RSVPs", (await q("select * from public.event_rsvps where user_id = $1", [goer])).length === 0);
+  check("the online link isn't for people who aren't going", (await one("select public.event_online_url($1) as url", [meet])).url === null);
+  check("members see who is going through event_attendees", (await q("select username from public.event_attendees($1)", [meet])).some((r) => r.username === "rv_goer"));
+  await as(goer);
+  check("people going get the online link", (await one("select public.event_online_url($1) as url", [meet])).url === "https://meet.example/secret");
+  check("people see their own RSVP", (await q("select status from public.event_rsvps where event_id = $1 and user_id = $2", [meet, goer])).length === 1);
+  await as(host);
+  check("the host gets the online link", (await one("select public.event_online_url($1) as url", [meet])).url === "https://meet.example/secret");
+  check("the host sees the RSVPs", (await q("select user_id from public.event_rsvps where event_id = $1", [meet])).length === 1);
+
+  await as(blocker);
+  await q("insert into public.blocks (blocker_id, blocked_id) values ($1, $2)", [blocker, goer]);
+  check("the going list leaves out people the viewer blocked", !(await q("select username from public.event_attendees($1)", [meet])).some((r) => r.username === "rv_goer"));
+  await q("insert into public.blocks (blocker_id, blocked_id) values ($1, $2)", [blocker, host]);
+  check("events from someone the viewer blocked leave their lists", (await q("select id from public.events where id = $1", [meet])).length === 0);
+  await as(host);
+  check("and the host doesn't see the blocker's", (await q("select id from public.events where host_id = $1", [blocker])).length === 0);
+
+  await as(host);
+  const org = (await one("select public.create_organisation('rv_org', 'Review Org') as id")).id;
+  await q("insert into public.organisation_members (org_id, user_id, role) values ($1, $2, 'editor')", [org, stranger]);
+  await anon();
+  check("an invitation nobody accepted isn't public", !(await q("select user_id from public.organisation_members where org_id = $1", [org])).some((r) => r.user_id === stranger));
+  await as(stranger);
+  check("the invited person sees their invitation", (await q("select user_id from public.organisation_members where org_id = $1 and user_id = $2", [org, stranger])).length === 1);
+  await as(host);
+  check("the team's managers see it", (await q("select user_id from public.organisation_members where org_id = $1 and user_id = $2", [org, stranger])).length === 1);
+
+  await superuser();
+  await q("insert into storage.objects (bucket_id, name) values ('media', $1)", [`${host}/posts/held.webp`]);
+  await anon();
+  check("guests can't list the media bucket", (await q("select name from storage.objects where bucket_id = 'media'")).length === 0);
+  await as(stranger);
+  check("members can't list other people's files", (await q("select name from storage.objects where bucket_id = 'media' and name like $1", [`${host}/%`])).length === 0);
+  await as(host);
+  check("people list their own files", (await q("select name from storage.objects where bucket_id = 'media' and name like $1", [`${host}/%`])).length === 1);
+
+  await superuser();
+  await q("update public.profile_settings set age_deactivated_at = now() where id = $1", [stranger]);
+  await anon();
+  check("a profile deactivated as under 16 is hidden from guests", (await one("select public.profile_hidden($1) as hidden", [stranger])).hidden === true);
+  await as(stranger);
+  check("but not from its owner", (await one("select public.profile_hidden($1) as hidden", [stranger])).hidden === false);
+  await as(goer);
+  check("other profiles aren't hidden", (await one("select public.profile_hidden($1) as hidden", [host])).hidden === false);
+}
+
 console.log("\nDemo seed");
 const seeded = new PGlite({ extensions: { pg_trgm, pgcrypto } });
 await seeded.exec(stubs);

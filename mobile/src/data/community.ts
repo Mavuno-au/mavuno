@@ -132,16 +132,18 @@ export async function loadUpcomingEvents(scope: EventScope, category: EventCateg
 
 export async function loadEvent(eventId: string, viewerId: string) {
   if (!id.safeParse(eventId).success) return null;
-  const [{ data: row, error }, { data: attendees }, { data: mine }] = await Promise.all([
+  const [{ data: row, error }, { data: attendees }, { data: mine }, { data: onlineUrl }] = await Promise.all([
     supabase.from("events").select(EVENT).eq("id", eventId).maybeSingle(),
-    supabase.from("event_rsvps").select(`user:profiles(${CARD})`).eq("event_id", eventId).eq("status", "going").order("created_at").limit(12),
+    supabase.rpc("event_attendees", { p_event_id: eventId }).select(CARD),
     supabase.from("event_rsvps").select("status").eq("event_id", eventId).eq("user_id", viewerId).maybeSingle(),
+    // Only the host's team and people going get the link.
+    supabase.rpc("event_online_url", { p_event_id: eventId }),
   ]);
   if (error) throw requestError("Event", error);
   if (!row) return null;
   return {
-    event: eventRow.parse(row),
-    attendees: lenient(z.object({ user: profileCardSchema }), attendees).map((rsvp) => rsvp.user),
+    event: { ...eventRow.parse(row), onlineUrl: z.string().nullable().catch(null).parse(onlineUrl) },
+    attendees: lenient(profileCardSchema, attendees),
     myRsvp: z.object({ status: rsvpSchema }).nullable().catch(null).parse(mine ?? null)?.status ?? null,
   };
 }
