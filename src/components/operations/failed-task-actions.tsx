@@ -4,13 +4,14 @@ import { useTransition } from "react";
 import { toast } from "sonner";
 import { settleFailedTasks } from "@/app/actions/operations";
 import { Button } from "@/components/ui/button";
+import { reach } from "@/lib/version";
 
 export function FailedTaskActions() {
   const [pending, startTransition] = useTransition();
 
   function settle(retry: boolean) {
     startTransition(async () => {
-      const result = await settleFailedTasks(retry);
+      const result = await reach(settleFailedTasks(retry));
       if (!result.ok) {
         toast.error(result.error);
         return;

@@ -16,6 +16,7 @@ import { AU_TIMEZONES, EVENT_CATEGORIES, EVENT_FORMATS, type EventCategory } fro
 import type { AuTimezone, EventFormat, SavedListing } from "@/lib/data/community";
 import type { City } from "@/lib/data/shell";
 import { prepareImage, uploadMedia } from "@/lib/upload";
+import { reach } from "@/lib/version";
 
 export type EventDraft = {
   title: string;
@@ -110,7 +111,7 @@ export function EventForm({ target, cities, spaces }: { target: Target; cities: 
     const data = new FormData(event.currentTarget);
     setError(null);
     startTransition(async () => {
-      const result = target.kind === "create" ? await createEvent(data) : await updateEvent(target.eventId, data);
+      const result = await reach(target.kind === "create" ? createEvent(data) : updateEvent(target.eventId, data));
       if (!result.ok) {
         setError(result.error);
         return;

@@ -30,6 +30,7 @@ import type { Result } from "@/lib/result";
 import { clearOwnDeletion, markOwnDeletion } from "@/lib/post-presence";
 import { foldBody } from "@/lib/text";
 import { joinPath } from "@/lib/safe-redirect";
+import { reach } from "@/lib/version";
 
 export const postPath = (post: Pick<Post, "id" | "author">) => `/@${post.author.username}/posts/${post.id}`;
 
@@ -129,7 +130,7 @@ function LivePost({
     setLiked(next);
     setLikes((value) => value + (next ? 1 : -1));
     startTransition(async () => {
-      const result = await setLike(post.id, next);
+      const result = await reach(setLike(post.id, next));
       if (!result.ok) {
         setLiked(!next);
         setLikes((value) => value + (next ? -1 : 1));
@@ -144,7 +145,7 @@ function LivePost({
     const next = !saved;
     setSavedState(next);
     startTransition(async () => {
-      const result = await setSaved(post.id, next);
+      const result = await reach(setSaved(post.id, next));
       if (!result.ok) {
         setSavedState(!next);
         toast.error(result.error);
@@ -163,7 +164,7 @@ function LivePost({
 
   function remove() {
     startTransition(async () => {
-      const result = await deletePost(post.id);
+      const result = await reach(deletePost(post.id));
       if (!result.ok) {
         toast.error(result.error);
         return;
@@ -177,7 +178,7 @@ function LivePost({
         action: {
           label: "Undo",
           onClick: async () => {
-            const restored = await restorePost(post.id);
+            const restored = await reach(restorePost(post.id));
             if (!restored.ok) {
               toast.error(restored.error);
               return;
@@ -192,7 +193,7 @@ function LivePost({
 
   function run(action: () => Promise<Result>, success: string, then: () => void) {
     startTransition(async () => {
-      const result = await action();
+      const result = await reach(action());
       if (!result.ok) {
         toast.error(result.error);
         return;
@@ -447,7 +448,7 @@ function DeletedHere({ postId, onRestored }: { postId: string; onRestored: () =>
         className="font-medium text-primary hover:underline disabled:opacity-60"
         onClick={() =>
           startTransition(async () => {
-            const result = await restorePost(postId);
+            const result = await reach(restorePost(postId));
             if (!result.ok) {
               toast.error(result.error);
               return;

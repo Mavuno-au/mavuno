@@ -7,6 +7,7 @@ import { PersonRow } from "@/components/people/person-row";
 import { Dialog } from "@/components/ui/dialog";
 import type { PersonSummary } from "@/lib/domain";
 import { compact } from "@/lib/format";
+import { reach } from "@/lib/version";
 
 type State = { kind: "closed" } | { kind: "loading"; people: PersonSummary[] } | { kind: "open"; people: PersonSummary[]; next: string | null } | { kind: "failed"; error: string };
 
@@ -19,7 +20,7 @@ export function LikeCount({ postId, likes }: { postId: string; likes: number }) 
   function load(people: PersonSummary[], before: string | null) {
     setState({ kind: "loading", people });
     startTransition(async () => {
-      const result = await loadPostLikers(postId, before);
+      const result = await reach(loadPostLikers(postId, before));
       setState(result.ok ? { kind: "open", people: [...people, ...result.data.people], next: result.data.next } : { kind: "failed", error: result.error });
     });
   }

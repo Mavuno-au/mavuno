@@ -1,5 +1,7 @@
+import { unstable_rethrow } from "next/navigation";
 import { toast } from "sonner";
 import { z } from "zod";
+import { fail, type Result } from "@/lib/result";
 
 // After a deploy, a page that is still open calls server actions the new
 // server no longer has. Rather than failing quietly until someone reloads,
@@ -31,4 +33,18 @@ export async function checkForUpdate() {
     duration: Infinity,
     action: { label: "Reload", onClick: () => window.location.reload() },
   });
+}
+
+// A server action that can't be reached (offline, or gone after a deploy)
+// rejects, and inside a transition a rejection replaces the page with the
+// error screen. This answers a Result instead, so the caller's own failure
+// path rolls back and says so. Redirects and the like still go to Next.
+export async function reach<T>(call: Promise<Result<T>>): Promise<Result<T>> {
+  try {
+    return await call;
+  } catch (error) {
+    unstable_rethrow(error);
+    void checkForUpdate();
+    return fail("Couldn't reach Mavuno. Check your connection and try again.");
+  }
 }

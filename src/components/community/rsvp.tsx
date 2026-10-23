@@ -8,6 +8,7 @@ import { setRsvp } from "@/app/actions/events";
 import { useSignedIn } from "@/components/community/use-signed-in";
 import { Button } from "@/components/ui/button";
 import type { RsvpStatus } from "@/lib/data/community";
+import { reach } from "@/lib/version";
 
 const CONFIRMATIONS: Record<RsvpStatus | "none", string> = {
   going: "You're going",
@@ -26,7 +27,7 @@ export function RsvpButtons({ eventId, mine: initial, going, capacity }: { event
     const previous = mine;
     setMine(status);
     startTransition(async () => {
-      const result = await setRsvp(eventId, status);
+      const result = await reach(setRsvp(eventId, status));
       if (!result.ok) {
         setMine(previous);
         toast.error(result.error);

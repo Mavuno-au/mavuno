@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { setRelation } from "@/app/actions/social";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { reach } from "@/lib/version";
 
 export function ConfirmBlockDialog({
   profile,
@@ -21,7 +22,7 @@ export function ConfirmBlockDialog({
 
   function block() {
     startTransition(async () => {
-      const result = await setRelation("block", profile.id, true);
+      const result = await reach(setRelation("block", profile.id, true));
       if (!result.ok) {
         toast.error(result.error);
         return;

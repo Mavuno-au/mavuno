@@ -15,6 +15,7 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { Menu, type MenuItem } from "@/components/ui/menu";
 import { useViewer } from "@/components/shell/viewer-context";
 import type { Relationship } from "@/lib/data/profiles";
+import { reach } from "@/lib/version";
 
 export function ProfileActions({ profile }: { profile: { id: string; username: string; displayName: string; relationship: Relationship; canManage: boolean } }) {
   const viewer = useViewer();
@@ -38,7 +39,7 @@ export function ProfileActions({ profile }: { profile: { id: string; username: s
 
   function mute(on: boolean) {
     startTransition(async () => {
-      const result = await setRelation("mute", profile.id, on);
+      const result = await reach(setRelation("mute", profile.id, on));
       if (!result.ok) {
         toast.error(result.error);
         return;
@@ -50,7 +51,7 @@ export function ProfileActions({ profile }: { profile: { id: string; username: s
 
   function message() {
     startTransition(async () => {
-      const result = await startConversation(profile.id);
+      const result = await reach(startConversation(profile.id));
       if (!result.ok) {
         toast.error(result.error);
         return;
@@ -94,7 +95,7 @@ export function UnblockButton({ profileId }: { profileId: string }) {
       disabled={pending}
       onClick={() =>
         startTransition(async () => {
-          const result = await setRelation("block", profileId, false);
+          const result = await reach(setRelation("block", profileId, false));
           if (!result.ok) {
             toast.error(result.error);
             return;

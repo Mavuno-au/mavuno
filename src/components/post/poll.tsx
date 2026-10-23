@@ -10,6 +10,7 @@ import { cn } from "@/lib/cn";
 import type { Poll } from "@/lib/domain";
 import { count, pollTimeLeft } from "@/lib/format";
 import { joinPath } from "@/lib/safe-redirect";
+import { reach } from "@/lib/version";
 
 export function PollView({ postId, poll: initial, own }: { postId: string; poll: Poll; own: boolean }) {
   const viewer = useViewer();
@@ -23,7 +24,7 @@ export function PollView({ postId, poll: initial, own }: { postId: string; poll:
   function vote(optionId: string) {
     if (!viewer) return router.push(joinPath(pathname));
     startTransition(async () => {
-      const result = await votePoll(postId, optionId);
+      const result = await reach(votePoll(postId, optionId));
       if (!result.ok) {
         toast.error(result.error);
         return;
