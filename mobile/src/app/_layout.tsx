@@ -77,8 +77,9 @@ function Navigator({ fontsReady }: { fontsReady: boolean }) {
               {/* Each group says where a member who may not see it goes instead. */}
               <Stack.Protected guard={member} redirectTo={home}>
                 <Stack.Screen name="(tabs)" />
-                {/* A conversation covers the tab bar, so the keyboard and message field have room. */}
-                <Stack.Screen name="conversation/[id]" />
+                {/* A conversation covers the tab bar, so the keyboard and message field have room. Opening one
+                    already in the stack, from a notification say, brings that screen forward rather than a second copy. */}
+                <Stack.Screen name="conversation/[id]" getId={({ params }) => (typeof params?.id === "string" ? params.id : undefined)} />
                 <Stack.Screen name="group/[id]" />
                 <Stack.Screen name="new-message" options={{ presentation: "modal" }} />
                 <Stack.Screen name="compose" options={{ presentation: "modal", gestureEnabled: false }} />

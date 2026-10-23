@@ -142,6 +142,16 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
     shown.current = messages;
   }, [messages]);
 
+  // The channel's handlers read these, so accepting a request doesn't make the channel again: one made
+  // while the old one is still leaving is that same channel, and it goes when the old one does.
+  const gate = useRef({ canRead, waitingOn, onChanged });
+  const resume = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    const opened = canRead && !gate.current.canRead;
+    gate.current = { canRead, waitingOn, onChanged };
+    if (opened) resume.current?.();
+  }, [canRead, waitingOn, onChanged]);
+
   const add = useCallback((message: Message) => {
     known.current.add(message.id);
     setMessages((current) => (current.some((item) => item.id === message.id) ? current : [...current, message].sort((a, b) => a.createdAt.localeCompare(b.createdAt))));
@@ -173,7 +183,7 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
     const live = supabase.channel(`conversation:${id}`, { config: { private: true, broadcast: { self: false } } });
 
     const readNow = async () => {
-      if (!canRead || AppState.currentState !== "active") return;
+      if (!gate.current.canRead || AppState.currentState !== "active") return;
       const { announce } = await markRead(viewerId, id).catch(() => ({ announce: false }));
       if (announce && live.state === "joined") void live.send({ type: "broadcast", event: "read", payload: {} });
     };
@@ -221,7 +231,7 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
         void loadMembers(id)
           .then((fresh) => {
             setMembers(fresh);
-            if (fresh.some((member) => member.id === waitingOn && member.status === "accepted")) onChanged();
+            if (fresh.some((member) => member.id === gate.current.waitingOn && member.status === "accepted")) gate.current.onChanged();
           })
           .catch(() => undefined);
       })
@@ -237,6 +247,10 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
         void catchUp();
       });
     channel.current = live;
+    resume.current = () => {
+      void readNow();
+      void catchUp();
+    };
 
     const subscription = AppState.addEventListener("change", (appState) => {
       if (appState !== "active") return;
@@ -250,9 +264,10 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
       clearInterval(timer);
       subscription.remove();
       channel.current = null;
+      resume.current = null;
       void supabase.removeChannel(live);
     };
-  }, [id, viewerId, canRead, waitingOn, add, onChanged]);
+  }, [id, viewerId, add]);
 
   const loadOlder = () => {
     if (!older.next || older.loading) return;
