@@ -14,29 +14,61 @@ const keychain = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVIC
 const keyName = (name: string) => `${name}.key`;
 const sealedName = (name: string) => `${name}.sealed`;
 
-async function readKey(name: string) {
-  const stored = await SecureStore.getItemAsync(keyName(name), keychain);
-  return stored ? AESEncryptionKey.import(stored, "base64") : null;
+// Before the first unlock after a restart the Keychain can't be read at all.
+// That isn't the same as having no key, so nothing is replaced or deleted then.
+type StoredKey = { kind: "found"; key: AESEncryptionKey } | { kind: "missing" } | { kind: "locked" };
+
+async function readKey(name: string): Promise<StoredKey> {
+  let stored: string | null;
+  try {
+    stored = await SecureStore.getItemAsync(keyName(name), keychain);
+  } catch {
+    return { kind: "locked" };
+  }
+  if (!stored) return { kind: "missing" };
+  try {
+    return { kind: "found", key: await AESEncryptionKey.import(stored, "base64") };
+  } catch {
+    // A damaged key opens nothing, so it is replaced like a missing one.
+    return { kind: "missing" };
+  }
+}
+
+async function keyToSeal(name: string) {
+  const stored = await readKey(name);
+  switch (stored.kind) {
+    case "found":
+      return stored.key;
+    case "missing": {
+      const key = await AESEncryptionKey.generate();
+      await SecureStore.setItemAsync(keyName(name), await key.encoded("base64"), keychain);
+      return key;
+    }
+    case "locked":
+      throw new Error("The Keychain can't be read until the phone has been unlocked.");
+  }
 }
 
 async function seal(name: string, value: string) {
-  let key = await readKey(name);
-  if (!key) {
-    key = await AESEncryptionKey.generate();
-    await SecureStore.setItemAsync(keyName(name), await key.encoded("base64"), keychain);
-  }
-  const sealed = await aesEncryptAsync(new TextEncoder().encode(value), key);
+  const sealed = await aesEncryptAsync(new TextEncoder().encode(value), await keyToSeal(name));
   localStorage.setItem(sealedName(name), await sealed.combined("base64"));
 }
 
 async function open(name: string, sealed: string) {
-  const key = await readKey(name);
-  if (key) {
-    try {
-      return new TextDecoder().decode(await aesDecryptAsync(AESSealedData.fromCombined(sealed), key));
-    } catch {
-      // Sealed with a key this device no longer has, or damaged.
-    }
+  const stored = await readKey(name);
+  switch (stored.kind) {
+    case "locked":
+      // Signed out for this launch only; the session opens once the phone is unlocked.
+      return null;
+    case "missing":
+      // A phone restored from a backup: nothing can open this copy again.
+      break;
+    case "found":
+      try {
+        return new TextDecoder().decode(await aesDecryptAsync(AESSealedData.fromCombined(sealed), stored.key));
+      } catch {
+        // Damaged, or sealed with a key that was since replaced.
+      }
   }
   localStorage.removeItem(sealedName(name));
   return null;
@@ -47,7 +79,12 @@ async function open(name: string, sealed: string) {
 async function migrate(name: string) {
   const plain = localStorage.getItem(name);
   if (plain === null) return null;
-  await seal(name, plain);
+  try {
+    await seal(name, plain);
+  } catch {
+    // The Keychain is locked: the plain copy stays until the next read.
+    return plain;
+  }
   localStorage.removeItem(name);
   return plain;
 }

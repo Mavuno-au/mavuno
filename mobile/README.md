@@ -55,7 +55,7 @@ You can also test on your own iPhone with Expo Go: run `npx expo start` and scan
 
 No Expo account or EAS is needed.
 
-1. Run `npx expo prebuild --platform ios`. The `ios/` folder is generated from `app.json` and is not committed. Change `app.json` and run prebuild again rather than editing `ios/`.
+1. Run `npx expo prebuild --platform ios --clean`. The `ios/` folder is generated from `app.json` and `package.json` and is not committed. Change `app.json` and run prebuild again rather than editing `ios/`. Run it again after every pull before archiving: an `ios/` folder from before a native package was added (such as `expo-crypto`, which keeps the sign-in encrypted) builds without it, and the app crashes on launch. Raise `ios.buildNumber` in `app.json` for each upload.
 2. Open `ios/Mavuno.xcworkspace` in Xcode.
 3. Under Signing & Capabilities, choose your team. The bundle ID is `au.mavuno.app`. Then choose Product › Archive, and in the Organizer choose Distribute App › App Store Connect.
 
