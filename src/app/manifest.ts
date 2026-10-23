@@ -1,10 +1,11 @@
 import type { MetadataRoute } from "next";
+import { SITE_DESCRIPTION } from "@/lib/site";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Mavuno",
     short_name: "Mavuno",
-    description: "The social network for African Australians.",
+    description: SITE_DESCRIPTION,
     start_url: "/",
     display: "standalone",
     background_color: "#f6f4ef",

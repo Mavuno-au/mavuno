@@ -10,13 +10,14 @@ import { SignUpForm } from "../../auth-forms";
 import { Agreement } from "../../agreement";
 import { GoogleButton } from "../../google-button";
 import { SignUpSteps, type SignUpStart } from "../../signup/sign-up-steps";
+import { INTRO, TAGLINE } from "@/lib/site";
 
 export async function generateMetadata({ params }: PageProps<"/join/[username]">): Promise<Metadata> {
   const inviter = await loadInviter((await params).username);
   if (!inviter) return { title: "Join" };
   return {
     title: { absolute: `${inviter.displayName} invited you to Mavuno` },
-    description: `Join ${inviter.displayName} on Mavuno, the social network for African Australians. Free, and takes a minute.`,
+    description: `Join ${inviter.displayName} on Mavuno, ${TAGLINE.charAt(0).toLowerCase()}${TAGLINE.slice(1)}. ${INTRO}`,
     // The share image is drawn by ./opengraph-image.tsx.
     openGraph: { url: `/join/${inviter.username}` },
   };

@@ -2,6 +2,7 @@ import type { CommunityEvent } from "@/lib/data/community";
 import type { Profile } from "@/lib/data/profiles";
 import type { Post } from "@/lib/domain";
 import { publicEnv } from "@/lib/env";
+import { SITE_DESCRIPTION, TAGLINE } from "@/lib/site";
 
 export const absoluteUrl = (path: string) => new URL(path, publicEnv.siteUrl).href;
 
@@ -65,14 +66,14 @@ export function siteJsonLd() {
         name: "Mavuno",
         url,
         logo: absoluteUrl("/brand/mavuno-app-icon-4096.png"),
-        description: "The social network for African Australians.",
+        description: SITE_DESCRIPTION,
         sameAs: ["https://github.com/Mavuno-au/mavuno"],
       },
       {
         "@type": "WebSite",
         "@id": `${url}#website`,
         name: "Mavuno",
-        alternateName: "Mavuno, the social network for African Australians",
+        alternateName: `Mavuno, ${TAGLINE.charAt(0).toLowerCase()}${TAGLINE.slice(1)}`,
         url,
         inLanguage: "en-AU",
         publisher: { "@id": `${url}#organization` },

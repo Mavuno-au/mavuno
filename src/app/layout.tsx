@@ -11,6 +11,7 @@ import { buildId } from "@/lib/build";
 import { publicEnv } from "@/lib/env";
 import { serverEnv } from "@/lib/server-env";
 import "./globals.css";
+import { SITE_DESCRIPTION } from "@/lib/site";
 
 const sans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const mono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -18,7 +19,7 @@ const mono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 export const metadata: Metadata = {
   metadataBase: new URL(publicEnv.siteUrl),
   title: { default: "Mavuno", template: "%s · Mavuno" },
-  description: "The social network for African Australians. Follow people and organisations, join your city's space, find events and opportunities.",
+  description: SITE_DESCRIPTION,
   applicationName: "Mavuno",
   appleWebApp: { capable: true, title: "Mavuno", statusBarStyle: "default" },
   openGraph: { siteName: "Mavuno", type: "website", locale: "en_AU" },

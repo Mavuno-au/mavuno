@@ -1,5 +1,6 @@
 import { useState, type ReactElement, type ReactNode } from "react";
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, View, type ListRenderItem } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ListState } from "@/data/use-list";
 import { EndOfList, LoadFailed, RowSkeleton } from "@/ui/controls";
 import { font, Text } from "@/ui/text";
@@ -40,6 +41,7 @@ export function PagedList<Item extends { id: string }>({
   failedTitle?: string;
 }) {
   const palette = usePalette();
+  const insets = useSafeAreaInsets();
   const { state } = list;
   const ready = state.kind === "ready" ? state : null;
   const pull = usePullToRefresh(ready?.refreshing ?? false, list.refresh);
@@ -78,7 +80,7 @@ export function PagedList<Item extends { id: string }>({
       onEndReached={list.loadMore}
       onEndReachedThreshold={1.5}
       refreshControl={ready ? <RefreshControl {...pull} tintColor={palette.inkMuted} /> : undefined}
-      contentContainerStyle={{ flexGrow: 1 }}
+      contentContainerStyle={{ flexGrow: 1, paddingLeft: insets.left, paddingRight: insets.right }}
       style={{ backgroundColor: palette.surface }}
     />
   );

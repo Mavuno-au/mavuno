@@ -8,6 +8,7 @@ import { BRAND_COLOURS, MARK, markShapes } from "@/lib/brand-mark";
 import type { Colour } from "@/lib/domain";
 import { publicEnv } from "@/lib/env";
 import { DISPLAY_TIME_ZONE } from "@/lib/format";
+import { TAGLINE } from "@/lib/site";
 
 // Share images (Open Graph and X cards) for posts, profiles, spaces and
 // events, drawn with the brand's type and colours.
@@ -129,7 +130,7 @@ export function SiteCard() {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: "100%", height: "100%", background: INK.ground, fontFamily: "Geist", gap: 36 }}>
       <Wordmark size={96} />
-      <span style={{ fontSize: 36, color: INK.muted }}>The social network for African Australians</span>
+      <span style={{ fontSize: 36, color: INK.muted }}>{TAGLINE}</span>
     </div>
   );
 }
