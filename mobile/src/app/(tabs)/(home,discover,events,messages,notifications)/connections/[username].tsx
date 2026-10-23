@@ -4,15 +4,18 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, TextInput, View } from "react-native";
 import { z } from "zod";
 import { usernameSchema } from "@/lib/schemas";
+import { reasonOf, type Reason } from "@/data/errors";
 import { loadConnections, loadProfile, type Direction } from "@/data/profiles";
 import { useViewer } from "@/data/session";
 import { useList } from "@/data/use-list";
 import { PersonRow } from "@/people/person-row";
-import { EmptyState, Segmented } from "@/ui/controls";
+import { EmptyState, LoadFailed, Segmented } from "@/ui/controls";
 import { BackButton, Header } from "@/ui/header";
 import { PagedList } from "@/ui/list";
 import { type } from "@/ui/text";
 import { HAIRLINE, usePalette } from "@/ui/theme";
+
+type Target = { kind: "loading" } | { kind: "failed"; reason: Reason } | { kind: "missing" } | { kind: "unavailable" } | { kind: "ready"; id: string; name: string };
 
 // Followers and following on one screen, with a switch between the two and a search box.
 export default function Connections() {
@@ -22,30 +25,37 @@ export default function Connections() {
   const username = usernameSchema.safeParse(params.username).data ?? null;
   const [direction, setDirection] = useState<Direction>(z.enum(["followers", "following"]).catch("followers").parse(params.direction));
   const [search, setSearch] = useState("");
-  const [profile, setProfile] = useState<{ username: string; id: string; name: string } | null>(null);
+  const [loaded, setLoaded] = useState<{ username: string | null; target: Target }>({ username: null, target: { kind: "loading" } });
+  const [attempt, setAttempt] = useState(0);
+  // Not the viewer object: the session rebuilds it on every return to the app.
+  const viewerId = viewer?.id ?? null;
 
   useEffect(() => {
-    if (!username || !viewer) return;
+    if (!username || !viewerId) return;
     let current = true;
-    void loadProfile(username, viewer.id).then((page) => {
-      if (current && page.kind === "profile") setProfile({ username, id: page.profile.id, name: page.profile.display_name });
-    });
+    loadProfile(username, viewerId).then(
+      (page) => current && setLoaded({ username, target: page.kind === "profile" ? { kind: "ready", id: page.profile.id, name: page.profile.display_name } : { kind: page.kind } }),
+      (error: unknown) => current && setLoaded({ username, target: { kind: "failed", reason: reasonOf(error) } }),
+    );
     return () => {
       current = false;
     };
-  }, [username, viewer]);
+  }, [username, viewerId, attempt]);
 
-  const profileId = profile?.username === username ? profile.id : "";
+  const target: Target = !username ? { kind: "missing" } : loaded.username === username ? loaded.target : { kind: "loading" };
+  const profileId = target.kind === "ready" ? target.id : "";
   const list = useList((cursor) => loadConnections(profileId, direction, cursor), `${profileId}:${direction}`, { enabled: profileId !== "" });
   const term = search.trim().toLowerCase();
+  // A search filters the pages already here. Paging on as the filtered list
+  // comes up short would load every follower in the background.
   const shown =
     list.state.kind === "ready" && term
-      ? { ...list, state: { ...list.state, items: list.state.items.filter((person) => person.displayName.toLowerCase().includes(term) || person.username.includes(term)) } }
+      ? { ...list, loadMore: () => {}, state: { ...list.state, items: list.state.items.filter((person) => person.displayName.toLowerCase().includes(term) || person.username.includes(term)) } }
       : list;
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.surface }}>
-      <Header title={profile?.name ?? (username ? `@${username}` : "People")} left={<BackButton />} border={false} />
+      <Header title={target.kind === "ready" ? target.name : username ? `@${username}` : "People"} left={<BackButton />} border={false} />
       <View style={{ paddingHorizontal: 16, paddingBottom: 8, gap: 8, borderBottomWidth: HAIRLINE, borderBottomColor: palette.hairline }}>
         <Segmented
           label="People"
@@ -61,7 +71,18 @@ export default function Connections() {
           <TextInput accessibilityLabel="Search these people" placeholder="Search" placeholderTextColor={palette.inkMuted} value={search} onChangeText={setSearch} autoCapitalize="none" autoCorrect={false} style={[type.body, { flex: 1, minHeight: 40, color: palette.ink }]} />
         </View>
       </View>
-      {profileId === "" ? (
+      {target.kind === "failed" ? (
+        <LoadFailed
+          title="These people didn't load"
+          reason={target.reason}
+          onRetry={() => {
+            setLoaded({ username: null, target: { kind: "loading" } });
+            setAttempt((count) => count + 1);
+          }}
+        />
+      ) : target.kind === "missing" || target.kind === "unavailable" ? (
+        <EmptyState icon={<Users size={26} color={palette.inkMuted} />} title="This profile isn't available" />
+      ) : target.kind === "loading" ? (
         <ActivityIndicator style={{ marginTop: 32 }} color={palette.inkMuted} accessibilityLabel="Loading" />
       ) : (
         <PagedList
