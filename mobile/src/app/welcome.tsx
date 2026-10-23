@@ -9,6 +9,7 @@ import { Button } from "@/ui/controls";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
 import { openLink } from "@/util/links";
+import { INTRO, TAGLINE } from "@/lib/site";
 
 const NOTICES: Record<Notice, string> = {
   expired: "You were signed out. Sign in again to keep reading.",
@@ -43,10 +44,10 @@ export default function Welcome() {
         <BrandMark height={56} />
         <View style={{ gap: 14 }}>
           <Text variant="largeTitle" accessibilityRole="header">
-            The social network for African Australians
+            {TAGLINE}
           </Text>
           <Text variant="headline" tone="muted" style={{ fontFamily: font.regular, lineHeight: 25 }}>
-            Follow people and organisations, join your city's space, and find events, jobs, scholarships and mentors from the community.
+            {INTRO}
           </Text>
         </View>
         <Text variant="callout" tone="muted">

@@ -13,6 +13,7 @@ import { loadSuggestions, loadWhoToFollowBlock } from "@/lib/data/shell";
 import type { FeedSource, HomeFeed } from "@/lib/feeds";
 import { siteJsonLd } from "@/lib/structured-data";
 import { getViewer } from "@/lib/viewer";
+import { INTRO, TAGLINE } from "@/lib/site";
 
 const FEEDS: Record<HomeFeed, { label: string; href: string }> = {
   following: { label: "Following", href: "/" },
@@ -44,9 +45,9 @@ export async function HomeFeedView({ feed }: { feed: HomeFeed }) {
           <HomeComposer />
         ) : (
           <section className="border-b border-hairline px-4 py-6 sm:px-6">
-            <h2 className="text-2xl font-semibold tracking-tight">The social network for African Australians</h2>
+            <h2 className="text-2xl font-semibold tracking-tight">{TAGLINE}</h2>
             <p className="mt-2 text-[15px] text-ink-muted">
-              Follow people and organisations, join your city's space, and find events, jobs, scholarships and mentors from the community.
+              {INTRO}
             </p>
             <div className="mt-4 flex gap-2">
               <ButtonLink href="/signup">Join Mavuno</ButtonLink>
