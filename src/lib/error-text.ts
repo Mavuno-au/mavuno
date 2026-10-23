@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 const MAX_LENGTH = 300;
 
 // The first line of an error, with anything that could point at a person
@@ -20,4 +22,16 @@ export function errorSummary(message: string) {
 
 export function errorDigest(error: unknown) {
   return typeof error === "object" && error !== null && "digest" in error && typeof error.digest === "string" ? error.digest : null;
+}
+
+// zod prints its issues as JSON, whose first line is "[", so a failed parse
+// would show on Health as just that. Paths and codes say what didn't match.
+export function errorMessage(error: unknown) {
+  if (error instanceof z.ZodError) {
+    return `Unexpected data: ${error.issues
+      .slice(0, 3)
+      .map((issue) => `${issue.path.join(".") || "row"} ${issue.code}`)
+      .join("; ")}`;
+  }
+  return error instanceof Error ? error.message : String(error);
 }

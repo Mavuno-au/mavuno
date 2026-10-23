@@ -23,7 +23,7 @@ import {
   type SpaceTab,
 } from "@/lib/community";
 import { parsePeople, profileCardSchema } from "@/lib/domain";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createGuestClient } from "@/lib/supabase/server";
 import type { Viewer } from "@/lib/viewer";
 
 export * from "@/lib/community";
@@ -102,7 +102,8 @@ export async function loadUpcomingEvents(scope: EventScope, category: EventCateg
 
 export const loadEvent = cache(async (eventId: string, viewer: Viewer | null) => {
   if (!id.safeParse(eventId).success) return null;
-  const supabase = await createClient();
+  // Without a viewer (a guest, or the share image, which is cached for everyone) as a guest sees it.
+  const supabase = viewer ? await createClient() : createGuestClient();
   // Who is going and the online link are for members only.
   const [{ data: row }, attendees, mine, onlineUrl] = await Promise.all([
     supabase.from("events").select(EVENT).eq("id", eventId).maybeSingle(),

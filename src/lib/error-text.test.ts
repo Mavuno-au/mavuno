@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { errorDigest, errorSummary } from "./error-text";
+import { z } from "zod";
+import { errorDigest, errorMessage, errorSummary } from "./error-text";
 
 describe("errorSummary", () => {
   it("keeps the first line only", () => {
@@ -27,5 +28,12 @@ describe("errorDigest", () => {
     expect(errorDigest(Object.assign(new Error("boom"), { digest: "123" }))).toBe("123");
     expect(errorDigest(new Error("boom"))).toBeNull();
     expect(errorDigest("boom")).toBeNull();
+  });
+});
+
+describe("errorMessage", () => {
+  it("says what a failed parse didn't match, rather than the first line of its JSON", () => {
+    const failed = z.object({ id: z.string() }).safeParse({ id: 1 });
+    expect(failed.success ? "" : errorSummary(errorMessage(failed.error))).toBe("Unexpected data: id invalid_type");
   });
 });

@@ -82,8 +82,11 @@ export async function sendMagicLink(_: Result | null, form: FormData): Promise<R
   if (!parsed.success) return fail(firstIssue(parsed.error));
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithOtp({ email: parsed.data.email, options: { emailRedirectTo: emailLink(safeNext(parsed.data.next)) } });
-  if (error) return fail(error.status === 429 ? "Too many emails. Wait a minute and try again." : "We couldn't send the link. Try again.");
+  // Signing in only: joining goes through the sign-up form and its age question.
+  const { error } = await supabase.auth.signInWithOtp({ email: parsed.data.email, options: { emailRedirectTo: emailLink(safeNext(parsed.data.next)), shouldCreateUser: false } });
+  if (error?.status === 429) return fail("Too many emails. Wait a minute and try again.");
+  if (error && (!error.status || error.status >= 500)) return fail("We couldn't send the link. Try again.");
+  // An address with no account gets the same answer, so the form doesn't tell who has one.
   return done;
 }
 
