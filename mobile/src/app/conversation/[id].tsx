@@ -9,6 +9,7 @@ import { z } from "zod";
 import { LIMITS } from "@/lib/catalogue";
 import { count, dayLabel } from "@/lib/format";
 import type { Conversation, Member, Message } from "@/lib/messages";
+import { useCounts } from "@/data/counts";
 import { clearDraft, keepDraft, readDraft } from "@/data/drafts";
 import { reasonOf, type Reason } from "@/data/errors";
 import {
@@ -137,6 +138,8 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
   const known = useRef(new Set<string>());
   const lastTyped = useRef(0);
   const composerFloor = useToastFloor(access.kind !== "request");
+  // Stable, so it doesn't make the channel again.
+  const { refresh: refreshCounts } = useCounts();
 
   useEffect(() => {
     shown.current = messages;
@@ -184,7 +187,8 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
 
     const readNow = async () => {
       if (!gate.current.canRead || AppState.currentState !== "active") return;
-      const { announce } = await markRead(viewerId, id).catch(() => ({ announce: false }));
+      const { moved, announce } = await markRead(viewerId, id).catch(() => ({ moved: false, announce: false }));
+      if (moved) refreshCounts();
       if (announce && live.state === "joined") void live.send({ type: "broadcast", event: "read", payload: {} });
     };
     const refreshReactions = async (ids: string[]) => {
@@ -267,7 +271,7 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
       resume.current = null;
       void supabase.removeChannel(live);
     };
-  }, [id, viewerId, add]);
+  }, [id, viewerId, add, refreshCounts]);
 
   const loadOlder = () => {
     if (!older.next || older.loading) return;

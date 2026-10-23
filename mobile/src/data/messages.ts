@@ -153,12 +153,13 @@ export async function setReaction(viewerId: string, messageId: string, emoji: st
 }
 
 // Reading up to the newest message's own timestamp keeps unread counts and
-// "Seen" exact. `announce` says whether to tell the others to re-read
-// receipts: only when the read position moved and the viewer shares them.
-export async function markRead(viewerId: string, conversationId: string): Promise<{ announce: boolean }> {
+// "Seen" exact. `moved` says the unread badge has changed, and `announce`
+// whether to tell the others to re-read receipts: only when the read
+// position moved and the viewer shares them.
+export async function markRead(viewerId: string, conversationId: string): Promise<{ moved: boolean; announce: boolean }> {
   const { data } = await supabase.from("messages").select("created_at").eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(1).maybeSingle();
   const newest = z.object({ created_at: z.string() }).nullable().catch(null).parse(data);
-  if (!newest) return { announce: false };
+  if (!newest) return { moved: false, announce: false };
   const { data: moved, error } = await supabase
     .from("conversation_participants")
     .update({ last_read_at: newest.created_at })
@@ -166,9 +167,9 @@ export async function markRead(viewerId: string, conversationId: string): Promis
     .eq("status", "accepted")
     .lt("last_read_at", newest.created_at)
     .select("user_id");
-  if (error || !moved?.length) return { announce: false };
+  if (error || !moved?.length) return { moved: false, announce: false };
   const { data: settings } = await supabase.from("profile_settings").select("read_receipts").eq("id", viewerId).maybeSingle();
-  return { announce: z.object({ read_receipts: z.boolean() }).nullable().catch(null).parse(settings)?.read_receipts ?? false };
+  return { moved: true, announce: z.object({ read_receipts: z.boolean() }).nullable().catch(null).parse(settings)?.read_receipts ?? false };
 }
 
 async function rpc(name: string, args: Record<string, unknown>): Promise<Result> {

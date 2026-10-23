@@ -6,9 +6,9 @@ import { setBadge } from "@/data/push";
 import { supabase } from "@/data/supabase";
 
 type Counts = { notifications: number; messages: number };
-type Store = Counts & { clear: (kind: keyof Counts) => void; refresh: () => void };
+type Store = Counts & { refresh: () => void };
 
-const CountsContext = createContext<Store>({ notifications: 0, messages: 0, clear: () => {}, refresh: () => {} });
+const CountsContext = createContext<Store>({ notifications: 0, messages: 0, refresh: () => {} });
 
 const count = z.number().int().min(0).catch(0);
 
@@ -60,8 +60,7 @@ export function CountsProvider({ viewerId, children }: { viewerId: string | null
   const total = viewerId ? counts.notifications + counts.messages : 0;
   useEffect(() => setBadge(total), [total]);
 
-  const clear = useCallback((kind: keyof Counts) => setCounts((current) => (current[kind] === 0 ? current : { ...current, [kind]: 0 })), []);
-  const store = useMemo(() => ({ ...counts, clear, refresh }), [counts, clear, refresh]);
+  const store = useMemo(() => ({ ...counts, refresh }), [counts, refresh]);
   return <CountsContext value={store}>{children}</CountsContext>;
 }
 
