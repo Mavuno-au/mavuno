@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { BarChart3, CalendarClock, ChevronDown, ImagePlus, Languages, Link2, X } from "lucide-react-native";
-import { useEffect, useRef, useState, type ComponentRef } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from "react-native";
+import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
+import { ActivityIndicator, Alert, Pressable, ScrollView, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { z } from "zod";
 import { languageName, LANGUAGES, LIMITS } from "@/lib/catalogue";
@@ -23,7 +23,7 @@ import { problemWith, ScheduleSheet } from "@/post/composer/schedule";
 import { RichText } from "@/post/rich-text";
 import { useRulesGate } from "@/post/rules-sheet";
 import { Avatar } from "@/ui/avatar";
-import { FieldError, SheetHeader } from "@/ui/form";
+import { FieldError, KeyboardSheet, SheetHeader, useKeyboardOpen } from "@/ui/form";
 import { ActionSheet, type SheetAction } from "@/ui/sheet";
 import { font, Text, type } from "@/ui/text";
 import { HAIRLINE, usePalette } from "@/ui/theme";
@@ -333,7 +333,7 @@ function Composer({ mode, initialText, placeholder }: { mode: Mode; initialText:
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, paddingLeft: insets.left, paddingRight: insets.right, backgroundColor: palette.surface }}>
+    <KeyboardSheet style={{ flex: 1, paddingLeft: insets.left, paddingRight: insets.right, backgroundColor: palette.surface }}>
       <SheetHeader
         title={title}
         onCancel={close}
@@ -437,10 +437,7 @@ function Composer({ mode, initialText, placeholder }: { mode: Mode; initialText:
         {scheduleError ? <FieldError>{scheduleError}</FieldError> : null}
       </ScrollView>
       <MentionList people={people} onPick={(person) => insertMention(person.username)} />
-      <View
-        accessibilityRole="toolbar"
-        style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingTop: 6, paddingBottom: Math.max(insets.bottom, 6), borderTopWidth: HAIRLINE, borderTopColor: palette.hairline, backgroundColor: palette.surface }}
-      >
+      <Toolbar>
         {mode.kind === "quote" ? null : tool("Add photos", ImagePlus, () => void addImages(), images.length >= LIMITS.images || poll !== null)}
         {mode.kind === "post" ? tool(poll ? "Remove poll" : "Add a poll", BarChart3, () => setPoll(poll ? null : newPoll()), images.length > 0, poll !== null) : null}
         {schedulable ? tool(schedule ? "Change the scheduled time" : "Schedule for later", CalendarClock, () => setScheduling(true), false, schedule !== null) : null}
@@ -461,14 +458,14 @@ function Composer({ mode, initialText, placeholder }: { mode: Mode; initialText:
             {languageName(language)}
           </Text>
         </Pressable>
-      </View>
+      </Toolbar>
       <ActionSheet title="Language of this post" actions={sheetActions.language} open={sheet === "language"} onClose={() => setSheet(null)} />
       <ActionSheet title="Post as" actions={sheetActions.author} open={sheet === "author"} onClose={() => setSheet(null)} />
       <ActionSheet title="Link card" actions={sheetActions.card} open={sheet === "card"} onClose={() => setSheet(null)} />
       <ActionSheet title="Keep this draft?" actions={closeActions} open={sheet === "close"} onClose={() => setSheet(null)} cancelLabel="Keep writing" />
       <ScheduleSheet open={scheduling} value={schedule} onDone={setSchedule} onClear={() => setSchedule(null)} onClose={() => setScheduling(false)} />
       {rules.sheet}
-    </KeyboardAvoidingView>
+    </KeyboardSheet>
   );
 }
 
@@ -488,6 +485,21 @@ function ReplyingTo({ parent }: { parent: Post }) {
           Replying to <Text variant="caption" tone="primary">@{parent.author.username}</Text>
         </Text>
       </View>
+    </View>
+  );
+}
+
+// Above the keyboard it sits right on it; without one, clear of the home indicator.
+function Toolbar({ children }: { children: ReactNode }) {
+  const palette = usePalette();
+  const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardOpen();
+  return (
+    <View
+      accessibilityRole="toolbar"
+      style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingTop: 6, paddingBottom: keyboard ? 6 : Math.max(insets.bottom, 6), borderTopWidth: HAIRLINE, borderTopColor: palette.hairline, backgroundColor: palette.surface }}
+    >
+      {children}
     </View>
   );
 }

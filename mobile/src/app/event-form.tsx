@@ -2,7 +2,7 @@ import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
 import { Camera } from "lucide-react-native";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, View } from "react-native";
 import { z } from "zod";
 import { AU_TIMEZONES, EVENT_CATEGORIES, EVENT_FORMATS, type EventCategory } from "@/lib/catalogue";
 import { toZonedInput, type AuTimezone, type CommunityEvent, type EventFormat } from "@/lib/community";
@@ -14,7 +14,7 @@ import { pickImages, uploadImage } from "@/data/upload";
 import { useRulesGate } from "@/post/rules-sheet";
 import { Segmented } from "@/ui/controls";
 import { DateField } from "@/ui/date-field";
-import { FieldError, Group, SelectRow, SheetHeader, TextField, ToggleRow, useErrorScroll, useReturnChain } from "@/ui/form";
+import { FieldError, Group, KeyboardSheet, SelectRow, SheetHeader, TextField, ToggleRow, useErrorScroll, useReturnChain } from "@/ui/form";
 import { Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
@@ -174,7 +174,7 @@ export default function EventForm() {
   }
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: palette.shell }}>
+    <KeyboardSheet style={{ flex: 1, backgroundColor: palette.shell }}>
       <SheetHeader title={editing ? "Edit event" : "Host an event"} onCancel={() => router.back()} action={{ label: editing ? "Save" : "Publish", onPress: () => void save(), disabled: form.title.trim().length < 3 || !form.startsAt, busy }} />
       <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 18, paddingBottom: 48 }}>
         {error ? <FieldError>{error}</FieldError> : null}
@@ -234,6 +234,6 @@ export default function EventForm() {
         </Text>
       </ScrollView>
       {rules.sheet}
-    </KeyboardAvoidingView>
+    </KeyboardSheet>
   );
 }

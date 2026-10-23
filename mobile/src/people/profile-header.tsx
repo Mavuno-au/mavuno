@@ -63,8 +63,11 @@ export function ProfileHeader({
     <View>
       <Banner url={profile.banner_url} colour={profile.colour} name={profile.display_name} />
       <View style={{ paddingHorizontal: 16, paddingBottom: 14, gap: 12 }}>
-        <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12, marginTop: -36 }}>
+        {/* Only the photo reaches up into the banner; the buttons start below
+            it, so however they wrap they never cover it. */}
+        <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
           <Pressable
+            style={{ marginTop: -36 }}
             disabled={!profile.avatar_url}
             accessibilityRole="imagebutton"
             accessibilityLabel={`${profile.display_name}'s photo`}
@@ -73,7 +76,7 @@ export function ProfileHeader({
           >
             <Avatar person={person} size={relationship.self ? 64 : 76} ring />
           </Pressable>
-          <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", flexShrink: 1 }}>
+          <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", flexShrink: 1, paddingTop: 12 }}>
             {relationship.self ? (
               <>
                 <Button label="Edit profile" variant="outline" size="medium" onPress={() => router.push({ pathname: "/edit-profile", params: { id: profile.id } })} />

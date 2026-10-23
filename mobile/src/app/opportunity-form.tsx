@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
+import { ActivityIndicator, ScrollView, View } from "react-native";
 import { z } from "zod";
 import { OPPORTUNITY_TYPES } from "@/lib/catalogue";
 import { DEADLINE_ZONE, toZonedInput, type Opportunity } from "@/lib/community";
@@ -10,7 +10,7 @@ import { loadCities, type City } from "@/data/profiles";
 import { useViewer } from "@/data/session";
 import { useRulesGate } from "@/post/rules-sheet";
 import { DateField } from "@/ui/date-field";
-import { ChipPicker, FieldError, Group, SelectRow, SheetHeader, TextField, ToggleRow, useErrorScroll } from "@/ui/form";
+import { ChipPicker, FieldError, Group, KeyboardSheet, SelectRow, SheetHeader, TextField, ToggleRow, useErrorScroll } from "@/ui/form";
 import { font, Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
@@ -120,7 +120,7 @@ export default function OpportunityForm() {
   }
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: palette.shell }}>
+    <KeyboardSheet style={{ flex: 1, backgroundColor: palette.shell }}>
       <SheetHeader title={editing ? "Edit opportunity" : "Post an opportunity"} onCancel={() => router.back()} action={{ label: editing ? "Save" : "Post", onPress: () => void save(), disabled: form.title.trim().length < 3, busy }} />
       <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 18, paddingBottom: 48 }}>
         <View style={{ padding: 14, borderRadius: 12, backgroundColor: palette.primarySoft, gap: 4 }}>
@@ -155,6 +155,6 @@ export default function OpportunityForm() {
         <TextField label="Description" value={form.description} onChangeText={(text) => set("description", text)} maxLength={6000} limit={6000} multiline placeholder="What it is, who it's for, and what's needed" />
       </ScrollView>
       {rules.sheet}
-    </KeyboardAvoidingView>
+    </KeyboardSheet>
   );
 }
