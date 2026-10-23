@@ -2,8 +2,9 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator } from "react-native";
 import { z } from "zod";
-import { verifyEmailLink } from "@/data/auth";
-import { useSession } from "@/data/session";
+import { emailLinkInHand, verifyEmailLink, type LinkAnswer } from "@/data/auth";
+import { PROBLEM } from "@/data/errors";
+import { signOut, useSession } from "@/data/session";
 import { JoinFrame } from "@/join/join-frame";
 import { Button } from "@/ui/controls";
 import { Text } from "@/ui/text";
@@ -17,25 +18,73 @@ const linkSchema = z.object({ token_hash: z.string().min(1), type: z.enum(["sign
 export default function ConfirmLink() {
   const palette = usePalette();
   const link = linkSchema.safeParse(useLocalSearchParams()).data ?? null;
-  const signedIn = useSession().kind === "signed-in";
-  const [state, setState] = useState<"checking" | "verified" | "failed">(link === null ? "failed" : "checking");
+  const session = useSession();
+  const signedIn = session.kind === "signed-in";
+  const [answer, setAnswer] = useState<LinkAnswer | null>(link === null ? { kind: "spent" } : null);
+  const [attempt, setAttempt] = useState(0);
   const tokenHash = link?.token_hash ?? null;
   const type = link?.type ?? null;
+  // Someone may send a member a link to their own account, so a member who is
+  // signed in isn't switched to it without asking. A link this launch is
+  // already verifying is the one that signed them in.
+  const elsewhere = signedIn && tokenHash !== null && !emailLinkInHand(tokenHash);
 
   useEffect(() => {
-    if (!tokenHash || !type) return;
-    void verifyEmailLink(tokenHash, type).then((result) => setState(result.ok ? "verified" : "failed"));
-  }, [tokenHash, type]);
+    if (!tokenHash || !type || elsewhere) return;
+    let current = true;
+    void verifyEmailLink(tokenHash, type).then((result) => current && setAnswer(result));
+    return () => {
+      current = false;
+    };
+  }, [tokenHash, type, elsewhere, attempt]);
 
   // The session reaches the app a moment after the link is verified.
   useEffect(() => {
-    if (state === "verified" && signedIn) router.replace("/");
-  }, [state, signedIn]);
+    if (answer?.kind === "verified" && signedIn) router.replace("/");
+  }, [answer, signedIn]);
 
-  if (state !== "failed") {
+  if (elsewhere) {
+    const username = session.viewer?.username;
+    return (
+      <JoinFrame
+        top={<></>}
+        title="You're already signed in"
+        footer={
+          <>
+            <Button label="Open Mavuno" onPress={() => router.replace("/")} />
+            <Button label="Sign out and use the link" variant="outline" onPress={() => void signOut()} />
+          </>
+        }
+      >
+        <Text variant="callout">{username ? `You're signed in as @${username}, so this link hasn't been used.` : "This link hasn't been used, because you're signed in."} To sign in with it instead, sign out first.</Text>
+      </JoinFrame>
+    );
+  }
+  if (answer === null || answer.kind === "verified") {
     return (
       <JoinFrame top={<></>} title="Signing you in">
         <ActivityIndicator color={palette.inkMuted} accessibilityLabel="Signing you in" />
+      </JoinFrame>
+    );
+  }
+  if (answer.kind === "unreachable") {
+    return (
+      <JoinFrame
+        title="Couldn't check this link"
+        footer={
+          <Button
+            label="Try again"
+            onPress={() => {
+              setAnswer(null);
+              setAttempt((count) => count + 1);
+            }}
+          />
+        }
+      >
+        <Text variant="callout">
+          {PROBLEM[answer.reason]}
+          {answer.reason === "offline" ? " The link hasn't been used, so it still works." : ""}
+        </Text>
       </JoinFrame>
     );
   }

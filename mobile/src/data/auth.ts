@@ -4,6 +4,7 @@ import { profileCardSchema, type ProfileCard } from "@/lib/domain";
 import { done, fail, ok, type Result } from "@/lib/result";
 import { emailSchema, firstIssue, passwordSchema, revealsEmail, usernameSchema } from "@/lib/schemas";
 import { siteLink } from "@/data/env";
+import type { Reason } from "@/data/errors";
 import { supabase } from "@/data/supabase";
 
 // Joining, as docs/MOBILE_API.md describes: the age question first, then the
@@ -110,23 +111,47 @@ export async function sendMagicLink(email: string): Promise<Result> {
   if (!parsed.success) return fail(firstIssue(parsed.error));
   const { error } = await supabase.auth.signInWithOtp({ email: parsed.data, options: { emailRedirectTo: confirmLink("/"), shouldCreateUser: false } });
   if (error?.status === 429) return fail("Too many emails. Wait a minute and try again.");
+  const problem = notSent(error);
+  if (problem) return fail(problem);
   // Whether or not the address has an account, the answer is the same.
   return done;
 }
 
-// An email link opened in the app, as the website's /auth/confirm does it.
-// A link works once, and signing in remounts the screen that opened it, so
-// each link's answer is kept for the rest of the launch.
-const verified = new Map<string, Promise<Result>>();
+// The same answer whatever the address is about who has an account. A request
+// that never left the phone (no status) or that Auth failed (5xx) sent nothing,
+// and saying a link is on its way would leave someone waiting for it.
+function notSent(error: { status?: number } | null) {
+  if (!error) return null;
+  if (!error.status) return "Couldn't reach Mavuno. Check your connection and try again.";
+  if (error.status >= 500) return "Mavuno couldn't send the email just now. Try again in a moment.";
+  return null;
+}
 
-export function verifyEmailLink(tokenHash: string, type: "signup" | "magiclink" | "email" | "invite"): Promise<Result> {
-  const known = verified.get(tokenHash);
+export type LinkAnswer = { kind: "verified" } | { kind: "spent" } | { kind: "unreachable"; reason: Reason };
+
+// An email link opened in the app, as the website's /auth/confirm does it.
+// A link works once, and signing in remounts the screen that opened it, so a
+// link being checked or verified is kept for the rest of the launch. A
+// failure isn't: a link tapped with no signal still works once back online.
+const verifying = new Map<string, Promise<LinkAnswer>>();
+
+export const emailLinkInHand = (tokenHash: string) => verifying.has(tokenHash);
+
+export function verifyEmailLink(tokenHash: string, type: "signup" | "magiclink" | "email" | "invite"): Promise<LinkAnswer> {
+  const known = verifying.get(tokenHash);
   if (known) return known;
   const answer = supabase.auth
     .verifyOtp({ token_hash: tokenHash, type })
-    .then(({ error }) => (error ? fail(error.message) : done))
-    .catch(() => fail("Couldn't reach Mavuno. Check your connection and try again."));
-  verified.set(tokenHash, answer);
+    .then(({ error }): LinkAnswer => {
+      if (!error) return { kind: "verified" };
+      if (!error.status) return { kind: "unreachable", reason: "offline" };
+      return error.status >= 500 ? { kind: "unreachable", reason: "server" } : { kind: "spent" };
+    })
+    .catch((): LinkAnswer => ({ kind: "unreachable", reason: "offline" }));
+  verifying.set(tokenHash, answer);
+  void answer.then((result) => {
+    if (result.kind !== "verified") verifying.delete(tokenHash);
+  });
   return answer;
 }
 
@@ -136,6 +161,8 @@ export async function requestPasswordReset(email: string): Promise<Result> {
   if (!parsed.success) return fail(firstIssue(parsed.error));
   const { error } = await supabase.auth.resetPasswordForEmail(parsed.data, { redirectTo: confirmLink("/reset-password") });
   if (error?.status === 429) return fail("Too many emails. Wait a minute and try again.");
+  const problem = notSent(error);
+  if (problem) return fail(problem);
   return done;
 }
 
