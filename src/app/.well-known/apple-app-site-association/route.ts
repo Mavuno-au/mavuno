@@ -22,6 +22,10 @@ export function GET() {
             { "/": "/join/*" },
             // Forms, feeds and calendar files the app has no screen for.
             { "/": "/@*/feed.xml", exclude: true },
+            // Share images for profiles and posts are files, not pages.
+            { "/": "/@*/opengraph-image", exclude: true },
+            { "/": "/@*/posts/*/*", exclude: true },
+            { "/": "/topics/*/*", exclude: true },
             { "/": "/spaces/new", exclude: true },
             { "/": "/spaces/interests", exclude: true },
             { "/": "/spaces/joined", exclude: true },

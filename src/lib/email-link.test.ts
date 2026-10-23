@@ -40,7 +40,7 @@ describe("apple-app-site-association", () => {
   it("opens the app only for links it has a screen for", async () => {
     const components = await rules();
     const app = ["/@amina", "/@amina/posts/5f0c", "/@amina/replies", "/@amina/followers", "/spaces/brisbane", "/events/5f0c", "/opportunities/5f0c", "/topics/afrobeats", "/join/amina", "/auth/confirm?type=email"];
-    const web = ["/", "/about", "/@amina/feed.xml", "/spaces/new", "/spaces/joined", "/spaces/brisbane/feed.xml", "/events/new", "/events/5f0c/edit", "/events/5f0c/calendar", "/opportunities/new", "/opportunities/5f0c/edit", "/auth/confirm?type=recovery", "/auth/confirm?via=web&type=email"];
+    const web = ["/", "/about", "/@amina/feed.xml", "/spaces/new", "/spaces/joined", "/spaces/brisbane/feed.xml", "/events/new", "/events/5f0c/edit", "/events/5f0c/calendar", "/opportunities/new", "/opportunities/5f0c/edit", "/auth/confirm?type=recovery", "/auth/confirm?type=email_change", "/auth/confirm?via=web&type=email", "/@amina/opengraph-image", "/@amina/posts/5f0c/opengraph-image", "/topics/afrobeats/feed.xml"];
     for (const path of app) expect(opensApp(components, path), path).toBe(true);
     for (const path of web) expect(opensApp(components, path), path).toBe(false);
     for (const path of app.filter((path) => !path.startsWith("/join/") && !path.startsWith("/auth/"))) expect(appRoute(path), path).not.toBeNull();
