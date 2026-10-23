@@ -49,18 +49,19 @@ async function moderate(key: string, input: Part[]): Promise<string[] | null> {
   return response?.ok && parsed.success ? flaggedCategories(parsed.data.results) : null;
 }
 
-export type CheckTarget = "post" | "event" | "opportunity";
+export type CheckTarget = "post" | "event" | "opportunity" | "profile" | "space";
 export type CheckOutcome = { kind: "done" } | { kind: "retry"; reason: string };
 
-// Runs from the background task the database queues when a post, event or
-// opportunity from someone without a track record is created. A flag takes it
-// back to review with its categories. It never rejects: the models are weaker
-// in Swahili, Somali and Amharic, so a person decides. Without both keys it
-// does nothing.
+// Runs from the background task the database queues when someone without a
+// track record creates a post, event or opportunity, or changes a profile or
+// space. A flag takes a post or listing back to review, and puts a profile or
+// space in the reports, with its categories. It never rejects: the models are
+// weaker in Swahili, Somali and Amharic, so a person decides. Without its keys
+// the task fails, so Health shows it, rather than passing everything.
 export async function checkContent(target: CheckTarget, targetId: string): Promise<CheckOutcome> {
   const key = serverEnv.OPENAI_API_KEY;
   const service = createServiceClient();
-  if (!key || !service) return { kind: "done" };
+  if (!key || !service) return { kind: "retry", reason: "The automatic check needs OPENAI_API_KEY and SUPABASE_SERVICE_ROLE_KEY" };
 
   const { data, error } = await service.rpc("automatic_check_subject", { p_target_type: target, p_target_id: targetId });
   if (error) return { kind: "retry", reason: error.message };

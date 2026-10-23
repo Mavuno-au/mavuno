@@ -53,7 +53,7 @@ const cronJobSchema = z.object({
 
 const failedTaskSchema = z.object({
   kind: z.enum(["link_preview", "automatic_check"]),
-  targetType: z.enum(["post", "event", "opportunity", "message"]),
+  targetType: z.enum(["post", "event", "opportunity", "message", "profile", "space"]),
   attempts: count,
   error: z.string().nullable(),
   failedAt: z.string(),

@@ -10,7 +10,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 // queues them; this only runs them.
 const taskSchema = z.discriminatedUnion("kind", [
   z.object({ id: z.number().int(), kind: z.literal("link_preview"), target_type: z.enum(["post", "message"]), target_id: z.uuid() }),
-  z.object({ id: z.number().int(), kind: z.literal("automatic_check"), target_type: z.enum(["post", "event", "opportunity"]), target_id: z.uuid() }),
+  z.object({ id: z.number().int(), kind: z.literal("automatic_check"), target_type: z.enum(["post", "event", "opportunity", "profile", "space"]), target_id: z.uuid() }),
 ]);
 type Task = z.infer<typeof taskSchema>;
 

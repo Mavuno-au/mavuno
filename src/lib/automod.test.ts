@@ -91,9 +91,9 @@ describe("checkContent", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("does nothing without an OpenAI key", async () => {
+  it("fails rather than passing everything without an OpenAI key", async () => {
     env.OPENAI_API_KEY = undefined;
-    expect(await checkContent("post", POST)).toEqual({ kind: "done" });
+    expect((await checkContent("post", POST)).kind).toBe("retry");
     expect(rpc).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });

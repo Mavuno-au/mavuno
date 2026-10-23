@@ -98,7 +98,7 @@ function FailedTasks({ tasks }: { tasks: Health["tasks"] }) {
         <ul className="mt-1 grid gap-1">
           {tasks.failures.map((task, index) => (
             <li key={index}>
-              <span className="text-ink">{TASK_NAMES[task.kind]}</span> for {task.targetType === "post" || task.targetType === "message" ? `a ${task.targetType}` : `an ${task.targetType}`} · <LocalTime iso={task.failedAt} /> · {task.attempts}{" "}
+              <span className="text-ink">{TASK_NAMES[task.kind]}</span> for {task.targetType === "event" || task.targetType === "opportunity" ? `an ${task.targetType}` : `a ${task.targetType}`} · <LocalTime iso={task.failedAt} /> · {task.attempts}{" "}
               {task.attempts === 1 ? "try" : "tries"}
               {task.error ? <span className="block font-mono text-xs text-destructive">{task.error}</span> : null}
             </li>
