@@ -1,7 +1,7 @@
 import { Image } from "expo-image";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Briefcase, CalendarDays, Check, Maximize2, Play } from "lucide-react-native";
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { OPPORTUNITY_TYPES } from "@/lib/catalogue";
 import type { EventSummary, LinkPreview, OpportunitySummary, Poll, Post, PostImage, QuotedPost } from "@/lib/domain";
@@ -143,6 +143,9 @@ export function LinkCard({ url, preview: read }: { url: string; preview: LinkPre
   const preview = useLateCard(url, read);
   const embed = embedFor(url);
   const [playing, setPlaying] = useState(false);
+  const stop = useCallback(() => setPlaying(false), []);
+  // Another screen on top, or another tab, stops the player.
+  useFocusEffect(useCallback(() => stop, [stop]));
   if (!preview && !embed) return null;
   const source = embed ? `${embed.provider} · play here` : (preview?.siteName ?? displayUrl(url));
 
@@ -150,7 +153,7 @@ export function LinkCard({ url, preview: read }: { url: string; preview: LinkPre
   if (embed && playing) {
     return (
       <View style={[block, { marginTop: 10 }]}>
-        <InlinePlayer embed={embed} title={preview?.title ?? `${embed.provider} player`} />
+        <InlinePlayer embed={embed} title={preview?.title ?? `${embed.provider} player`} onLeave={stop} />
         <Pressable
           accessibilityRole="link"
           onPress={() => openPlayer(url)}
