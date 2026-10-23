@@ -161,18 +161,24 @@ function SearchPaletteBody({ onClose }: { onClose: () => void }) {
   const [active, setActive] = useState(0);
   const [recent, setRecent] = useState(() => (recentKey ? readRecentSearches(recentKey) : []));
   const term = query.trim();
-  const results = term ? found.people : [];
+  // Only the people found for what is typed now; an older search's answer can arrive last.
+  const results = term && found.term === term ? found.people : [];
   const help = findHelp(term, 3);
   const loading = term !== "" && found.term !== term;
 
   useEffect(() => {
     if (!term) return;
+    let current = true;
     const timer = setTimeout(async () => {
       const { data } = await getBrowserClient().rpc("search_profiles", { p_query: term, p_limit: 8 });
+      if (!current) return;
       setFound({ term, people: parsePeople(data) });
       setActive(0);
     }, 150);
-    return () => clearTimeout(timer);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
   }, [term]);
 
   function keepRecent(next: string[]) {

@@ -114,7 +114,7 @@ function LivePost({
   const [quoting, setQuoting] = useState(false);
   const [dialog, setDialog] = useState<"none" | "report" | "block">("none");
   const [added, setAdded] = useState<PostRow[]>([]);
-  const [, startTransition] = useTransition();
+  const [pending, startTransition] = useTransition();
   const href = postPath(post);
   const signIn = () => router.push(joinPath(href));
   const depth = thread?.depth ?? 0;
@@ -173,12 +173,17 @@ function LivePost({
       markOwnDeletion(post.id);
       setState("removed");
       if (variant === "focus") return;
+      // A second click on Undo while the first is on its way would come back as an error.
+      let undoing = false;
       toast("Post deleted", {
         duration: UNDO_MS,
         action: {
           label: "Undo",
           onClick: async () => {
+            if (undoing) return;
+            undoing = true;
             const restored = await reach(restorePost(post.id));
+            undoing = false;
             if (!restored.ok) {
               toast.error(restored.error);
               return;
@@ -303,7 +308,7 @@ function LivePost({
                 <button type="button" className="rounded-md px-2 py-1 hover:bg-surface" onClick={() => setState("shown")}>
                   Cancel
                 </button>
-                <button type="button" className="rounded-md bg-destructive px-2.5 py-1 font-medium text-destructive-ink" onClick={remove}>
+                <button type="button" disabled={pending} className="rounded-md bg-destructive px-2.5 py-1 font-medium text-destructive-ink disabled:opacity-60" onClick={remove}>
                   Delete
                 </button>
               </span>

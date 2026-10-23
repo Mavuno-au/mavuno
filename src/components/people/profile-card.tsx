@@ -7,6 +7,7 @@ import { FollowButton } from "@/components/people/follow-button";
 import { Avatar, ColourDot } from "@/components/ui/avatar";
 import { Chip } from "@/components/ui/page";
 import { parseProfilePreview, type ProfilePreview } from "@/lib/domain";
+import { useViewer } from "@/components/shell/viewer-context";
 import { getBrowserClient } from "@/lib/supabase/browser";
 
 const OPEN_DELAY = 450;
@@ -19,15 +20,17 @@ type Loaded = { kind: "profile"; profile: ProfilePreview } | { kind: "unavailabl
 type Position = { left: number; top: number } | { left: number; bottom: number };
 
 // Shared by every card on the page, so moving between posts by the same person
-// shows the card at once while it refreshes.
+// shows the card at once while it refreshes. Keyed by who is looking too: a
+// card says whether they follow or muted the person, and signing out and in
+// as someone else in the same tab doesn't reload the page.
 const cache = new Map<string, Loaded>();
 
-async function fetchPreview(username: string): Promise<Loaded> {
+async function fetchPreview(key: string, username: string): Promise<Loaded> {
   const { data, error } = await getBrowserClient().rpc("profile_preview", { p_username: username });
   if (error) throw new Error(error.message);
   const profile = parseProfilePreview(data);
   const loaded: Loaded = profile ? { kind: "profile", profile } : { kind: "unavailable" };
-  cache.set(username, loaded);
+  cache.set(key, loaded);
   return loaded;
 }
 
@@ -48,6 +51,8 @@ export function ProfileHoverCard({ username, children, className }: { username: 
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [position, setPosition] = useState<Position | null>(null);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
+  const viewer = useViewer();
+  const key = `${viewer?.id ?? "guest"}:${username}`;
 
   const close = () => {
     clearTimeout(timer.current);
@@ -59,9 +64,9 @@ export function ProfileHoverCard({ username, children, className }: { username: 
     timer.current = setTimeout(() => {
       const trigger = wrapper.current?.firstElementChild;
       if (!trigger) return;
-      setLoaded(cache.get(username) ?? null);
+      setLoaded(cache.get(key) ?? null);
       setPosition(positionFor(trigger));
-      fetchPreview(username).then(setLoaded, () => setLoaded((current) => current ?? { kind: "unavailable" }));
+      fetchPreview(key, username).then(setLoaded, () => setLoaded((current) => current ?? { kind: "unavailable" }));
     }, OPEN_DELAY);
   }
 
