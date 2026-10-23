@@ -14,8 +14,19 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 5
     groups:
       # One pull request a week for everything that isn't a major bump, so the
       # dependency churn stays reviewable.
       minor-and-patch:
         update-types: ["minor", "patch"]
+  # The app has its own lockfile. Expo pins most of its packages to the SDK, so
+  # only security fixes are opened; SDK upgrades go through `expo install --fix`.
+  - package-ecosystem: "npm"
+    directory: "/mobile"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 5
+    open-pull-requests-limit: 0

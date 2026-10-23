@@ -21,7 +21,8 @@ export default defineConfig([
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-non-null-assertion": "error",
       "@typescript-eslint/consistent-type-imports": "error",
-      "@typescript-eslint/switch-exhaustiveness-check": "off",
+      // No `as` casts; `as const` is still allowed.
+      "@typescript-eslint/consistent-type-assertions": ["error", { assertionStyle: "never" }],
       // Member images, avatars and link-card images come from arbitrary hosts
       // (Supabase Storage, Google, any site's og:image), which next/image cannot allowlist.
       "@next/next/no-img-element": "off",
