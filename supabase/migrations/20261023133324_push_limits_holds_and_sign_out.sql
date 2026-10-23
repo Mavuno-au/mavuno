@@ -90,16 +90,26 @@ begin
       -- from another project loses it, so it can't keep blocking others.
       v_groups := v_answer -> 'errors' -> 0 -> 'details';
       if v_request.kind = 'send' and v_answer -> 'errors' -> 0 ->> 'code' = 'PUSH_TOO_MANY_EXPERIENCE_IDS' and jsonb_typeof(v_groups) = 'object' then
-        with refused as (
+        -- Mavuno's own project (@<account>/mavuno) is kept, not the largest
+        -- group, which someone with enough foreign tokens could outnumber.
+        -- Only when it can be told apart are the others refused for a month.
+        if exists (select 1 from jsonb_each(v_groups) where key like '%/mavuno') then
+          with refused as (
+            delete from public.push_tokens where token in (
+              select jsonb_array_elements_text(value) from jsonb_each(v_groups)
+              where jsonb_typeof(value) = 'array' and key not like '%/mavuno'
+            )
+            returning token
+          )
+          insert into public.push_tokens_refused (token) select token from refused on conflict do nothing;
+        else
           delete from public.push_tokens where token in (
             select jsonb_array_elements_text(g.tokens) from (
               select value as tokens, row_number() over (order by jsonb_array_length(value) desc, key) as rank
               from jsonb_each(v_groups) where jsonb_typeof(value) = 'array'
             ) as g where g.rank > 1
-          )
-          returning token
-        )
-        insert into public.push_tokens_refused (token) select token from refused on conflict do nothing;
+          );
+        end if;
       end if;
       if v_request.kind = 'send' and jsonb_typeof(v_answer -> 'data') = 'array' then
         delete from public.push_tokens where token in (

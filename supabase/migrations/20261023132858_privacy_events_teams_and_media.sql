@@ -12,7 +12,9 @@
 -- 5. Guests could list the public media bucket, which found photos on posts
 --    that were removed, held or still scheduled.
 -- 6. The profile of an account deactivated as under 16 stayed public for the
---    30 days before it is deleted.
+--    30 days before it is deleted. profile_hidden lets the profile page, its
+--    feed and the app treat it as missing; the row stays readable, because
+--    other members' messages and lists embed it.
 
 -- ---------------------------------------------------------------------------
 -- 1. RSVPs are the member's own; the going list comes from a function

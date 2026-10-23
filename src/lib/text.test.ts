@@ -113,6 +113,7 @@ describe("displayUrl", () => {
 describe("initials", () => {
   it("never splits an emoji", () => {
     expect(initials("😀 Ama")).toBe("😀A");
+    expect(initials("🇰🇪 Wanjiru")).toBe("🇰🇪W");
     expect(initials("Kofi Mensah")).toBe("KM");
   });
 });

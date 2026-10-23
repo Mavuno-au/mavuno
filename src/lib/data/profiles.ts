@@ -34,7 +34,11 @@ export const loadProfile = cache(async (username: string, viewer: Viewer | null)
   if (!data) return { kind: "missing" };
   const row = profileRowSchema.parse(data);
   const self = viewer?.id === row.id;
-  if (!self && (await supabase.rpc("profile_hidden", { p_profile_id: row.id })).data === true) return { kind: "missing" };
+  if (!self) {
+    // A check that didn't answer hides the profile rather than showing one it may be keeping private.
+    const hidden = await supabase.rpc("profile_hidden", { p_profile_id: row.id });
+    if (hidden.error || hidden.data === true) return { kind: "missing" };
+  }
 
   if (!viewer || self) {
     return { kind: "profile", profile: { ...row, relationship: { following: false, followsYou: false, muted: false, canMessage: false, self, invite: null } } };

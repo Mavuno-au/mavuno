@@ -176,6 +176,13 @@ begin
   if exists (select 1 from public.profile_settings where id = p_profile_id and banned_at is not null) then
     return;
   end if;
+  -- An age reinstatement made while banned restored nothing; lifting the ban
+  -- brings back what the deactivation hid too, unless it still stands.
+  if p_note = 'Account banned' and not exists (
+    select 1 from public.profile_settings where id = p_profile_id and age_deactivated_at is not null
+  ) then
+    perform public.restore_hidden_content(p_profile_id, 'Account deactivated');
+  end if;
   for v_post_id in
     select id from public.posts
     where (author_id = p_profile_id or created_by = p_profile_id) and status = 'rejected' and moderation_note = p_note
@@ -423,4 +430,8 @@ revoke execute on function public.forget_report_words() from public, anon, authe
 create trigger profiles_forget_report_words before delete on public.profiles
   for each row execute function public.forget_report_words();
 
-update public.reports set details = null, contact = null where reporter_id is null and (details is not null or contact is not null);
+-- Reports from accounts already deleted. The automatic check files its own
+-- with no reporter, and automatic_hold finds them again by these words.
+update public.reports set details = null, contact = null
+where reporter_id is null and (details is not null or contact is not null)
+  and coalesce(details, '') not like 'Flagged by the automatic check:%';

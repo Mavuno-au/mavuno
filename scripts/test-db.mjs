@@ -3205,6 +3205,19 @@ console.log("\nPush notifications");
   await q("insert into net._http_response (id, status_code, content) values ($1, 400, $2)", [mixed.id, JSON.stringify(refusal)]);
   await q("select public.settle_pushes()");
   check("a token from another app is dropped and Mavuno's are kept", (await q("select token from public.push_tokens where profile_id = $1 order by token", [writer])).map((r) => r.token).join() === [phone, spare].sort().join());
+  // Outnumbered by foreign tokens, Mavuno's own still win.
+  await as(writer);
+  for (const n of [1, 2, 3]) await q("select public.register_push_token($1)", [`ExponentPushToken[crowd-${n}]`]);
+  await clear();
+  await as(third);
+  await post("Once more @push_writer");
+  await superuser();
+  const crowded = await one("select id from public.push_requests where kind = 'send' order by created_at desc, id desc limit 1");
+  const outnumbered = { errors: [{ code: "PUSH_TOO_MANY_EXPERIENCE_IDS", message: "Mixed projects", details: { "@mavuno/mavuno": [phone], "@someone/else": [1, 2, 3].map((n) => `ExponentPushToken[crowd-${n}]`) } }] };
+  await q("insert into net._http_response (id, status_code, content) values ($1, 400, $2)", [crowded.id, JSON.stringify(outnumbered)]);
+  await q("select public.settle_pushes()");
+  check("Mavuno's tokens are kept even when outnumbered", (await q("select token from public.push_tokens where profile_id = $1", [writer])).some((r) => r.token === phone));
+  check("and the others are refused", (await one("select count(*)::int as n from public.push_tokens_refused where token like 'ExponentPushToken[crowd-%'")).n === 3);
   check("a refused batch shows on Health", (await one("select count(*)::int as n from public.server_errors where route = 'pg_net push send' and digest = 'push-PUSH_TOO_MANY_EXPERIENCE_IDS'")).n === 1);
   await as(writer);
   await fails("a token Expo refused can't be registered again", "select public.register_push_token('ExponentPushToken[foreign-phone]')", [], /can't get notifications/);
@@ -3446,6 +3459,22 @@ console.log("\nFull review: links, moderation, erased accounts, muted quotes, te
   await superuser();
   await q("update public.profile_settings set suspended_until = null where id = $1", [sena]);
 
+  // Deactivated as under 16, then banned, then reinstated, then the ban lifted: the age-hidden post comes back.
+  const banTwice = await user("rc_twice");
+  await as(banTwice);
+  const hiddenTwice = await post("Hidden by the age review");
+  await as(mod);
+  await q("select public.moderate_deactivate_under_16($1, 'report')", [banTwice]);
+  await q("select public.moderate_ban($1, 'Scams', 'honesty')", [banTwice]);
+  await q("select public.moderate_reinstate_age($1, 'document')", [banTwice]);
+  await superuser();
+  check("a ban outlasts an age reinstatement", (await one("select status from public.posts where id = $1", [hiddenTwice])).status === "rejected");
+  const liftsBans = await user("rc_admin");
+  await q("update public.profile_settings set site_role = 'admin' where id = $1", [liftsBans]);
+  await as(liftsBans);
+  await q("select public.moderate_lift_suspension($1, 'Appeal upheld')", [banTwice]);
+  await superuser();
+  check("and lifting the ban brings back what the age review hid", (await one("select status from public.posts where id = $1", [hiddenTwice])).status === "published");
   await as(nia);
   await q("select public.report_content('post', $1, 'harassment', 'Him again, from my work')", [quotedPost]);
   row = await one("select public.export_my_data() -> 'reports_filed' as reports");

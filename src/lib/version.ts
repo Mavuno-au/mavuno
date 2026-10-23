@@ -45,6 +45,8 @@ export async function reach<T>(call: Promise<Result<T>>): Promise<Result<T>> {
   } catch (error) {
     unstable_rethrow(error);
     void checkForUpdate();
-    return fail("Couldn't reach Mavuno. Check your connection and try again.");
+    // An error the server answered with carries a digest; one that never got there doesn't.
+    const answered = typeof error === "object" && error !== null && "digest" in error;
+    return fail(answered ? "Something went wrong. Try again." : "Couldn't reach Mavuno. Check your connection and try again.");
   }
 }

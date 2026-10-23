@@ -16,9 +16,9 @@ Entries below, by severity (a low entry sometimes groups several small findings 
 
 | | Fixed | Open |
 |---|---|---|
-| High | 10 | 0 |
-| Medium | 38 | 6 |
-| Low | 43 | 21 |
+| High | 11 | 0 |
+| Medium | 40 | 6 |
+| Low | 46 | 24 |
 
 Open items are listed at the end with why they're open: a product decision, or a setting outside the code.
 
@@ -72,7 +72,7 @@ About 25 call sites, such as `src/components/post/post-item.tsx:131` (like), `fo
 
 **bug medium: Guests could list the public media bucket.** `20261020000007_storage_realtime.sql:27`. Listing a member's folder found photos on removed, held and scheduled posts. Fixed in 0cbd796: listing is for the profiles a member acts as; files are still served by address.
 
-**bug medium: Profiles deactivated as under 16 stayed public for the 30 days before deletion.** `src/lib/data/profiles.ts:31`. Fixed in 0cbd796 and eed62cc with `profile_hidden`.
+**bug medium: Profiles deactivated as under 16 stayed public for the 30 days before deletion.** `src/lib/data/profiles.ts:31`. The profile page, its Atom feed and the app now treat it as missing, with `profile_hidden` (0cbd796, eed62cc, and the review fixes below). The row itself is still readable through the API; see open items.
 
 **bug medium: Events and opportunities from someone the viewer has a block with stayed in their lists.** `src/lib/data/community.ts:78`. Fixed in 0cbd796 in the listing policies.
 
@@ -177,6 +177,17 @@ Fixed, one line each:
 - **cleanup low:** the app's connections cursor wasn't parsed; copied helpers and unused exports. c06dcda.
 - **cleanup low:** an animated image keeps its first frame, against what `reencode`'s comment said. 93e69ed.
 
+### Fixed after an independent review of these fixes
+
+A second model read the whole diff looking for what the fixes broke. What it found was fixed in one commit, after which the database checks passed (868):
+
+- **bug high:** the content migration's clean-up of reports from deleted accounts also matched the automatic check's own profile and space flags (filed without a reporter), which would have erased their reasons and made the next check file duplicates. It now leaves those alone.
+- **bug medium:** when Expo refused a mixed batch, Mavuno kept the largest group of tokens and refused the rest for a month; with a few real phones and enough foreign tokens, the real ones would have lost. It now keeps Mavuno's own project and refuses only when it can tell them apart.
+- **bug medium:** a profile deactivated as under 16 was still in its Atom feed, and the website's check failed open on an error.
+- **bug low:** with the ban check in `restore_hidden_content`, a member deactivated for age, banned, reinstated and then unbanned kept their age-hidden posts hidden for good. Lifting the ban now restores them too.
+- **bug low:** a name starting with a flag still lost half of it in its initials.
+- **bug low:** `reach()` said "Couldn't reach Mavuno" for errors the server did answer.
+
 ### Fixed after PR 18 freed the sheet files
 
 These files had uncommitted work in another session until PR 18 merged; after syncing with main they were fixed in 7142fd0:
@@ -225,6 +236,9 @@ These files had uncommitted work in another session until PR 18 merged; after sy
 - **cleanup low:** many exported server actions `parse` their input and throw instead of returning `Result` (AGENTS.md). They no longer replace the page (`reach()`), but a stale client's call is counted as a server error.
 - **cleanup low:** the app re-implements about 45 loaders from `src/lib/data`; they have drifted (blocks on attendees and the online link had to be fixed twice).
 - **cleanup low:** insert grants let members set `created_at` on follows, likes, RSVPs and more (triggers overwrite the counters and status that matter).
+- **bug low:** a profile deactivated as under 16 is hidden by the pages and the app, but the `profiles` row stays readable through the API (`using (true)`), because messages, team lists and mute lists embed it and would break on a missing row. Hiding it at the database means making those embeds tolerate it first.
+- **bug low:** reading messages now makes two security-definer calls a row (`message_visible_from`, `is_blocked_with_viewer`); a very large unread backlog in a group gets slower to count. Not measured.
+- **bug low:** the phone check counts any `+` or `00` number of 8 to 15 digits, so a few long numbers that aren't phones will ask the writer to check. It never blocks.
 - **cleanup low:** guests' select grants on `profile_settings`, `saves` and `poll_votes` stay, because `post_details` needs them to run for guests; the policies give guests no rows.
 - **cleanup low:** the IndexNow cron builds every sitemap file each day to find one day's changes. `src/app/api/indexnow/route.ts:25`.
 - **cleanup low:** no `SECURITY.md`, and GitHub secret scanning is off (hardening notes). The Fathom code and docs remain though Fathom was dropped.
