@@ -195,6 +195,14 @@ pnpm check
 
 This runs the type checker, ESLint, the unit tests (`pnpm test`) and the database tests (`pnpm test:db`). The database tests apply every migration to an embedded Postgres with stand-ins for Supabase's `auth` and `storage` schemas, then exercise the policies, triggers and functions as different members: premoderation, blocking, message requests, organisations, reports, undo, export and account deletion. CI runs the same checks and a production build on every push.
 
+### Releasing
+
+Code that needs a migration must not reach production before the migration does, so merging to `main` does not deploy: `vercel.json` turns automatic deployments off for `main` (pull requests still get previews). A release is three steps, in this order:
+
+1. Merge the pull request.
+2. Apply its migrations to the live database (`pnpm db:push`), then check the advisors.
+3. Deploy `main` from a clean copy: `git archive HEAD` into an empty folder, copy `.vercel/project.json` in, and run `vercel deploy --prod` there.
+
 ## Maintenance
 
 - Scheduled posts are published and deleted posts are purged every minute by `pg_cron`. Without it, call `POST /api/maintenance` with `Authorization: Bearer $MAINTENANCE_SECRET` on a schedule.
