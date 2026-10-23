@@ -7,22 +7,16 @@ import type { Result } from "@/lib/result";
 // the state the server already confirmed sends none. When every queued tap
 // has been answered, `onSettled` gets the state the server confirmed, which
 // is what the screen then shows: after a failure that is the old state.
+// Both callbacks run even after the button unmounts (a row scrolled away, a
+// screen closed), since the shared shadow and the toast outlive it.
 export function useToggleQueue({ run, onSettled, onError }: { run: (on: boolean) => Promise<Result>; onSettled: (confirmed: boolean) => void; onError: (message: string, on: boolean) => void }) {
   const queue = useRef<boolean[]>([]);
   const busy = useRef(false);
   const latest = useRef({ run, onSettled, onError });
-  const mounted = useRef(true);
 
   useEffect(() => {
     latest.current = { run, onSettled, onError };
   });
-
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
 
   const drain = useCallback(async (confirmed: boolean) => {
     busy.current = true;
@@ -36,14 +30,14 @@ export function useToggleQueue({ run, onSettled, onError }: { run: (on: boolean)
         const result = await latest.current.run(wanted);
         if (!result.ok) {
           queue.current = [];
-          if (mounted.current) latest.current.onError(result.error, wanted);
+          latest.current.onError(result.error, wanted);
           break;
         }
         state = wanted;
       }
     } finally {
       busy.current = false;
-      if (mounted.current) latest.current.onSettled(state);
+      latest.current.onSettled(state);
     }
   }, []);
 
