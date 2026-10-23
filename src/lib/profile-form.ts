@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { INTERESTS, LANGUAGES, OPEN_TO, type LanguageCode } from "@/lib/catalogue";
+import { INTERESTS, LANGUAGES, LIMITS, OPEN_TO, type LanguageCode } from "@/lib/catalogue";
 import { accountTypeSchema, colourSchema } from "@/lib/domain";
 import { httpsUrl, passwordSchema, usernameSchema } from "@/lib/schemas";
 
@@ -23,7 +23,7 @@ export const profileSchema = z
   .object({
     displayName: z.string().trim().min(1, "Add your name.").max(60, "Names can be up to 60 characters."),
     username: usernameSchema,
-    bio: z.string().trim().max(300, "Your bio can be up to 300 characters."),
+    bio: z.string().trim().max(LIMITS.bio, `Your bio can be up to ${LIMITS.bio} characters.`),
     cityId: z.number().int().positive().nullable(),
     heritage: optionalText(60, "Heritage"),
     pronouns: optionalText(30, "Pronouns"),
@@ -162,7 +162,7 @@ export const SETTINGS_COLUMNS = "dm_policy, read_receipts, discoverable, transla
 export const newOrganisationSchema = z.object({
   username: usernameSchema,
   name: z.string().trim().min(2, "Add the organisation's name.").max(60, "Names can be up to 60 characters."),
-  bio: z.string().trim().max(300, "The bio can be up to 300 characters."),
+  bio: z.string().trim().max(LIMITS.bio, `The bio can be up to ${LIMITS.bio} characters.`),
   category: z.string().trim().max(60, "The category can be up to 60 characters."),
   cityId: z.union([z.literal(""), z.coerce.number().int().positive()]).transform((value) => (value === "" ? null : value)),
   website: httpsUrl,

@@ -1,10 +1,10 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { createSpace } from "@/data/community";
 import { loadCities, type City } from "@/data/profiles";
 import { Segmented } from "@/ui/controls";
-import { FieldError, Group, SelectRow, SheetHeader, TextField, useErrorScroll } from "@/ui/form";
+import { FieldError, Group, KeyboardSheet, SelectRow, SheetHeader, TextField, useErrorScroll } from "@/ui/form";
 import { Text } from "@/ui/text";
 import { usePalette } from "@/ui/theme";
 import { toast } from "@/ui/toast";
@@ -52,7 +52,7 @@ export default function SpaceForm() {
   }
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: palette.shell }}>
+    <KeyboardSheet style={{ flex: 1, backgroundColor: palette.shell }}>
       <SheetHeader title="Start a space" onCancel={() => router.back()} action={{ label: "Create", onPress: () => void save(), disabled: name.trim().length < 2, busy }} />
       <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 18 }}>
         {error ? <FieldError>{error}</FieldError> : null}
@@ -89,6 +89,6 @@ export default function SpaceForm() {
           </Text>
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardSheet>
   );
 }
