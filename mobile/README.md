@@ -59,7 +59,7 @@ No Expo account or EAS is needed.
 2. Open `ios/Mavuno.xcworkspace` in Xcode.
 3. Under Signing & Capabilities, choose your team. The bundle ID is `au.mavuno.app`. Then choose Product › Archive, and in the Organizer choose Distribute App › App Store Connect.
 
-Before the first upload, you need an Apple Developer account, the app created in App Store Connect, and Sign in with Apple. Sign in with Apple is required as soon as Google sign-in is offered (see `../docs/MOBILE_API.md`).
+Before the first upload, you need an Apple Developer account and the app created in App Store Connect. The app signs in with email only, so it doesn't need Sign in with Apple yet. App Review guideline 4.8 requires it once Google sign-in or another third-party sign-in is added (see `../docs/MOBILE_API.md`).
 
 ## Checks
 
