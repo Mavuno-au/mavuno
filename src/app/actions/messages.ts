@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { refresh } from "next/cache";
 import { after } from "next/server";
 import { z } from "zod";
 import { runTasksFor } from "@/lib/background-tasks";
@@ -17,7 +17,7 @@ async function rpc(name: string, args: Record<string, unknown>): Promise<Result>
   const supabase = await createClient();
   const { error } = await supabase.rpc(name, args);
   if (error) return failFrom(error);
-  revalidatePath("/messages", "layout");
+  refresh();
   return done;
 }
 
@@ -69,7 +69,7 @@ async function updateParticipation(conversationId: string, changes: { archived_a
   const supabase = await createClient();
   const { error } = await supabase.from("conversation_participants").update(changes).eq("conversation_id", id.parse(conversationId)).eq("status", "accepted");
   if (error) return failFrom(error);
-  revalidatePath("/messages", "layout");
+  refresh();
   return done;
 }
 

@@ -1,5 +1,6 @@
 import "server-only";
 import { cookies } from "next/headers";
+import { cache } from "react";
 import { z } from "zod";
 import { parsePeople } from "@/lib/domain";
 import { createClient } from "@/lib/supabase/server";
@@ -62,13 +63,14 @@ export type WhoToFollowBlock = { kind: "none" } | { kind: "hidden" } | { kind: "
 
 // What this browser shows for Who to follow: nothing for guests, nothing when
 // hidden, and otherwise the page it last refreshed to today.
-export async function loadWhoToFollowBlock(viewer: Viewer | null): Promise<WhoToFollowBlock> {
+// Cached per request: the home feed and the side column both show it.
+export const loadWhoToFollowBlock = cache(async (viewer: Viewer | null): Promise<WhoToFollowBlock> => {
   if (!viewer) return { kind: "none" };
   const store = await cookies();
   if (isHidden(store.get(HIDDEN_COOKIE)?.value)) return { kind: "hidden" };
   const page = await loadWhoToFollow(viewer, parseRound(store.get(ROUND_COOKIE)?.value, suggestionDay()));
   return page.people.length === 0 ? { kind: "empty" } : { kind: "page", page };
-}
+});
 
 const cityRow = z.object({ id: z.number(), slug: z.string(), name: z.string(), state: z.string() });
 export type City = z.infer<typeof cityRow>;

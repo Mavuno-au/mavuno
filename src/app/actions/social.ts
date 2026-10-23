@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { refresh } from "next/cache";
 import { z } from "zod";
 import { RELATIONS, relationSchema, reportArguments, reportSchema, type Relation, type Report } from "@/lib/relations";
 import { done, fail, failFrom, type Result } from "@/lib/result";
@@ -22,7 +22,8 @@ export async function setRelation(relation: Relation, profileId: string, on: boo
     ? await supabase.from(table).upsert(row, { onConflict: `${self},${other}`, ignoreDuplicates: true })
     : await supabase.from(table).delete().match(row);
   if (error) return failFrom(error);
-  if (relation !== "follow") revalidatePath("/", "layout");
+  // This member's screens, not every cached page on the site.
+  if (relation !== "follow") refresh();
   return done;
 }
 
