@@ -261,7 +261,15 @@ export const savedListingRow = z.object({ id, status: contentStatusSchema });
 // The forms, as the website's server actions and the app check them. Each
 // takes the form's fields as text, the way a FormData sends them.
 
-export const localTimeSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, "Choose a date and time.");
+// A real date and time: "2026-02-30T10:00" would roll over to March, and a
+// value Date can't read would throw inside the form's transform.
+export const localTimeSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, "Choose a date and time.")
+  .refine((value) => {
+    const parsed = new Date(`${value}:00Z`);
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 16) === value;
+  }, "Choose a date and time.");
 
 // `media` is the public address of the project's media bucket, which only the
 // caller knows; a cover from anywhere else is refused.

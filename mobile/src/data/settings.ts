@@ -6,6 +6,7 @@ import { languageSettingsSchema, newOrganisationSchema, passwordChangeSchema, pr
 import { done, fail, failFrom, ok, type Result } from "@/lib/result";
 import { emailSchema, firstIssue, usernameSchema } from "@/lib/schemas";
 import { siteFetch } from "@/data/api";
+import { siteLink } from "@/data/env";
 import { requestError } from "@/data/errors";
 import { updateSettings } from "@/data/profiles";
 import { supabase } from "@/data/supabase";
@@ -15,7 +16,8 @@ import { supabase } from "@/data/supabase";
 
 const id = z.uuid();
 const CARD = "id, username, display_name, avatar_url, colour:effective_colour, account_type, org_verified, headline";
-const confirmLink = (next: string) => `https://mavuno.au/auth/confirm?next=${encodeURIComponent(next)}`;
+// The build's own site, as auth.ts does, so a staging build's link doesn't go to production.
+const confirmLink = (next: string) => siteLink(`/auth/confirm?next=${encodeURIComponent(next)}`);
 
 export async function updatePrivacy(viewerId: string, input: z.input<typeof privacySchema>): Promise<Result> {
   const parsed = privacySchema.safeParse(input);
