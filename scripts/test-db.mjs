@@ -2921,6 +2921,36 @@ console.log("\nSecurity gaps: sanctions, team invitations, the automatic check, 
   check("someone muted writing as an organisation sends no replies, quotes or mentions", rows.length === 0, rows);
 }
 
+console.log("\nAn under-16 deactivation covers what the person wrote as an organisation");
+{
+  const mod = await createUser("agegap-mod@example.com", { username: "agegap_mod" });
+  await superuser();
+  await q("update public.profile_settings set site_role = 'moderator' where id = $1", [mod]);
+  const teen = await createUser("agegap-teen@example.com", { username: "agegap_teen" });
+  await as(teen);
+  const club = (await one("select public.create_organisation('agegap_club', 'Club') as id")).id;
+  const clubPost = await post("Written as the club", "en", club);
+  const clubEvent = (await one("insert into public.events (host_id, created_by, title, starts_at, city_id, venue_name) values ($1, $2, 'Club night', now() + interval '3 days', $3, 'Hall') returning id", [club, teen, brisbane])).id;
+  const clubJob = (await one("insert into public.opportunities (poster_id, created_by, type, title, description, apply_url) values ($1, $2, 'job', 'Club job', 'Details of the role', 'https://jobs.example/club') returning id", [club, teen])).id;
+  await superuser();
+  await q("update public.events set status = 'published' where id = $1", [clubEvent]);
+  await q("update public.opportunities set status = 'published' where id = $1", [clubJob]);
+  const statuses = async () => {
+    await superuser();
+    return [
+      (await one("select status from public.posts where id = $1", [clubPost])).status,
+      (await one("select status from public.events where id = $1", [clubEvent])).status,
+      (await one("select status from public.opportunities where id = $1", [clubJob])).status,
+    ].join();
+  };
+  await as(mod);
+  await q("select public.moderate_deactivate_under_16($1, 'report')", [teen]);
+  check("deactivating hides posts, events and opportunities written as an organisation", (await statuses()) === "rejected,rejected,rejected", await statuses());
+  await as(mod);
+  await q("select public.moderate_reinstate_age($1, 'document')", [teen]);
+  check("and reinstating brings them back", (await statuses()) === "published,published,published", await statuses());
+}
+
 console.log("\nDemo seed");
 const seeded = new PGlite({ extensions: { pg_trgm, pgcrypto } });
 await seeded.exec(stubs);
