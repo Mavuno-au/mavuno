@@ -4,6 +4,7 @@ import { forgetBirthDate, readBirthDate } from "@/lib/age-check";
 import { safeNext } from "@/lib/safe-redirect";
 import { usernameSchema } from "@/lib/schemas";
 import { createClient } from "@/lib/supabase/server";
+import { arrivalPath } from "@/lib/viewer";
 
 // OAuth and magic-link sign-ins come back here with a one-time code. Someone
 // who joined with Google answered the age question before leaving, so it is
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
       }
       const invite = usernameSchema.safeParse(searchParams.get("invite")).data;
       if (invite) await supabase.rpc("accept_invite", { p_username: invite });
-      return NextResponse.redirect(new URL(next, origin));
+      return NextResponse.redirect(new URL(await arrivalPath(supabase, next), origin));
     }
   }
   return NextResponse.redirect(new URL("/login?error=link", origin));
