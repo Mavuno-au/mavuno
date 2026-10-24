@@ -84,7 +84,7 @@ const imageSchema = z.object({
 });
 export type PostImage = z.infer<typeof imageSchema>;
 
-const pollSchema = z
+export const pollSchema = z
   .object({
     closes_at: timestamp.nullable(),
     duration_hours: z.number(),

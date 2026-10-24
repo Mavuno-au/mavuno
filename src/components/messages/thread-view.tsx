@@ -4,6 +4,7 @@ import type { REALTIME_SUBSCRIBE_STATES, RealtimeChannel, RealtimePostgresInsert
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useRef, useState, useTransition } from "react";
+import { flushSync } from "react-dom";
 import { toast } from "sonner";
 import { z } from "zod";
 import { fetchMembers, fetchMessage, fetchReactions, loadNewerMessages, loadOlderMessages, markRead, setReaction } from "@/app/actions/messages";
@@ -71,6 +72,8 @@ export function ThreadView({ conversation, viewerId, initial, next: initialNext 
   const [typing, setTyping] = useState<Record<string, number>>({});
   const [reads, setReads] = useState<Record<string, string>>({});
   const [olderFailed, setOlderFailed] = useState(false);
+  const [highlighted, setHighlighted] = useState<string | null>(null);
+  const jumping = useRef(false);
   const scroller = useRef<HTMLDivElement>(null);
   const top = useRef<HTMLDivElement>(null);
   const channel = useRef<RealtimeChannel | null>(null);
@@ -293,8 +296,37 @@ export function ThreadView({ conversation, viewerId, initial, next: initialNext 
     void channel.current?.send({ type: "broadcast", event: "typing", payload: { userId: viewerId } });
   }
 
-  function jump(messageId: string) {
+  // The quoted message may be older than the pages read so far: they are read
+  // until it turns up, then it is brought to the middle and lit for a moment.
+  async function jump(messageId: string) {
+    if (!shown.current.some((message) => message.id === messageId)) {
+      let cursor = next;
+      if (!cursor || loadingOlder || jumping.current) return;
+      jumping.current = true;
+      const found: Message[] = [];
+      try {
+        while (cursor && !found.some((message) => message.id === messageId)) {
+          const page = await loadOlderMessages(id, cursor);
+          found.unshift(...page.messages);
+          cursor = page.next;
+        }
+      } catch {
+        jumping.current = false;
+        setOlderFailed(true);
+        return toast.error("Couldn't load earlier messages. Check your connection and try again.");
+      }
+      jumping.current = false;
+      for (const message of found) known.current.add(message.id);
+      if (!found.some((message) => message.id === messageId)) return toast("That message isn't available any more.");
+      // On the page before it is scrolled to.
+      flushSync(() => {
+        setMessages((current) => [...found.filter((message) => !current.some((item) => item.id === message.id)), ...current]);
+        setNext(cursor);
+      });
+    }
     document.getElementById(`message-${messageId}`)?.scrollIntoView({ behavior: scrollMotion(), block: "center" });
+    setHighlighted(messageId);
+    setTimeout(() => setHighlighted((current) => (current === messageId ? null : current)), 1600);
   }
 
   const composer = (
@@ -393,6 +425,7 @@ export function ThreadView({ conversation, viewerId, initial, next: initialNext 
                   placement={placement}
                   viewerId={viewerId}
                   active={activeId === message.id}
+                  highlighted={highlighted === message.id}
                   seen={message === myLast ? seen : null}
                   replyAuthor={message.replyTo ? authorName(message.replyTo.senderId) : ""}
                   onJump={jump}

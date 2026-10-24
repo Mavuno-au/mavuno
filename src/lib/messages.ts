@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { LIMITS } from "@/lib/catalogue";
 import { colourSchema, linkPreviewSchema, profileCardSchema, type LinkPreview } from "@/lib/domain";
+import { withoutNul } from "@/lib/schemas";
 
 // Conversations and messages: their rows, how a row becomes a message, and the
 // forms. Shared by the website's loaders (src/lib/data/messages.ts) and the app.
@@ -174,16 +175,16 @@ export function toMessages(rows: MessageRow[], urls: Map<string, string>, quotes
 
 export const reactionRowSchema = z.object({ message_id: id, emoji: z.string(), user_id: id });
 
-export const groupTitleSchema = z.string().trim().max(60, "Group names can be up to 60 characters.");
+export const groupTitleSchema = z.string().trim().max(60, "Group names can be up to 60 characters.").transform(withoutNul);
 export const memberIdsSchema = z.array(id).min(1).max(99);
 export const newGroupSchema = z.object({ title: groupTitleSchema, memberIds: memberIdsSchema });
 
 export const newMessageSchema = z
   .object({
     conversationId: id,
-    body: z.string().trim().max(LIMITS.messageBody, `Messages can be up to ${LIMITS.messageBody} characters.`),
+    body: z.string().trim().max(LIMITS.messageBody, `Messages can be up to ${LIMITS.messageBody} characters.`).transform(withoutNul),
     imagePaths: z.array(z.string().max(200)).max(LIMITS.messageImages, `You can send up to ${LIMITS.messageImages} images.`),
-    imageAlts: z.array(z.string().trim().max(LIMITS.imageAlt, `Image descriptions can be up to ${LIMITS.imageAlt} characters.`)),
+    imageAlts: z.array(z.string().trim().max(LIMITS.imageAlt, `Image descriptions can be up to ${LIMITS.imageAlt} characters.`).transform(withoutNul)),
     replyToId: id.nullable(),
   })
   .refine((message) => message.body.length > 0 || message.imagePaths.length > 0, "Write a message or add an image.")

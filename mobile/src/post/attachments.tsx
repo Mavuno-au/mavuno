@@ -336,13 +336,17 @@ export function PollView({ post, poll }: { post: Post; poll: Poll }) {
   async function vote(optionId: string) {
     setVoting(optionId);
     const result = await votePoll(post.id, optionId);
-    if (!result.ok) {
+    // A vote the database already has (from the website, or a second tap)
+    // reads the same as one that just counted.
+    const counted = result.ok || /already voted/i.test(result.error);
+    if (!counted) {
       setVoting(null);
       return toast(`Couldn't vote. ${result.error}`, { tone: "error" });
     }
     const fresh = await loadPost(post.id).catch(() => null);
     setVoting(null);
     if (fresh?.kind === "post" && fresh.poll) return setPoll(post.id, fresh.poll);
+    if (!result.ok) return toast("You already voted. Pull down to see the results.", { tone: "error" });
     // The vote counted even if the poll couldn't be read again, so it closes
     // to further taps, which the database would refuse.
     setPoll(post.id, {

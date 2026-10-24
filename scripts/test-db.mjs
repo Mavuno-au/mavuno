@@ -1461,6 +1461,8 @@ console.log("\nTrending over days");
   const older = await post("Who's going to the Ethiopian new year picnic?");
   await superuser();
   await q("update public.posts set created_at = now() - interval '2 days', published_at = now() - interval '2 days' where id = $1", [older]);
+  // Engagement from accounts under a week old counts a quarter; these are regulars.
+  await q("update public.profiles set created_at = now() - interval '10 days' where id = any($1::uuid[])", [`{${people.join(",")}}`]);
   for (const person of people.slice(0, 3)) {
     await as(person);
     await q("insert into public.likes (user_id, post_id) values ($1, $2)", [person, older]);
@@ -3483,6 +3485,116 @@ console.log("\nFull review: links, moderation, erased accounts, muted quotes, te
   await q("delete from auth.users where id = $1", [nia]);
   row = await one("select details, contact, reason from public.reports where target_id = $1", [quotedPost]);
   check("deleting the account erases what the reporter wrote", row.details === null && row.contact === null && row.reason === "harassment", row);
+}
+
+console.log("\nTrending fairness");
+{
+  const user = (name) => createUser(`${name}@example.com`, { username: name });
+  const prolific = await user("fair_prolific");
+  const other = await user("fair_other");
+  const reader = await user("fair_reader");
+  const hot = async (id) => (await one("select hot_score from public.posts where id = $1", [id])).hot_score;
+  const draw = async (seed, limit = 50, after = null) =>
+    q("select trending_score::text as score, post->>'id' as id from public.feed_trending($1, $2, $3, $4)", [seed, after?.score ?? null, after?.id ?? null, limit]);
+  const drawAll = async (seed, limit) => {
+    const all = [];
+    let page = await draw(seed, limit);
+    while (page.length > 0) {
+      all.push(...page);
+      page = await draw(seed, limit, page.at(-1));
+    }
+    return all;
+  };
+
+  // One author with three posts in the draw, another with one.
+  await as(prolific);
+  const trio = [await post("Fair one"), await post("Fair two"), await post("Fair three")];
+  await as(other);
+  const single = await post("Fair, from someone else");
+
+  await as(reader);
+  const seed = 11;
+  const raw = await q("select p.id, public.trending_score(p.hot_score, p.id, $2)::text as score from public.posts p where p.id = any($1::uuid[])", [`{${[...trio, single].join(",")}}`, seed]);
+  const rawOf = (id) => raw.find((r) => r.id === id).score;
+  const byRaw = [...trio].sort((a, b) => Number(rawOf(b)) - Number(rawOf(a)) || (b > a ? 1 : -1));
+  const drawn = await drawAll(seed, 50);
+  const drawnOf = (id) => drawn.find((r) => r.id === id)?.score;
+  const lowered = (id, by) => Math.abs(Number(drawnOf(id)) - (Number(rawOf(id)) - by)) < 1e-6;
+  check("an author's best post in a draw keeps its score", lowered(byRaw[0], 0) && lowered(single, 0), { raw: rawOf(byRaw[0]), drawn: drawnOf(byRaw[0]) });
+  check("their second post loses half a doubling and their third a whole one", lowered(byRaw[1], 0.5) && lowered(byRaw[2], 1), trio.map((id) => [rawOf(id), drawnOf(id)]));
+  check("a draw is still in order of the returned scores", drawn.every((r, i) => i === 0 || Number(drawn[i - 1].score) >= Number(r.score)));
+  const pageSize = Math.min(50, Math.ceil(drawn.length / 2));
+  const firstPage = await draw(seed, pageSize);
+  const secondPage = await draw(seed, pageSize, firstPage.at(-1));
+  const twoPages = [...firstPage, ...secondPage];
+  check("two pages of a draw continue it without overlapping", JSON.stringify(twoPages) === JSON.stringify(drawn.slice(0, twoPages.length)) && new Set(twoPages.map((r) => r.id)).size === twoPages.length, { pages: twoPages.length, all: drawn.length });
+  const smallPages = await drawAll(seed, 7);
+  check("small pages of a draw miss nothing and repeat nothing", JSON.stringify(smallPages) === JSON.stringify(drawn) && new Set(smallPages.map((r) => r.id)).size === drawn.length, { small: smallPages.length, all: drawn.length });
+
+  // A like from a week-old account counts a quarter.
+  const newbie = await user("fair_newbie");
+  const veteran = await user("fair_veteran");
+  await superuser();
+  await q("update public.profiles set created_at = now() - interval '10 days' where id = $1", [veteran]);
+  await as(other);
+  const likedByNewbie = await post("Fair, liked by a newcomer");
+  const likedByVeteran = await post("Fair, liked by a regular");
+  const quietBefore = await hot(likedByNewbie);
+  const regularBefore = await hot(likedByVeteran);
+  await as(newbie);
+  await q("insert into public.likes (user_id, post_id) values ($1, $2)", [newbie, likedByNewbie]);
+  await as(veteran);
+  await q("insert into public.likes (user_id, post_id) values ($1, $2)", [veteran, likedByVeteran]);
+  const close = (a, b) => Math.abs(a - b) < 1e-9;
+  check("a like from an account under a week old adds log2(1.25)", close((await hot(likedByNewbie)) - quietBefore, Math.log2(1.25)), (await hot(likedByNewbie)) - quietBefore);
+  check("a like from an older account adds log2(2)", close((await hot(likedByVeteran)) - regularBefore, 1), (await hot(likedByVeteran)) - regularBefore);
+
+  // Reports: one with standing keeps a post out of Trending; the reporter's own feeds lose it either way.
+  const target = await user("fair_target");
+  const reporter = await user("fair_reporter");
+  await superuser();
+  await q("update public.profiles set created_at = now() - interval '10 days' where id = $1", [reporter]);
+  await as(reporter);
+  await post("Reporter has been around and has posted");
+  await q("insert into public.follows (follower_id, followee_id) values ($1, $2)", [reporter, target]);
+  await as(reader);
+  await q("insert into public.follows (follower_id, followee_id) values ($1, $2)", [reader, target]);
+  await as(target);
+  const weighed = await post("Reported by someone with standing");
+  const flagged = await post("Reported by someone without standing");
+  await as(reporter);
+  await q("select public.report_content('post', $1, 'spam')", [weighed]);
+  await as(reader);
+  await q("select public.report_content('post', $1, 'spam')", [flagged]);
+  await superuser();
+  check("the first report carries standing and the second does not",
+    (await one("select bool_and(reporter_standing) as s from public.reports where target_id = $1", [weighed])).s === true
+      && (await one("select bool_or(reporter_standing) as s from public.reports where target_id = $1", [flagged])).s === false);
+  const ids = (rows) => rows.map((r) => r.id);
+  const latest = async () => ids(await q("select id from public.feed_latest(null, null, 50)"));
+  const following = async () => ids(await q("select id from public.feed_following(null, null, 50)"));
+  await as(prolific);
+  let trending = ids(await drawAll(seed, 50));
+  check("a post with an open report from a member with standing leaves Trending", !trending.includes(weighed) && trending.includes(flagged), { weighed: trending.includes(weighed), flagged: trending.includes(flagged) });
+  check("but stays in Latest for everyone else", (await latest()).includes(weighed) && (await latest()).includes(flagged));
+  await as(reader);
+  trending = ids(await drawAll(seed, 50));
+  check("the viewer's own report hides a post from their Trending", !trending.includes(flagged) && !trending.includes(weighed));
+  check("from their Latest", !(await latest()).includes(flagged) && (await latest()).includes(weighed));
+  check("and from their Following", !(await following()).includes(flagged) && (await following()).includes(weighed));
+  await as(reporter);
+  check("the reporter with standing loses the post from Latest and Following too", !(await latest()).includes(weighed) && !(await following()).includes(weighed) && (await following()).includes(flagged));
+  await anon();
+  check("guests see posts under a weightless report in Latest", (await latest()).includes(flagged));
+
+  // Trending's week counts from publication, as a post held for review and approved later shows.
+  // Not from target: one report with standing put their new posts in front of a moderator.
+  await as(other);
+  const heldThenApproved = await post("Written long ago, published this week");
+  await superuser();
+  await q("update public.posts set created_at = now() - interval '20 days', published_at = now() - interval '2 days' where id = $1", [heldThenApproved]);
+  await as(prolific);
+  check("a post written over a week ago but published this week is in Trending", ids(await drawAll(seed, 50)).includes(heldThenApproved));
 }
 
 console.log("\nDemo seed");

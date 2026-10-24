@@ -23,8 +23,13 @@ const LOADING: FeedState = { kind: "loading" };
 // Pages of posts after a cursor. `key` names what is being read: what was
 // loaded for another key reads as loading, and late answers for it are dropped.
 // `takesPosts` says which of the member's new top-level posts the list shows,
-// so it rereads itself after they post one of those.
-export function useFeed(load: (cursor: string | null) => Promise<Page>, key: string, { enabled = true, takesPosts }: { enabled?: boolean; takesPosts?: (post: CreatedPost) => boolean } = {}) {
+// so it rereads itself after they post one of those. `ownerId` is the
+// profile a list belongs to, whose posts stay when they are muted.
+export function useFeed(
+  load: (cursor: string | null) => Promise<Page>,
+  key: string,
+  { enabled = true, takesPosts, ownerId }: { enabled?: boolean; takesPosts?: (post: CreatedPost) => boolean; ownerId?: string } = {},
+) {
   const [stored, setStored] = useState<{ key: string; state: FeedState }>({ key: "", state: LOADING });
   const state = stored.key === key ? stored.state : LOADING;
   const latest = useRef({ load, key, state });
@@ -103,14 +108,21 @@ export function useFeed(load: (cursor: string | null) => Promise<Page>, key: str
     fetchFirst(forKey);
   }, [fetchFirst]);
 
-  // After a mute or block the posts already shown are reread, quietly.
+  // After a mute or block that person's posts leave the list and the pages
+  // stay, so a reader keeps their place, as on the website. An unmute comes
+  // from their profile or Settings, where a quiet reread loses nothing. A
+  // muted person's own profile still lists their posts (`ownerId`).
   useEffect(() => {
     if (!enabled) return;
-    return onRelationChanged(() => {
-      if (latest.current.state.kind === "ready") refresh();
-      else retry();
+    return onRelationChanged(({ profileId, relation, on }) => {
+      const { state: shown, key: forKey } = latest.current;
+      if (shown.kind !== "ready") return retry();
+      if (profileId === ownerId) return;
+      if (!on) return refresh();
+      const theirs = (post: PostRow) => post.kind === "post" && (post.authorId === profileId || (relation === "block" && post.createdBy === profileId));
+      update(forKey, (previous) => (previous.kind === "ready" ? { ...previous, posts: previous.posts.filter((post) => !theirs(post)) } : previous));
     });
-  }, [enabled, refresh, retry]);
+  }, [enabled, ownerId, refresh, retry, update]);
 
   useEffect(() => {
     if (!enabled || !takesPosts) return;

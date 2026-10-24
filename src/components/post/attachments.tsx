@@ -249,7 +249,7 @@ export function QuotedBlock({ quoted }: { quoted: QuotedPost }) {
           {quoted.body}
         </p>
       ) : null}
-      {quoted.image ? <img src={quoted.image.url} alt={quoted.image.alt} loading="lazy" className="mt-2 max-h-48 rounded-md object-cover" /> : null}
+      {quoted.image ? <img src={quoted.image.url} alt={quoted.image.alt} loading="lazy" className="mt-2 h-48 w-full rounded-md object-cover" /> : null}
     </Link>
   );
 }

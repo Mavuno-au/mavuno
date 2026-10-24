@@ -29,13 +29,7 @@ export function PollView({ postId, poll: initial, own }: { postId: string; poll:
         toast.error(result.error);
         return;
       }
-      setPoll((current) => ({
-        ...current,
-        myVote: optionId,
-        showResults: true,
-        votes: current.votes + 1,
-        options: current.options.map((o) => ({ ...o, votes: (o.votes ?? 0) + (o.id === optionId ? 1 : 0) })),
-      }));
+      setPoll(result.data);
     });
   }
 
