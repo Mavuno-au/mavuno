@@ -4,7 +4,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { runTasksFor, sweepDueTasks } from "@/lib/background-tasks";
 import { loadContinuation, loadFeed, loadLikers, loadReplies, countNewPosts, type FeedPage, type Likers } from "@/lib/data/posts";
-import { linkPreviewSchema, postRowSchema, type LinkPreview, type PostRow } from "@/lib/domain";
+import { linkPreviewSchema, pollSchema, postRowSchema, type LinkPreview, type Poll, type PostRow } from "@/lib/domain";
 import { feedSourceSchema } from "@/lib/feeds";
 import { publicEnv } from "@/lib/env";
 import { cardLink, mediaBucketUrl, pollArgument, postSchemas, type NewPost, type NewScheduledPost } from "@/lib/post-form";
@@ -106,8 +106,16 @@ export async function unpinPost(profileId: string) {
   return rpc("unpin_post", { p_profile_id: id.parse(profileId) });
 }
 
-export async function votePoll(postId: string, optionId: string) {
-  return rpc("vote_poll", { p_post_id: id.parse(postId), p_option_id: id.parse(optionId) });
+// Answers with the poll as it now stands: the counts were hidden until the
+// member voted, so adding one to them would show the wrong results. A vote
+// the database already has (a second tab, or the app) reads the same.
+export async function votePoll(postId: string, optionId: string): Promise<Result<Poll>> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("vote_poll", { p_post_id: id.parse(postId), p_option_id: id.parse(optionId) });
+  if (error && error.code !== "23505") return failFrom(error);
+  const { data } = await supabase.from("post_details").select("poll").eq("id", postId).maybeSingle();
+  const poll = pollSchema.safeParse(data?.poll).data;
+  return poll ? ok(poll) : fail("Your vote counted, but the results couldn't be read. Refresh the page to see them.");
 }
 
 async function toggle(table: "likes" | "saves", postId: string, on: boolean): Promise<Result> {

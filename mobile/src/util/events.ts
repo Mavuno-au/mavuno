@@ -1,3 +1,5 @@
+import type { Relation } from "@/lib/relations";
+
 // Screens that can't reach each other tell each other what happened through
 // these. Each event is one set of listeners; `on` returns the way to stop listening.
 export function createEvent<T = void>() {
@@ -19,9 +21,10 @@ export function createEvent<T = void>() {
 // screen back to the top and refreshes it. So does tapping the tab you're on.
 export const { emit: emitSoftReset, on: onSoftReset } = createEvent();
 
-// Muting or blocking someone changes what every list should show, so each
-// list rereads itself when it hears this.
-export const { emit: emitRelationChanged, on: onRelationChanged } = createEvent();
+// Muting or blocking someone changes what every list should show: a list
+// takes their posts out, and screens about them read again.
+export type RelationChange = { profileId: string; relation: Relation; on: boolean };
+export const { emit: emitRelationChanged, on: onRelationChanged } = createEvent<RelationChange>();
 
 // Something a profile's header or pinned post shows has changed, such as a
 // pin. Carries the profile's id.

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { AU_TIMEZONES, EVENT_CATEGORIES, EVENT_FORMATS, type EventCategory } from "@/lib/catalogue";
-import { httpsUrl } from "@/lib/schemas";
+import { httpsUrl, withoutNul } from "@/lib/schemas";
 import { CITY_PHOTO_COLUMNS, cityPhotoSchema, contentStatusSchema, opportunityTypeSchema, profileCardSchema, type ContentStatus, type OpportunityType } from "@/lib/domain";
 
 // Spaces, events and opportunities: their columns, rows and rules, shared by
@@ -276,8 +276,8 @@ export const localTimeSchema = z
 export const eventFormSchema = (media: string) =>
   z
     .object({
-      title: z.string().trim().min(3, "Give your event a title of at least 3 characters.").max(120, "Keep the title to 120 characters."),
-      description: z.string().trim().max(4000, "Keep the description to 4,000 characters."),
+      title: z.string().trim().min(3, "Give your event a title of at least 3 characters.").max(120, "Keep the title to 120 characters.").transform(withoutNul),
+      description: z.string().trim().max(4000, "Keep the description to 4,000 characters.").transform(withoutNul),
       category: eventCategorySchema,
       format: eventFormatSchema,
       timezone: timezoneSchema,
@@ -318,9 +318,9 @@ export const eventFormSchema = (media: string) =>
 export const opportunityFormSchema = z
   .object({
     type: opportunityTypeSchema,
-    title: z.string().trim().min(3, "Give it a title of at least 3 characters.").max(120, "Keep the title to 120 characters."),
+    title: z.string().trim().min(3, "Give it a title of at least 3 characters.").max(120, "Keep the title to 120 characters.").transform(withoutNul),
     organisation: formField.text(120, "Keep the organisation name to 120 characters."),
-    description: z.string().trim().min(10, "Describe the opportunity in at least 10 characters.").max(6000, "Keep the description to 6,000 characters."),
+    description: z.string().trim().min(10, "Describe the opportunity in at least 10 characters.").max(6000, "Keep the description to 6,000 characters.").transform(withoutNul),
     cityId: formField.number(1, 32767, "Choose a city from the list."),
     remote: formField.checkbox,
     location: formField.text(120, "Keep the location to 120 characters."),
@@ -346,14 +346,14 @@ export const opportunityFormSchema = z
 
 export const newSpaceSchema = z
   .object({
-    name: z.string().trim().min(2, "Give the space a name of at least 2 characters.").max(60, "Keep the name to 60 characters."),
+    name: z.string().trim().min(2, "Give the space a name of at least 2 characters.").max(60, "Keep the name to 60 characters.").transform(withoutNul),
     slug: z
       .string()
       .trim()
       .toLowerCase()
       .regex(/^[a-z0-9-]{2,40}$/, "Use 2 to 40 lowercase letters, numbers or dashes for the address.")
       .refine((slug) => !RESERVED_SPACE_SLUGS.some((reserved) => reserved === slug), "That address is taken."),
-    description: z.string().trim().max(500, "Keep the description to 500 characters."),
+    description: z.string().trim().max(500, "Keep the description to 500 characters.").transform(withoutNul),
     kind: spaceKindSchema,
     cityId: formField.number(1, 32767, "Choose a city from the list."),
     emoji: z.string().trim().max(16, "Use one emoji."),

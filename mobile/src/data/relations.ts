@@ -16,7 +16,7 @@ export async function setRelation(relation: Relation, viewerId: string, profileI
     ? await supabase.from(table).upsert(row, { onConflict: `${self},${other}`, ignoreDuplicates: true })
     : await supabase.from(table).delete().match(row);
   if (error) return failFrom(error);
-  if (relation !== "follow") emitRelationChanged();
+  if (relation !== "follow") emitRelationChanged({ profileId, relation, on });
   return done;
 }
 

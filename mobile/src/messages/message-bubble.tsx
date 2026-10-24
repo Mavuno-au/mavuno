@@ -25,6 +25,8 @@ export function MessageBubble({
   authorName,
   delivery = { kind: "sent" },
   actions = [],
+  highlighted = false,
+  onJump,
   onLongPress,
   onRetry,
   onReact,
@@ -38,6 +40,9 @@ export function MessageBubble({
   authorName: (senderId: string | null) => string;
   delivery?: Delivery;
   actions?: { label: string; onPress: () => void }[];
+  // Just jumped to from a quote of it.
+  highlighted?: boolean;
+  onJump?: (messageId: string) => void;
   onLongPress: () => void;
   onRetry: () => void;
   onReact: (emoji: string, on: boolean) => void;
@@ -50,7 +55,7 @@ export function MessageBubble({
   const textTone = mine ? "primaryInk" : "ink";
 
   return (
-    <View style={{ paddingHorizontal: 12, paddingTop: first ? 10 : 2, alignItems: mine ? "flex-end" : "flex-start" }}>
+    <View style={{ paddingHorizontal: 12, paddingTop: first ? 10 : 2, alignItems: mine ? "flex-end" : "flex-start", backgroundColor: highlighted ? palette.primarySoft : undefined }}>
       {group && !mine && first ? (
         <Text variant="caption" tone="muted" style={{ marginLeft: showAvatar ? 40 : 4, marginBottom: 2 }}>
           {message.sender?.displayName ?? "Former member"}
@@ -69,7 +74,7 @@ export function MessageBubble({
           style={{ flexShrink: 1, opacity: delivery.kind === "sent" ? 1 : 0.6 }}
         >
           <View style={{ borderRadius: 18, borderBottomRightRadius: mine && last ? 6 : 18, borderBottomLeftRadius: !mine && last ? 6 : 18, backgroundColor: bubbleColour, overflow: "hidden" }}>
-            {message.replyTo ? <Quote quote={message.replyTo} mine={mine} authorName={authorName} /> : null}
+            {message.replyTo ? <Quote quote={message.replyTo} mine={mine} authorName={authorName} onPress={onJump} /> : null}
             {content.kind === "removed" ? (
               <Text variant="callout" tone="muted" style={{ paddingHorizontal: 14, paddingVertical: 9, fontStyle: "italic" }}>
                 Message removed by a moderator
@@ -145,11 +150,17 @@ export function MessageBubble({
   );
 }
 
-function Quote({ quote, mine, authorName }: { quote: ReplyQuote; mine: boolean; authorName: (senderId: string | null) => string }) {
+function Quote({ quote, mine, authorName, onPress }: { quote: ReplyQuote; mine: boolean; authorName: (senderId: string | null) => string; onPress?: (messageId: string) => void }) {
   const palette = usePalette();
   const text = quote.content.kind === "removed" ? "Message removed" : quote.content.body || (quote.content.images > 0 ? "Photo" : "");
   return (
-    <View style={{ flexDirection: "row", gap: 6, marginHorizontal: 8, marginTop: 8, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, backgroundColor: mine ? "rgba(255, 255, 255, 0.16)" : palette.surface }}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Replying to ${authorName(quote.senderId)}: ${text}`}
+      accessibilityHint="Shows that message"
+      onPress={onPress ? () => onPress(quote.id) : undefined}
+      style={{ flexDirection: "row", gap: 6, marginHorizontal: 8, marginTop: 8, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, backgroundColor: mine ? "rgba(255, 255, 255, 0.16)" : palette.surface }}
+    >
       <Reply size={14} color={mine ? palette.primaryInk : palette.inkMuted} />
       <View style={{ flexShrink: 1 }}>
         <Text variant="caption" tone={mine ? "primaryInk" : "muted"} style={{ fontFamily: font.semibold }}>
@@ -159,7 +170,7 @@ function Quote({ quote, mine, authorName }: { quote: ReplyQuote; mine: boolean; 
           {text}
         </Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 

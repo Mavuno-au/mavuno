@@ -27,6 +27,7 @@ import {
   setReaction,
   removeMember,
 } from "@/data/messages";
+import { dismissPushesAbout } from "@/data/push";
 import { useViewer } from "@/data/session";
 import { supabase } from "@/data/supabase";
 import { pickImages, uploadImage, type PickedImage } from "@/data/upload";
@@ -119,6 +120,10 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
   // Try again rereads the first page; the conversation itself already loaded.
   const [attempt, setAttempt] = useState(0);
   const [older, setOlder] = useState<{ next: string | null; loading: boolean; failed: boolean }>({ next: null, loading: false, failed: false });
+  const list = useRef<FlatList<Item>>(null);
+  // A quoted message to scroll to once its page is in the list.
+  const jumpTo = useRef<string | null>(null);
+  const [highlighted, setHighlighted] = useState<string | null>(null);
   const [members, setMembers] = useState<Member[]>(conversation.members);
   const [typing, setTyping] = useState<Record<string, number>>({});
   const [pending, setPending] = useState<Pending[]>([]);
@@ -188,6 +193,7 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
 
     const readNow = async () => {
       if (!gate.current.canRead || AppState.currentState !== "active") return;
+      void dismissPushesAbout(`/conversation/${id}`);
       const { moved, announce } = await markRead(viewerId, id).catch(() => ({ moved: false, announce: false }));
       if (moved) refreshCounts();
       if (announce && live.state === "joined") void live.send({ type: "broadcast", event: "read", payload: {} });
@@ -344,6 +350,44 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
     setActiveImage(null);
     setReplyTo(null);
     void deliver(item);
+    // Someone reading history still sees what they sent.
+    requestAnimationFrame(() => list.current?.scrollToOffset({ offset: 0, animated: true }));
+  }
+
+  // The quoted message may be older than the pages read so far: they are read
+  // until it turns up, then it is brought to the middle and lit for a moment.
+  async function jump(messageId: string) {
+    if (messages.some((message) => message.id === messageId)) return show(messageId);
+    let cursor = older.next;
+    if (!cursor || older.loading) return;
+    setOlder((current) => ({ ...current, loading: true, failed: false }));
+    const found: Message[] = [];
+    try {
+      while (cursor && !found.some((message) => message.id === messageId)) {
+        const page = await loadMessages(id, cursor);
+        found.unshift(...page.messages);
+        cursor = page.next;
+      }
+    } catch {
+      return setOlder((current) => ({ ...current, loading: false, failed: true }));
+    }
+    for (const message of found) known.current.add(message.id);
+    if (!found.some((message) => message.id === messageId)) {
+      setOlder({ next: cursor, loading: false, failed: false });
+      return toast("That message isn't available any more.");
+    }
+    // Shown once the list has laid the new pages out (onContentSizeChange).
+    jumpTo.current = messageId;
+    setMessages((current) => [...found.filter((message) => !current.some((item) => item.id === message.id)), ...current]);
+    setOlder({ next: cursor, loading: false, failed: false });
+  }
+
+  function show(messageId: string) {
+    const index = reversed.findIndex((item) => item.kind === "message" && item.id === messageId);
+    if (index < 0) return;
+    list.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true });
+    setHighlighted(messageId);
+    setTimeout(() => setHighlighted((current) => (current === messageId ? null : current)), 1600);
   }
 
   function react(message: Message, emoji: string, on: boolean) {
@@ -467,9 +511,24 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
         />
       ) : (
         <FlatList
+          ref={list}
           inverted
           data={reversed}
           keyExtractor={(item) => item.id}
+          // A message arriving while someone reads history leaves what they
+          // are reading where it is; at the bottom, the list follows it.
+          maintainVisibleContentPosition={{ minIndexForVisible: 0, autoscrollToTopThreshold: 120 }}
+          onContentSizeChange={() => {
+            const messageId = jumpTo.current;
+            if (!messageId || !reversed.some((item) => item.kind === "message" && item.id === messageId)) return;
+            jumpTo.current = null;
+            show(messageId);
+          }}
+          // A quoted message far up may not be laid out yet: get near it, then try again.
+          onScrollToIndexFailed={({ index, averageItemLength }) => {
+            list.current?.scrollToOffset({ offset: index * averageItemLength, animated: false });
+            setTimeout(() => list.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true }), 100);
+          }}
           // A failed page waits for Try again, or the spinner going away would fire this again at once.
           onEndReached={older.failed ? undefined : loadOlder}
           onEndReachedThreshold={1}
@@ -537,6 +596,8 @@ function Thread({ conversation, viewerId, onChanged }: { conversation: Conversat
                     authorName={authorName}
                     delivery={item.delivery}
                     actions={actions}
+                    highlighted={highlighted === item.id}
+                    onJump={jump}
                     onLongPress={() => (waiting ? undefined : setHolding(item.message))}
                     onRetry={() => waiting && void deliver(waiting)}
                     onReact={(emoji, on) => react(item.message, emoji, on)}

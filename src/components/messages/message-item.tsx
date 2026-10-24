@@ -42,6 +42,7 @@ export function MessageItem({
   placement,
   viewerId,
   active,
+  highlighted,
   seen,
   replyAuthor,
   actions,
@@ -52,6 +53,8 @@ export function MessageItem({
   placement: Placement;
   viewerId: string;
   active: boolean;
+  // Just jumped to from a quote of it.
+  highlighted: boolean;
   seen: string | null;
   replyAuthor: string;
   actions: MessageActions | null;
@@ -60,7 +63,10 @@ export function MessageItem({
   const { content, sender, replyTo } = message;
 
   return (
-    <div id={`message-${message.id}`} className={cn("group/message flex scroll-mt-16 gap-2 px-4 sm:px-6", mine ? "justify-end" : "justify-start", placement.first ? "mt-3" : "mt-0.5")}>
+    <div
+      id={`message-${message.id}`}
+      className={cn("group/message flex scroll-mt-16 gap-2 px-4 py-0.5 transition-colors duration-700 sm:px-6", mine ? "justify-end" : "justify-start", placement.first ? "mt-3" : "mt-0.5", highlighted && "bg-primary-soft duration-150")}
+    >
       {placement.avatarColumn && !mine ? (
         <div className="w-7 shrink-0 self-end" aria-hidden>
           {placement.showAvatar && sender ? <Avatar person={sender} size="sm" /> : null}

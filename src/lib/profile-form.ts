@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { INTERESTS, LANGUAGES, LIMITS, OPEN_TO, type LanguageCode } from "@/lib/catalogue";
 import { accountTypeSchema, colourSchema } from "@/lib/domain";
-import { httpsUrl, passwordSchema, usernameSchema } from "@/lib/schemas";
+import { httpsUrl, passwordSchema, usernameSchema, withoutNul } from "@/lib/schemas";
 
 // The profile and settings forms, as the website's server actions and the app
 // check them before writing to `profiles` and `profile_settings`.
@@ -21,9 +21,9 @@ export const languagesSchema = z.array(languageSchema).min(1, "Choose at least o
 // undefined are dropped when the update is serialised.
 export const profileSchema = z
   .object({
-    displayName: z.string().trim().min(1, "Add your name.").max(60, "Names can be up to 60 characters."),
+    displayName: z.string().trim().min(1, "Add your name.").max(60, "Names can be up to 60 characters.").transform(withoutNul),
     username: usernameSchema,
-    bio: z.string().trim().max(LIMITS.bio, `Your bio can be up to ${LIMITS.bio} characters.`),
+    bio: z.string().trim().max(LIMITS.bio, `Your bio can be up to ${LIMITS.bio} characters.`).transform(withoutNul),
     cityId: z.number().int().positive().nullable(),
     heritage: optionalText(60, "Heritage"),
     pronouns: optionalText(30, "Pronouns"),

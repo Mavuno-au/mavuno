@@ -198,6 +198,15 @@ export function savePushOff(viewerId: string, off: readonly string[]): Promise<R
   return updateSettings(viewerId, { push_off: off });
 }
 
+// Takes the pushes about one thing, such as a conversation, off the lock
+// screen once it has been read. Pushes about anything else stay, since
+// they are still unread.
+export async function dismissPushesAbout(path: unknown) {
+  if (typeof path !== "string") return;
+  const shown = await Notifications.getPresentedNotificationsAsync().catch(() => []);
+  await Promise.all(shown.filter((shown) => shown.request.content.data?.path === path).map((shown) => Notifications.dismissNotificationAsync(shown.request.identifier).catch(() => undefined)));
+}
+
 export function setBadge(count: number) {
   void Notifications.setBadgeCountAsync(Math.max(0, count)).catch(() => false);
 }
@@ -306,8 +315,7 @@ export function PushNotifications({ viewerId }: { viewerId: string | null }) {
     if (handled.current === tap) return;
     handled.current = tap;
     Notifications.clearLastNotificationResponse();
-    // What a tap was about is read now, so the rest on the lock screen are stale.
-    void Notifications.dismissAllNotificationsAsync();
+    void dismissPushesAbout(content.data?.path);
     // A phone that changed hands keeps notifications sent to the last member;
     // theirs would open on a screen this member can't see.
     if (content.data?.recipient !== viewerId) return;

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { LIMITS, POLL_DURATIONS } from "@/lib/catalogue";
+import { withoutNul } from "@/lib/schemas";
 import { allUrls } from "@/lib/text";
 
 // What a new post may hold, as the website's server actions and the app check
@@ -17,7 +18,7 @@ const pollDuration = z.union(POLL_DURATIONS.map((duration) => z.literal(duration
 
 export function postSchemas(media: string) {
   const newPost = z.object({
-    body: z.string().max(LIMITS.postBody),
+    body: z.string().max(LIMITS.postBody).transform(withoutNul),
     language: z.string().regex(/^[a-z]{2,3}$/),
     authorId: id.nullable(),
     parentId: id.nullable(),
@@ -29,13 +30,13 @@ export function postSchemas(media: string) {
     images: z
       .array(
         z
-          .object({ path: z.string().max(300), url: z.url(), width: z.number().int().positive(), height: z.number().int().positive(), alt: z.string().max(LIMITS.imageAlt) })
+          .object({ path: z.string().max(300), url: z.url(), width: z.number().int().positive(), height: z.number().int().positive(), alt: z.string().max(LIMITS.imageAlt).transform(withoutNul) })
           // The database checks the path; only here is the project's own storage host known.
           .refine((image) => image.url === `${media}${image.path}`),
       )
       .max(LIMITS.images),
     poll: z
-      .object({ options: z.array(z.string().trim().min(1).max(LIMITS.pollOption)).min(POLL_OPTIONS.min).max(POLL_OPTIONS.max), durationHours: pollDuration })
+      .object({ options: z.array(z.string().trim().min(1).max(LIMITS.pollOption).transform(withoutNul)).min(POLL_OPTIONS.min).max(POLL_OPTIONS.max), durationHours: pollDuration })
       .nullable(),
   });
   // Scheduled posts are top-level posts, published later by the database.
