@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "au.mavuno.app",
-      "buildNumber": "9",
+      "buildNumber": "10",
       "deploymentTarget": "17.0",
       "appleTeamId": "CUV78PLLP3",
       "supportsTablet": false,
@@ -162,7 +162,7 @@
       [
         "expo-calendar",
         {
-          "calendarPermission": false,
+          "calendarPermission": "Mavuno adds the events you choose to your calendar. It doesn't read what's already there.",
           "writeOnlyCalendarPermission": "Mavuno adds the events you choose to your calendar. It doesn't read what's already there.",
           "writeOnlyAccess": true,
           "remindersPermission": false
