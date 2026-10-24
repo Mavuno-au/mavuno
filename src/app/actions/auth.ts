@@ -9,6 +9,7 @@ import { done, fail, type Result } from "@/lib/result";
 import { onboardingPath, safeNext } from "@/lib/safe-redirect";
 import { emailSchema, firstIssue, passwordSchema, revealsEmail, signInError, signInSchema, usernameSchema } from "@/lib/schemas";
 import { createClient } from "@/lib/supabase/server";
+import { arrivalPath } from "@/lib/viewer";
 
 // Google sign-in returns here with a one-time code, and the inviter's
 // username when it started from someone's invite link.
@@ -74,7 +75,7 @@ export async function signIn(_: Result | null, form: FormData): Promise<Result> 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email: parsed.data.email, password: parsed.data.password });
   if (error) return fail(signInError(error.code));
-  redirect(safeNext(parsed.data.next));
+  redirect(await arrivalPath(supabase, safeNext(parsed.data.next)));
 }
 
 export async function sendMagicLink(_: Result | null, form: FormData): Promise<Result> {
@@ -117,7 +118,7 @@ export async function updatePassword(_: Result | null, form: FormData): Promise<
   const supabase = await createClient();
   const { error } = await supabase.auth.updateUser({ password: parsed.data });
   if (error) return fail(error.code === "same_password" ? "Choose a password you haven't used here." : "Your reset link has expired. Request a new one.");
-  redirect("/");
+  redirect(await arrivalPath(supabase, "/"));
 }
 
 export async function signOut() {

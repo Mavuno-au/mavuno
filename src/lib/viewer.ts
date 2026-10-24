@@ -5,6 +5,7 @@ import { toViewer, VIEWER_SELECT, type Viewer } from "@/lib/viewer-row";
 import { credentials } from "@/lib/bearer";
 import { createClient, createGuestClient, createTokenClient, type Supabase } from "@/lib/supabase/server";
 import { signInPath } from "@/lib/safe-redirect";
+import { setupPath } from "@/lib/setup-path";
 
 export { IDENTITY, type AgeStatus, type Identity, type Viewer } from "@/lib/viewer-row";
 
@@ -39,6 +40,14 @@ export async function getRequestViewer(request: Request): Promise<{ supabase: Su
       return exhaustive;
     }
   }
+}
+
+// Where someone who has just signed in goes: straight to the age check or
+// setup when either is still owed, so no page draws only for the gate to
+// leave it. `supabase` is the client that holds the new session.
+export async function arrivalPath(supabase: Supabase, next: string) {
+  const viewer = await loadViewer(supabase);
+  return (viewer && setupPath(viewer, next)) ?? next;
 }
 
 export async function requireViewer(next = "/") {
